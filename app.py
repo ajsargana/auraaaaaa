@@ -29,7 +29,7 @@ if database_url:
         "pool_recycle": 300,
         "pool_pre_ping": True,
     }
-    db.init_app(app)
+    db.init_app(app)y
 
 # Initialize satellite tracker
 tracker = SatelliteTracker()
@@ -208,40 +208,6 @@ def refresh_tle_data():
         })
     except Exception as e:
         app.logger.error(f"Error refreshing TLE data: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/offline/status')
-def get_offline_status():
-    try:
-        status = tracker.get_offline_status()
-        return jsonify({
-            'success': True,
-            'offline_status': status
-        })
-    except Exception as e:
-        app.logger.error(f"Error getting offline status: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/offline/toggle', methods=['POST'])
-def toggle_offline_mode():
-    try:
-        data = request.get_json()
-        enable_offline = data.get('enable', True)
-        tracker.force_offline_mode(enable_offline)
-        
-        return jsonify({
-            'success': True,
-            'message': f"Offline mode {'enabled' if enable_offline else 'disabled'}",
-            'offline_mode': enable_offline
-        })
-    except Exception as e:
-        app.logger.error(f"Error toggling offline mode: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
