@@ -81,3 +81,6 @@ args = "cd SatelliteTracker3D && python main.py"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[nix]
+channel = "stable-24_05"
