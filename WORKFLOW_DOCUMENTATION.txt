@@ -1,0 +1,277 @@
+
+SATELLITE TRACKER APPLICATION - WORKFLOW DOCUMENTATION
+=====================================================
+
+This document explains the workflow of each file and its classes in the satellite tracker application.
+
+================================================================================
+MAIN APPLICATION FILES
+================================================================================
+
+1. APP.PY (Main Flask Application)
+----------------------------------
+PURPOSE: Central application setup and route definitions
+
+WORKFLOW:
+- Initializes Flask app with security settings
+- Sets up database connection (optional PostgreSQL)
+- Creates SatelliteTracker instance
+- Defines all API routes for the satellite tracker
+
+CLASSES:
+- Base: SQLAlchemy declarative base class
+- UserPreferences: Database model for storing user settings
+  * Fields: session_id, location coordinates, update intervals, favorites
+  * Methods: Automatic timestamps for created_at/updated_at
+
+KEY ROUTES:
+- GET / : Landing page
+- GET /tracker : Main satellite tracking interface
+- GET /api/satellites : Returns current satellite positions
+- GET /api/satellite/<id> : Detailed satellite information
+- GET /api/satellite/<id>/orbit : Orbital path prediction
+- GET /api/satellite/<id>/passes : Satellite pass predictions over location
+- GET /api/categories : Satellite categories with color coding
+- GET /api/refresh : Force refresh TLE data
+- GET/POST /api/user/preferences : User preference management
+
+WORKFLOW FLOW:
+App Start → Initialize Database → Load Satellite Data → Start Web Server → Handle API Requests
+
+
+2. SATELLITE_TRACKER.PY (Core Satellite Logic)
+----------------------------------------------
+PURPOSE: Handles all satellite calculations and data management
+
+MAIN CLASS: SatelliteTracker
+WORKFLOW:
+1. Initialize Skyfield timescale and satellite categories
+2. Load TLE (Two-Line Element) data from Celestrak
+3. Parse and categorize satellites by type
+4. Calculate real-time positions using orbital mechanics
+5. Provide orbital predictions and pass calculations
+
+KEY METHODS:
+- __init__(): Sets up tracker with categories and loads initial data
+- load_tle_data(): Downloads and parses satellite orbital data
+- _categorize_satellite(): Automatically categorizes satellites by name patterns
+- get_satellite_positions(): Calculates current lat/lon/altitude for all satellites
+- get_satellite_details(): Provides detailed orbital information for specific satellite
+- get_satellite_orbit_path(): Predicts future orbital path points
+- get_next_passes(): Calculates when satellite will be visible from observer location
+
+SATELLITE CATEGORIES (23 types):
+- ISS, GPS, GLONASS, Galileo, BeiDou (Navigation)
+- Weather, Earth_Observation, Communication
+- Starlink, OneWeb, Iridium (Constellations)
+- Scientific, Space_Telescopes, Military
+- CubeSats, Amateur_Radio, Technology_Demo
+- Debris_Tracking, Geostationary, LEO_Constellation
+- Commercial, Rocket_Bodies, Other
+
+DATA FLOW:
+TLE Download → Parse Satellites → Categorize → Calculate Positions → Return to API
+
+
+3. ROUTES.PY (API Route Handlers)
+--------------------------------
+PURPOSE: Handles HTTP requests and responses for the API
+
+WORKFLOW:
+- Receives HTTP requests from frontend
+- Calls appropriate SatelliteTracker methods
+- Formats responses as JSON
+- Handles errors gracefully
+
+KEY FUNCTIONS:
+- get_satellites(): Returns all satellite positions with timestamp
+- get_satellite_orbit(): Returns predicted orbital path
+- search_satellites(): Searches satellites by name
+- get_satellite_details(): Returns detailed satellite information
+- get_satellite_passes(): Calculates visibility passes
+- get_satellite_categories(): Returns category information
+- refresh_tle_data(): Forces data refresh
+- user_preferences(): Manages user settings
+
+ERROR HANDLING:
+- Try/catch blocks for all operations
+- Graceful degradation if data unavailable
+- Consistent JSON error responses
+
+
+4. MODELS.PY (Database Models)
+-----------------------------
+PURPOSE: Defines database structure for user data
+
+CLASS: UserPreferences
+FIELDS:
+- id: Primary key
+- session_id: Browser session identifier
+- preferred_location_lat/lon/alt: User's observation location
+- preferred_update_interval: Refresh rate in seconds
+- show_satellite_paths: Boolean for orbit visualization
+- favorite_satellites: JSON string of NORAD IDs
+- created_at/updated_at: Timestamps
+
+WORKFLOW:
+User Session → Store Preferences → Retrieve on Return → Apply Settings
+
+
+5. MAIN.PY (Application Entry Point)
+-----------------------------------
+PURPOSE: Simple entry point to start the Flask application
+
+WORKFLOW:
+- Imports the Flask app from app.py
+- Starts the development server on port 5000
+- Enables debug mode for development
+
+CODE FLOW:
+main.py → app.py → Flask Server Start
+
+
+6. REPLIT_AUTH.PY (Authentication System)
+-----------------------------------------
+PURPOSE: Handles user authentication with Replit OAuth
+
+CLASSES:
+- UserSessionStorage: Manages OAuth tokens in database
+- OAuth, User: Database models for authentication
+
+KEY FUNCTIONS:
+- make_replit_blueprint(): Creates OAuth configuration
+- save_user(): Stores user information from OAuth
+- require_login(): Decorator for protected routes
+- logout(): Handles user logout and session cleanup
+
+WORKFLOW:
+User Login → OAuth Redirect → Token Exchange → User Session → Protected Access
+
+NOTE: Currently not used as authentication was removed for simplicity
+
+================================================================================
+FRONTEND FILES
+================================================================================
+
+7. TEMPLATES/LANDING.HTML (Landing Page)
+----------------------------------------
+PURPOSE: Introduction page with project overview
+
+FEATURES:
+- Modern responsive design
+- Project description and features
+- Navigation to tracker application
+- Bootstrap styling with custom CSS
+
+WORKFLOW:
+User visits site → Landing page → Click "Launch Tracker" → Tracker interface
+
+
+8. TEMPLATES/TRACKER.HTML (Main Application)
+--------------------------------------------
+PURPOSE: Main satellite tracking interface
+
+FEATURES:
+- 3D Earth visualization using Cesium.js
+- Real-time satellite positions
+- Search and filter capabilities
+- Satellite details panels
+- Orbital path visualization
+- Pass prediction tables
+
+WORKFLOW:
+Load page → Initialize Cesium → Load satellites → Real-time updates → User interactions
+
+
+9. STATIC/JS/SATELLITE-VIEWER-ENHANCED.JS (Frontend Logic)
+---------------------------------------------------------
+PURPOSE: Handles all frontend interactions and visualizations
+
+KEY FUNCTIONS:
+- initializeCesium(): Sets up 3D Earth globe
+- loadSatellites(): Fetches and displays satellite positions
+- loadSatelliteCategories(): Loads category filters
+- searchSatellites(): Handles satellite search
+- showSatelliteDetails(): Displays detailed information
+- showOrbitPath(): Visualizes orbital predictions
+- calculatePasses(): Shows pass predictions
+
+WORKFLOW:
+Page Load → Initialize 3D Globe → Load Data → Real-time Updates → User Interactions
+
+
+10. STATIC/CSS/STYLE.CSS (Styling)
+----------------------------------
+PURPOSE: Custom styling for the application
+
+FEATURES:
+- Dark theme design
+- Responsive layout
+- Custom animations
+- Button and panel styling
+- Mobile-friendly design
+
+================================================================================
+CONFIGURATION FILES
+================================================================================
+
+11. PYPROJECT.TOML (Dependencies)
+---------------------------------
+PURPOSE: Defines Python project dependencies
+
+KEY DEPENDENCIES:
+- flask: Web framework
+- flask-sqlalchemy: Database ORM
+- skyfield: Satellite calculations
+- numpy: Mathematical operations
+- requests: HTTP requests for TLE data
+- psycopg2-binary: PostgreSQL database driver
+
+12. .REPLIT (Replit Configuration)
+---------------------------------
+PURPOSE: Configures how the application runs on Replit
+
+WORKFLOW COMMANDS:
+- "Run App": python app.py (main workflow)
+- Various other workflows for different startup methods
+
+================================================================================
+APPLICATION WORKFLOW SUMMARY
+================================================================================
+
+STARTUP SEQUENCE:
+1. main.py starts Flask application
+2. app.py initializes database and SatelliteTracker
+3. SatelliteTracker downloads TLE data from Celestrak
+4. Satellites are parsed and categorized
+5. Flask server starts on port 5000
+6. Frontend loads and initializes Cesium 3D globe
+7. Real-time satellite positions begin updating
+
+USER INTERACTION FLOW:
+1. User visits landing page
+2. Clicks "Launch Tracker" to enter main application
+3. 3D Earth globe loads with satellite positions
+4. User can search, filter, and select satellites
+5. Clicking satellite shows details panel
+6. User can view orbital paths and pass predictions
+7. Real-time updates continue every few seconds
+
+DATA FLOW:
+Celestrak TLE Data → SatelliteTracker → Flask API → JavaScript Frontend → Cesium 3D Visualization
+
+ERROR HANDLING:
+- Fallback data if TLE download fails
+- Graceful degradation for missing features
+- User-friendly error messages
+- Automatic retry mechanisms
+
+PERFORMANCE OPTIMIZATIONS:
+- TLE data cached for 24 hours
+- Limited to 20 satellites for performance
+- Efficient orbital calculations
+- Responsive design for all devices
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
