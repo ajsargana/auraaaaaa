@@ -1,78 +1,32 @@
+from flask import session, render_template, jsonify, request, redirect, url_for
+from app import app, db, tracker
+import json
 
-import os
-import logging
-from flask import Flask, session, render_template, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
-from werkzeug.middleware.proxy_fix import ProxyFix
-from satellite_tracker import SatelliteTracker
-from datetime import datetime
-
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
-
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
-
-# Create the app
-app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET") or "dev-secret-key-change-in-production"
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-# Configure the database (optional - can work without database)
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_recycle": 300,
-        "pool_pre_ping": True,
-    }
-    db.init_app(app)
-
-# Initialize satellite tracker
-tracker = SatelliteTracker()
-
-# Simple user preferences model (no authentication required)
-class UserPreferences(db.Model):
-    __tablename__ = 'user_preferences'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String, nullable=False)
-    preferred_location_lat = db.Column(db.Float, default=0.0)
-    preferred_location_lon = db.Column(db.Float, default=0.0)
-    preferred_location_alt = db.Column(db.Float, default=0.0)
-    preferred_update_interval = db.Column(db.Integer, default=10)
-    show_satellite_paths = db.Column(db.Boolean, default=True)
-    favorite_satellites = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-
-if database_url:
-    with app.app_context():
-        db.create_all()
-
-# Routes
+# Make session permanent
 @app.before_request
 def make_session_permanent():
     session.permanent = True
 
 @app.route('/')
 def index():
+    """Landing page as intro"""
     return render_template('landing.html')
 
 @app.route('/tracker')
 def tracker_app():
+    """Satellite tracker page"""
     return render_template('tracker.html')
 
 @app.route('/landing')
 def landing():
+    """Landing page"""
     return render_template('landing.html')
 
 @app.route('/api/satellites')
 def get_satellites():
+    """Get current positions of all satellites"""
     try:
+        # Ensure tracker is initialized
         if not hasattr(tracker, 'satellites') or not tracker.satellites:
             tracker.load_tle_data()
         
@@ -93,6 +47,7 @@ def get_satellites():
 
 @app.route('/api/satellite/<int:norad_id>/orbit')
 def get_satellite_orbit(norad_id):
+    """Get predicted orbit path for a specific satellite"""
     try:
         duration_hours = request.args.get('duration', 3, type=int)
         orbit_points = tracker.get_satellite_orbit_path(norad_id, duration_hours)
@@ -112,6 +67,7 @@ def get_satellite_orbit(norad_id):
 
 @app.route('/api/satellites/search')
 def search_satellites():
+    """Search satellites by name"""
     try:
         query = request.args.get('q', '').strip().lower()
         if not query:
@@ -121,6 +77,7 @@ def search_satellites():
                 'message': 'Empty search query'
             })
         
+        # Search satellites by name
         matching_satellites = []
         for norad_id, sat_data in tracker.satellites.items():
             if query in sat_data['name'].lower():
@@ -132,7 +89,7 @@ def search_satellites():
         
         return jsonify({
             'success': True,
-            'satellites': matching_satellites[:50],
+            'satellites': matching_satellites[:50],  # Limit results
             'total_found': len(matching_satellites)
         })
     except Exception as e:
@@ -145,6 +102,7 @@ def search_satellites():
 
 @app.route('/api/satellite/<int:norad_id>')
 def get_satellite_details(norad_id):
+    """Get detailed information for a specific satellite"""
     try:
         details = tracker.get_satellite_details(norad_id)
         if details:
@@ -166,6 +124,7 @@ def get_satellite_details(norad_id):
 
 @app.route('/api/satellite/<int:norad_id>/passes')
 def get_satellite_passes(norad_id):
+    """Get next passes for a satellite over user location"""
     try:
         lat = float(request.args.get('lat', 0))
         lon = float(request.args.get('lon', 0))
@@ -185,6 +144,7 @@ def get_satellite_passes(norad_id):
 
 @app.route('/api/categories')
 def get_satellite_categories():
+    """Get satellite categories with color coding"""
     try:
         categories = tracker.get_satellite_categories()
         return jsonify({
@@ -200,6 +160,7 @@ def get_satellite_categories():
 
 @app.route('/api/refresh')
 def refresh_tle_data():
+    """Refresh TLE data from source"""
     try:
         tracker.refresh_tle_data()
         return jsonify({
@@ -215,8 +176,10 @@ def refresh_tle_data():
 
 @app.route('/api/user/preferences', methods=['GET', 'POST'])
 def user_preferences():
+    """Get or update user preferences (no authentication required)"""
     try:
         if request.method == 'GET':
+            # Return default preferences for anonymous users
             return jsonify({
                 'success': True,
                 'preferences': {
@@ -228,6 +191,7 @@ def user_preferences():
             })
         
         elif request.method == 'POST':
+            # Save preferences in browser session/localStorage
             return jsonify({'success': True, 'message': 'Preferences saved locally'})
     
     except Exception as e:
@@ -236,6 +200,3 @@ def user_preferences():
             'success': False,
             'error': f"Failed to handle user preferences: {str(e)}"
         }), 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)

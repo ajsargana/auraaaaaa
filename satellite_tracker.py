@@ -6,7 +6,6 @@ from skyfield.timelib import Time
 import logging
 import time
 import re
-from offline_predictor import OfflineSatellitePredictor
 
 class SatelliteTracker:
     def __init__(self):
@@ -15,8 +14,6 @@ class SatelliteTracker:
         self.categories = self._define_categories()
         self.last_update = None
         self.update_interval = 86400  # 1 day in seconds (24 hours)
-        self.offline_predictor = OfflineSatellitePredictor()
-        self.offline_mode = False
         self.load_tle_data()
     
     def _define_categories(self):
@@ -212,13 +209,6 @@ class SatelliteTracker:
             self.satellites = all_satellites
             self.last_update = current_time.timestamp()
             
-            # Cache for offline prediction
-            try:
-                self.offline_predictor.cache_tle_data(all_satellites)
-                self.offline_mode = False  # Successfully updated, can work online
-            except Exception as e:
-                logging.warning(f"Failed to cache TLE data for offline use: {e}")
-            
             # Update category satellite lists
             self._update_category_lists()
             
@@ -349,18 +339,8 @@ class SatelliteTracker:
     
     def get_satellite_positions(self):
         """Get current positions of all satellites"""
-        # Try to update TLE data if needed
         if self._should_update_tle():
-            try:
-                self.load_tle_data()
-            except Exception as e:
-                logging.warning(f"Failed to update TLE data, switching to offline mode: {e}")
-                self.offline_mode = True
-        
-        # Use offline prediction if no internet or satellites data
-        if self.offline_mode or not self.satellites:
-            logging.info("Using offline satellite prediction")
-            return self._get_positions_offline()
+            self.load_tle_data()
         
         current_time = self.ts.now()
         satellites_data = []
@@ -416,33 +396,6 @@ class SatelliteTracker:
                 continue
         
         return satellites_data
-    
-    def _get_positions_offline(self):
-        """Get satellite positions using offline prediction"""
-        try:
-            current_time = self.ts.now()
-            offline_positions = self.offline_predictor.predict_all_positions_offline(
-                current_time=current_time
-            )
-            
-            # Add category colors to offline predictions
-            for pos in offline_positions:
-                category = pos.get('category', 'Other')
-                if category in self.categories:
-                    pos['color'] = self.categories[category]['color']
-                else:
-                    pos['color'] = self.categories['Other']['color']
-                
-                # Add additional fields for compatibility
-                pos['orbital_period'] = 90  # Default LEO period
-                pos['launch_date'] = "Unknown"
-            
-            logging.info(f"Calculated {len(offline_positions)} satellite positions offline")
-            return offline_positions
-            
-        except Exception as e:
-            logging.error(f"Error in offline position calculation: {e}")
-            return []
     
     def get_satellite_details(self, norad_id):
         """Get detailed information for a specific satellite"""
@@ -760,27 +713,6 @@ class SatelliteTracker:
         if self.last_update is None:
             return True
         return time.time() - self.last_update > self.update_interval
-    
-    def get_offline_status(self):
-        """Get information about offline capabilities"""
-        cache_stats = self.offline_predictor.get_cache_stats()
-        cache_valid = self.offline_predictor.is_cache_valid()
-        
-        return {
-            'offline_mode': self.offline_mode,
-            'cache_available': cache_stats is not None,
-            'cache_valid': cache_valid,
-            'cache_stats': cache_stats,
-            'can_predict_offline': cache_valid and cache_stats and cache_stats['total_satellites'] > 0
-        }
-    
-    def force_offline_mode(self, enable=True):
-        """Force offline mode for testing"""
-        self.offline_mode = enable
-        if enable:
-            # Load cached satellites
-            self.offline_predictor.satellites_cache = self.offline_predictor.load_cached_satellites()
-        logging.info(f"Offline mode {'enabled' if enable else 'disabled'}")
     
     def get_satellite_orbit_path(self, norad_id, duration_hours=12):
         """Calculate predicted orbit path for a satellite"""

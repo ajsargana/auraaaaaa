@@ -29,14 +29,8 @@ class SatelliteViewer {
         this.setupEventListeners();
         await this.loadUserPreferences();
         await this.loadCategories();
-        // Initial load
-        this.loadSatellites();
-
-        // Check offline status
-        this.checkOfflineStatus();
-
-        // Start update interval
-        this.startUpdateInterval();
+        await this.loadSatellites();
+        this.startAutoUpdate();
         this.setupGeolocation();
     }
 
@@ -55,8 +49,8 @@ class SatelliteViewer {
             homeButton: true,
             sceneModePicker: false,
             navigationHelpButton: false,
-            animation: true,
-            timeline: true,
+            animation: false,
+            timeline: false,
             fullscreenButton: true,
             vrButton: false,
             creditContainer: document.createElement('div'),
@@ -658,7 +652,7 @@ class SatelliteViewer {
             if (data.success && data.satellites.length > 0) {
                 // Show only searched satellites
                 this.showOnlySearchedSatellites(data.satellites);
-
+                
                 container.innerHTML = data.satellites.slice(0, 10).map(sat => `
                     <div class="search-result" data-norad-id="${sat.norad_id}">
                         <div class="d-flex align-items-center">
@@ -734,7 +728,7 @@ class SatelliteViewer {
 
     async toggleOrbits() {
         this.showOrbits = !this.showOrbits;
-
+        
         if (this.showOrbits && this.selectedSatellite) {
             await this.showOrbitPath(this.selectedSatellite);
         } else {
@@ -873,71 +867,13 @@ class SatelliteViewer {
         }
     }
 
-    startUpdateInterval() {
-        // Clear existing interval
-        if (this.updateInterval) {
-            clearInterval(this.updateInterval);
-        }
-
-        // Start new interval with current update rate
+    startAutoUpdate() {
+        // High-frequency updates for smooth 10fps feel
         this.updateInterval = setInterval(() => {
             this.loadSatellites();
-        }, this.updateRate * 1000);
-
-        console.log(`Update interval set to ${this.updateRate} seconds`);
+        }, this.updateRate);
     }
 
-    async checkOfflineStatus() {
-        try {
-            const response = await fetch('/api/offline/status');
-            const data = await response.json();
-
-            if (data.success) {
-                this.updateOfflineIndicator(data.offline_status);
-            }
-        } catch (error) {
-            console.error('Error checking offline status:', error);
-            this.updateOfflineIndicator({ offline_mode: true, cache_available: false });
-        }
-    }
-
-    updateOfflineIndicator(status) {
-        // Create or update offline status indicator
-        let indicator = document.getElementById('offline-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.id = 'offline-indicator';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                padding: 8px 12px;
-                border-radius: 4px;
-                font-size: 12px;
-                z-index: 1000;
-                font-weight: bold;
-            `;
-            document.body.appendChild(indicator);
-        }
-
-        if (status.offline_mode) {
-            indicator.innerHTML = `🔒 OFFLINE MODE<br>
-                <small>${status.cache_available ? 
-                    `${status.cache_stats?.total_satellites || 0} satellites cached` : 
-                    'No cache available'}</small>`;
-            indicator.style.backgroundColor = status.can_predict_offline ? '#ff9800' : '#f44336';
-            indicator.style.color = 'white';
-        } else if (status.cache_available) {
-            indicator.innerHTML = `🌐 ONLINE<br>
-                <small>Offline backup ready (${status.cache_stats?.total_satellites || 0} sats)</small>`;
-            indicator.style.backgroundColor = '#4caf50';
-            indicator.style.color = 'white';
-        } else {
-            indicator.innerHTML = '🌐 ONLINE';
-            indicator.style.backgroundColor = '#2196f3';
-            indicator.style.color = 'white';
-        }
-    }
     updateStatus(count, timestamp) {
         document.getElementById('satelliteCount').textContent = `${count} satellites`;
 
