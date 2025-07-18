@@ -1,4 +1,4 @@
-class EnhancedSatelliteViewer {
+class SatelliteViewer {
     constructor() {
         this.viewer = null;
         this.satellites = new Map();
@@ -636,34 +636,69 @@ class EnhancedSatelliteViewer {
         document.getElementById('passInfo').style.display = 'block';
     }
 
-    searchSatellites(query) {
+    async searchSatellites(query) {
         const container = document.getElementById('searchResults');
 
         if (!query || query.length < 2) {
             container.innerHTML = '';
+            this.showAllSatellites();
             return;
         }
 
-        const matches = Array.from(this.satellites.values())
-            .filter(sat => sat.name.toLowerCase().includes(query.toLowerCase()))
-            .slice(0, 10);
+        try {
+            const response = await fetch(`/api/satellites/search?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
 
-        container.innerHTML = matches.map(sat => `
-            <div class="search-result" data-norad-id="${sat.norad_id}">
-                <div class="d-flex align-items-center">
-                    <div class="category-color me-2" style="background-color: ${sat.color};"></div>
-                    <span class="text-white">${sat.name}</span>
-                </div>
-            </div>
-        `).join('');
+            if (data.success && data.satellites.length > 0) {
+                // Show only searched satellites
+                this.showOnlySearchedSatellites(data.satellites);
+                
+                container.innerHTML = data.satellites.slice(0, 10).map(sat => `
+                    <div class="search-result" data-norad-id="${sat.norad_id}">
+                        <div class="d-flex align-items-center">
+                            <div class="category-color me-2"></div>
+                            <span class="text-white">${sat.name}</span>
+                            <small class="text-muted ms-auto">${sat.category}</small>
+                        </div>
+                    </div>
+                `).join('');
 
-        // Add click handlers
-        container.querySelectorAll('.search-result').forEach(item => {
-            item.addEventListener('click', () => {
-                const noradId = parseInt(item.dataset.noradId);
-                this.selectSatellite(noradId);
-                this.focusOnSatellite(noradId);
-            });
+                // Add click handlers
+                container.querySelectorAll('.search-result').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const noradId = parseInt(item.dataset.noradId);
+                        this.selectSatellite(noradId);
+                        this.focusOnSatellite(noradId);
+                        container.innerHTML = '';
+                    });
+                });
+            } else {
+                container.innerHTML = '<div class="text-muted p-2">No satellites found</div>';
+            }
+        } catch (error) {
+            console.error('Error searching satellites:', error);
+        }
+    }
+
+    showOnlySearchedSatellites(searchedSatellites) {
+        // Hide all satellite entities first
+        this.satelliteEntities.forEach(entity => {
+            entity.show = false;
+        });
+
+        // Show only searched satellites
+        searchedSatellites.forEach(searchedSat => {
+            const entity = this.satelliteEntities.get(searchedSat.norad_id);
+            if (entity) {
+                entity.show = true;
+            }
+        });
+    }
+
+    showAllSatellites() {
+        // Show all satellite entities
+        this.satelliteEntities.forEach(entity => {
+            entity.show = true;
         });
     }
 
@@ -691,8 +726,68 @@ class EnhancedSatelliteViewer {
         this.renderSatellites();
     }
 
-    toggleOrbits() {
+    async toggleOrbits() {
         this.showOrbits = !this.showOrbits;
+        
+        if (this.showOrbits && this.selectedSatellite) {
+            await this.showOrbitPath(this.selectedSatellite);
+        } else {
+            this.clearOrbitPaths();
+        }
+    }
+
+    async showOrbitPath(noradId) {
+        try {
+            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
+            const data = await response.json();
+
+            if (data.success && data.orbit_points.length > 0) {
+                this.renderOrbitPath(noradId, data.orbit_points);
+            }
+        } catch (error) {
+            console.error('Error loading orbit path:', error);
+        }
+    }
+
+    renderOrbitPath(noradId, orbitPoints) {
+        // Remove existing orbit for this satellite
+        this.clearOrbitPath(noradId);
+
+        const positions = [];
+        orbitPoints.forEach(point => {
+            positions.push(Cesium.Cartesian3.fromDegrees(
+                point.longitude,
+                point.latitude,
+                point.altitude * 1000
+            ));
+        });
+
+        const orbitEntity = this.viewer.entities.add({
+            id: `orbit_${noradId}`,
+            polyline: {
+                positions: positions,
+                width: 2,
+                material: Cesium.Color.YELLOW.withAlpha(0.8),
+                clampToGround: false
+            }
+        });
+
+        this.orbitEntities.set(noradId, orbitEntity);
+    }
+
+    clearOrbitPath(noradId) {
+        const orbitEntity = this.orbitEntities.get(noradId);
+        if (orbitEntity) {
+            this.viewer.entities.remove(orbitEntity);
+            this.orbitEntities.delete(noradId);
+        }
+    }
+
+    clearOrbitPaths() {
+        this.orbitEntities.forEach(entity => {
+            this.viewer.entities.remove(entity);
+        });
+        this.orbitEntities.clear();
         const btn = document.getElementById('orbitsBtn');
 
         if (this.showOrbits) {
@@ -804,5 +899,5 @@ class EnhancedSatelliteViewer {
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    window.satelliteViewer = new EnhancedSatelliteViewer();
+    window.satelliteViewer = new SatelliteViewer();
 });

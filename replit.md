@@ -101,6 +101,13 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 Recent Updates:
+- July 18, 2025: Landing page now serves as introductory page (requested by user)
+- July 18, 2025: Optimized TLE data loading to once per day for improved efficiency
+- July 18, 2025: Added orbital path prediction with 3-hour orbit visualization
+- July 18, 2025: Enhanced search functionality to show only searched satellites
+- July 18, 2025: Orbit removal feature - orbits are cleared when deselected
+- July 18, 2025: Removed duplicate JavaScript files and unused templates
+- July 18, 2025: Fixed application startup issues and route conflicts
 - July 11, 2025: Enhanced authentication system with Replit OAuth integration
 - July 11, 2025: Performance optimization for 10fps smooth visualization experience
 - July 11, 2025: Beautiful UI redesign with stunning landing page and enhanced tracker interface

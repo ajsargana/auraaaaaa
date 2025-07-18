@@ -137,131 +137,77 @@ class SatelliteTracker:
         }
     
     def load_tle_data(self):
-        """Load TLE data from multiple sources with fallbacks"""
-        try:
-            logging.info("Loading TLE data from available sources...")
+        """Load TLE data once a day with efficient caching"""
+        # Check if we need to reload data (once per day)
+        current_time = datetime.now()
+        if (self.last_update and 
+            current_time - datetime.fromtimestamp(self.last_update) < timedelta(seconds=self.update_interval)):
+            next_update = datetime.fromtimestamp(self.last_update) + timedelta(seconds=self.update_interval)
+            logging.info(f"Using cached satellite data. Next update: {next_update}")
+            return
             
-            # Primary and fallback TLE sources
-            tle_source_sets = [
-                # CelesTrak (primary) - comprehensive set
-                [
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=glonass-ops&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-next&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=noaa&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle',
-                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=radar&FORMAT=tle'
-                ],
-                # N2YO (fallback 1)
-                [
-                    'https://www.n2yo.com/tle/download.php?catalog=stations',
-                    'https://www.n2yo.com/tle/download.php?catalog=weather',
-                    'https://www.n2yo.com/tle/download.php?catalog=gps'
-                ],
-                # Space-Track.org alternative format (fallback 2)
-                [
-                    'https://celestrak.org/NORAD/elements/stations.txt',
-                    'https://celestrak.org/NORAD/elements/weather.txt',
-                    'https://celestrak.org/NORAD/elements/gps.txt'
-                ]
-            ]
+        try:
+            logging.info("Loading TLE data from primary source...")
+            
+            # Use only primary source to reduce load time and redundancy
+            tle_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
             
             all_satellites = {}
             satellite_count = 0
             
-            for source_index, tle_urls in enumerate(tle_source_sets):
-                if satellite_count >= 2000:  # Increased limit for more satellites
-                    break
-                    
-                logging.info(f"Trying TLE source set {source_index + 1}")
-                successful_loads = 0
+            try:
+                response = requests.get(tle_url, timeout=30)
+                response.raise_for_status()
                 
-                for url in tle_urls:
-                    if satellite_count >= 2000:
+                lines = response.text.strip().split('\n')
+                
+                # Parse TLE data efficiently
+                for i in range(0, len(lines) - 2, 3):
+                    if satellite_count >= 2000:  # Limit for performance
                         break
                         
-                    try:
-                        response = requests.get(url, timeout=15)
-                        response.raise_for_status()
+                    if i + 2 < len(lines):
+                        name = lines[i].strip()
+                        line1 = lines[i + 1].strip()
+                        line2 = lines[i + 2].strip()
                         
-                        lines = response.text.strip().split('\n')
-                        url_satellite_count = 0
-                        
-                        # Parse TLE data
-                        for i in range(0, len(lines) - 2, 3):
-                            if satellite_count >= 2000 or url_satellite_count >= 2000:
-                                break
-                                
-                            if i + 2 < len(lines):
-                                name = lines[i].strip()
-                                line1 = lines[i + 1].strip()
-                                line2 = lines[i + 2].strip()
-                                
-                                # Validate TLE format
-                                if (line1.startswith('1 ') and line2.startswith('2 ') and 
-                                    len(line1) == 69 and len(line2) == 69):
-                                    
-                                    try:
-                                        satellite = EarthSatellite(line1, line2, name, self.ts)
-                                        norad_id = int(line1[2:7])
-                                        
-                                        if norad_id not in all_satellites:
-                                            all_satellites[norad_id] = {
-                                                'satellite': satellite,
-                                                'name': name,
-                                                'tle_line1': line1,
-                                                'tle_line2': line2,
-                                                'category': self._categorize_satellite(name, norad_id)
-                                            }
-                                            satellite_count += 1
-                                            url_satellite_count += 1
-                                            
-                                    except Exception as e:
-                                        logging.warning(f"Error creating satellite {name}: {e}")
-                                        continue
-                                        
-                        if url_satellite_count > 0:
-                            successful_loads += 1
-                            logging.info(f"Loaded {url_satellite_count} satellites from {url}")
+                        # Validate TLE format
+                        if (line1.startswith('1 ') and line2.startswith('2 ') and 
+                            len(line1) == 69 and len(line2) == 69):
                             
-                    except Exception as e:
-                        logging.warning(f"Error fetching TLE data from {url}: {e}")
-                        continue
+                            try:
+                                satellite = EarthSatellite(line1, line2, name, self.ts)
+                                norad_id = int(line1[2:7])
+                                
+                                if norad_id not in all_satellites:
+                                    all_satellites[norad_id] = {
+                                        'satellite': satellite,
+                                        'name': name,
+                                        'tle_line1': line1,
+                                        'tle_line2': line2,
+                                        'category': self._categorize_satellite(name, norad_id)
+                                    }
+                                    satellite_count += 1
+                                    
+                            except Exception as e:
+                                logging.warning(f"Error creating satellite {name}: {e}")
+                                continue
                 
-                # If we got some satellites from this source set, we're good
-                if successful_loads > 0:
-                    logging.info(f"Successfully loaded from source set {source_index + 1}")
-                    break
-                else:
-                    logging.warning(f"Failed to load from source set {source_index + 1}, trying next...")
+                logging.info(f"Loaded {satellite_count} satellites from {tle_url}")
+                
+            except Exception as e:
+                logging.warning(f"Error fetching TLE data: {e}")
+                self._load_fallback_data()
+                return
             
-            # If no source worked, use fallback data
+            # If no satellites loaded, use fallback data
             if not all_satellites:
-                logging.error("All TLE sources failed, using fallback data")
+                logging.error("No satellites loaded, using fallback data")
                 self._load_fallback_data()
                 return
             
             self.satellites = all_satellites
-            self.last_update = time.time()
+            self.last_update = current_time.timestamp()
             
             # Update category satellite lists
             self._update_category_lists()
@@ -742,7 +688,7 @@ class SatelliteTracker:
         except Exception as e:
             logging.error(f"Error calculating passes: {e}")
         
-        return passes[:3]  # Return next 3 passes
+        return passes[:6]  # Return next 3 passes
     
     def get_satellite_categories(self):
         """Get satellite categories with counts"""
@@ -767,3 +713,35 @@ class SatelliteTracker:
         if self.last_update is None:
             return True
         return time.time() - self.last_update > self.update_interval
+    
+    def get_satellite_orbit_path(self, norad_id, duration_hours=3):
+        """Calculate predicted orbit path for a satellite"""
+        if norad_id not in self.satellites:
+            return []
+        
+        try:
+            satellite = self.satellites[norad_id]['satellite']
+            current_time = self.ts.now()
+            
+            # Calculate orbit points for the next duration_hours
+            orbit_points = []
+            time_step = 300  # 5 minutes in seconds
+            num_points = int((duration_hours * 3600) / time_step)
+            
+            for i in range(num_points):
+                future_time = self.ts.tt_jd(current_time.tt + (i * time_step) / 86400)
+                geocentric = satellite.at(future_time)
+                subpoint = geocentric.subpoint()
+                
+                orbit_points.append({
+                    'latitude': subpoint.latitude.degrees,
+                    'longitude': subpoint.longitude.degrees,
+                    'altitude': subpoint.elevation.km,
+                    'time_offset_minutes': (i * time_step) / 60
+                })
+            
+            return orbit_points
+            
+        except Exception as e:
+            logging.error(f"Error calculating orbit path: {e}")
+            return []

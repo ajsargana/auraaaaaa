@@ -9,8 +9,8 @@ def make_session_permanent():
 
 @app.route('/')
 def index():
-    """Main page with 3D satellite visualization"""
-    return render_template('tracker.html')
+    """Landing page as intro"""
+    return render_template('landing.html')
 
 @app.route('/tracker')
 def tracker_app():
@@ -45,6 +45,61 @@ def get_satellites():
             'timestamp': tracker.get_current_time()
         }), 200
 
+@app.route('/api/satellite/<int:norad_id>/orbit')
+def get_satellite_orbit(norad_id):
+    """Get predicted orbit path for a specific satellite"""
+    try:
+        duration_hours = request.args.get('duration', 3, type=int)
+        orbit_points = tracker.get_satellite_orbit_path(norad_id, duration_hours)
+        
+        return jsonify({
+            'success': True,
+            'orbit_points': orbit_points,
+            'duration_hours': duration_hours
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting satellite orbit: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'orbit_points': []
+        }), 200
+
+@app.route('/api/satellites/search')
+def search_satellites():
+    """Search satellites by name"""
+    try:
+        query = request.args.get('q', '').strip().lower()
+        if not query:
+            return jsonify({
+                'success': True,
+                'satellites': [],
+                'message': 'Empty search query'
+            })
+        
+        # Search satellites by name
+        matching_satellites = []
+        for norad_id, sat_data in tracker.satellites.items():
+            if query in sat_data['name'].lower():
+                matching_satellites.append({
+                    'norad_id': norad_id,
+                    'name': sat_data['name'],
+                    'category': sat_data['category']
+                })
+        
+        return jsonify({
+            'success': True,
+            'satellites': matching_satellites[:50],  # Limit results
+            'total_found': len(matching_satellites)
+        })
+    except Exception as e:
+        app.logger.error(f"Error searching satellites: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'satellites': []
+        }), 200
+
 @app.route('/api/satellite/<int:norad_id>')
 def get_satellite_details(norad_id):
     """Get detailed information for a specific satellite"""
@@ -62,22 +117,6 @@ def get_satellite_details(norad_id):
             }), 404
     except Exception as e:
         app.logger.error(f"Error getting satellite details: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/satellite/<int:norad_id>/orbit')
-def get_satellite_orbit(norad_id):
-    """Get orbital path for a specific satellite"""
-    try:
-        orbit_points = tracker.get_orbital_path(norad_id)
-        return jsonify({
-            'success': True,
-            'orbit': orbit_points
-        })
-    except Exception as e:
-        app.logger.error(f"Error getting satellite orbit: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
