@@ -163,7 +163,7 @@ class SatelliteTracker:
                 
                 # Parse TLE data efficiently
                 for i in range(0, len(lines) - 2, 3):
-                    if satellite_count >= 2000:  # Limit for performance
+                    if satellite_count >= 20:  # Limit for performance
                         break
                         
                     if i + 2 < len(lines):
@@ -714,7 +714,7 @@ class SatelliteTracker:
             return True
         return time.time() - self.last_update > self.update_interval
     
-    def get_satellite_orbit_path(self, norad_id, duration_hours=3):
+    def get_satellite_orbit_path(self, norad_id, duration_hours=12):
         """Calculate predicted orbit path for a satellite"""
         if norad_id not in self.satellites:
             return []
