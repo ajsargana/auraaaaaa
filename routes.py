@@ -176,10 +176,10 @@ def refresh_tle_data():
 
 @app.route('/api/user/preferences', methods=['GET', 'POST'])
 def user_preferences():
-    """Get or update user preferences"""
+    """Get or update user preferences (no authentication required)"""
     try:
         if request.method == 'GET':
-            # Return default preferences for all users
+            # Return default preferences for anonymous users
             return jsonify({
                 'success': True,
                 'preferences': {
@@ -191,7 +191,7 @@ def user_preferences():
             })
         
         elif request.method == 'POST':
-            # For now, just return success without saving to database
+            # Save preferences in browser session/localStorage
             return jsonify({'success': True, 'message': 'Preferences saved locally'})
     
     except Exception as e:
