@@ -29,7 +29,7 @@ if database_url:
         "pool_recycle": 300,
         "pool_pre_ping": True,
     }
-    db.init_app(app)
+    db.init_app(app)y
 
 # Initialize satellite tracker
 tracker = SatelliteTracker()
