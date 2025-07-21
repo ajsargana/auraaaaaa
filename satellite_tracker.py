@@ -250,15 +250,19 @@ class SatelliteTracker:
                         if url_satellite_count > 0:
                             successful_loads += 1
                             logging.info(f"Loaded {url_satellite_count} satellites from {url}")
-                                    
-                            except Exception as e:
-                                logging.warning(f"Error creating satellite {name}: {e}")
-                                continue
-                
-                logging.info(f"Loaded {satellite_count} satellites from {tle_url}")
-                
-            except Exception as e:
-                logging.warning(f"Error fetching TLE data: {e}")
+
+                    except Exception as e:
+                        logging.warning(f"Error fetching TLE data from {url}: {e}")
+                        continue
+
+                if successful_loads > 0:
+                    logging.info(f"Successfully loaded from {successful_loads} sources in set {source_index + 1}")
+                    break
+                else:
+                    logging.warning(f"Failed to load from source set {source_index + 1}")
+
+            if not all_satellites:
+                logging.error("No satellites loaded, using fallback data")
                 self._load_fallback_data()
                 return
             
