@@ -163,7 +163,7 @@ class SatelliteTracker:
                 
                 # Parse TLE data efficiently
                 for i in range(0, len(lines) - 2, 3):
-                    if satellite_count >= 20:  # Limit for performance
+                    if satellite_count >= 200:  # Limit for performance
                         break
                         
                     if i + 2 < len(lines):
