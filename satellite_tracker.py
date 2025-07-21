@@ -745,3 +745,52 @@ class SatelliteTracker:
         except Exception as e:
             logging.error(f"Error calculating orbit path: {e}")
             return []
+    
+    def get_satellite_ground_track(self, norad_id, duration_hours=3, swath_width_km=300):
+        """Calculate ground track with swath coverage for a satellite"""
+        if norad_id not in self.satellites:
+            return []
+        
+        try:
+            satellite = self.satellites[norad_id]['satellite']
+            current_time = self.ts.now()
+            
+            ground_track = []
+            time_step = 60  # 1 minute in seconds for more detail
+            num_points = int((duration_hours * 3600) / time_step)
+            
+            for i in range(num_points):
+                future_time = self.ts.tt_jd(current_time.tt + (i * time_step) / 86400)
+                geocentric = satellite.at(future_time)
+                subpoint = geocentric.subpoint()
+                
+                # Calculate swath boundaries (simplified calculation)
+                # In reality, this would need more complex calculations for different sensor types
+                lat = subpoint.latitude.degrees
+                lon = subpoint.longitude.degrees
+                alt = subpoint.elevation.km
+                
+                # Approximate swath calculation based on altitude and swath width
+                earth_radius = 6371  # km
+                swath_angle = np.arctan2(swath_width_km / 2, alt) * 180 / np.pi
+                
+                # Calculate approximate lat/lon offsets for swath boundaries
+                lat_offset = swath_angle * 0.5  # Simplified approximation
+                
+                ground_track.append({
+                    'latitude': lat,
+                    'longitude': lon,
+                    'altitude': alt,
+                    'time_offset_minutes': (i * time_step) / 60,
+                    'swath_left_lat': lat - lat_offset,
+                    'swath_right_lat': lat + lat_offset,
+                    'swath_left_lon': lon,
+                    'swath_right_lon': lon,
+                    'swath_width_km': swath_width_km
+                })
+            
+            return ground_track
+            
+        except Exception as e:
+            logging.error(f"Error calculating ground track: {e}")
+            return []

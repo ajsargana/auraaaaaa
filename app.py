@@ -110,6 +110,27 @@ def get_satellite_orbit(norad_id):
             'orbit_points': []
         }), 200
 
+@app.route('/api/satellite/<int:norad_id>/ground-track')
+def get_satellite_ground_track(norad_id):
+    try:
+        duration_hours = request.args.get('duration', 3, type=int)
+        swath_width = request.args.get('swath_width', 300, type=int)
+        ground_track = tracker.get_satellite_ground_track(norad_id, duration_hours, swath_width)
+        
+        return jsonify({
+            'success': True,
+            'ground_track': ground_track,
+            'duration_hours': duration_hours,
+            'swath_width_km': swath_width
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting satellite ground track: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'ground_track': []
+        }), 200
+
 @app.route('/api/satellites/search')
 def search_satellites():
     try:
