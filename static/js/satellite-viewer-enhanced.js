@@ -628,41 +628,114 @@ class SatelliteViewer {
         leftBoundaryPositions.forEach(pos => swathPositions.push(pos));
         rightBoundaryPositions.reverse().forEach(pos => swathPositions.push(pos));
 
-        // Add swath coverage area
+        // Add enhanced swath coverage area with real-time satellite reference
         const swathEntity = this.viewer.entities.add({
             id: `ground_swath_${noradId}`,
             polygon: {
                 hierarchy: swathPositions,
-                material: Cesium.Color.fromCssColorString(color).withAlpha(0.3),
+                material: new Cesium.ColorMaterialProperty(
+                    new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return Cesium.Color.fromCssColorString(color).withAlpha(0.4);
+                        }
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.2);
+                    }, false)
+                ),
                 outline: true,
-                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
+                outlineColor: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat && this.selectedSatellite === noradId) {
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.8);
+                    }
+                    return Cesium.Color.fromCssColorString(color).withAlpha(0.5);
+                }, false),
                 height: 0,
                 extrudedHeight: 0
             }
         });
 
-        // Add center line
+        // Add enhanced center line with dynamic properties
         const centerLineEntity = this.viewer.entities.add({
             id: `ground_track_center_${noradId}`,
             polyline: {
                 positions: centerPositions,
-                width: 3,
+                width: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat && this.selectedSatellite === noradId) {
+                        return 4; // Thicker line for selected satellite
+                    }
+                    return 2;
+                }, false),
                 material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.4,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.9)
+                    glowPower: new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return 0.6; // More glow for selected satellite
+                        }
+                        return 0.3;
+                    }, false),
+                    color: new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return Cesium.Color.fromCssColorString(color).withAlpha(1.0);
+                        }
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.7);
+                    }, false)
                 }),
                 clampToGround: true
             }
         });
 
+        // Add satellite reference markers along the ground track
+        const currentSatellitePosition = this.viewer.entities.add({
+            id: `ground_track_current_${noradId}`,
+            position: new Cesium.CallbackProperty(() => {
+                const currentSat = this.satellites.get(noradId);
+                if (currentSat) {
+                    return Cesium.Cartesian3.fromDegrees(
+                        currentSat.longitude,
+                        currentSat.latitude,
+                        0
+                    );
+                }
+                return undefined;
+            }, false),
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.fromCssColorString(color),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                show: new Cesium.CallbackProperty(() => {
+                    return this.selectedSatellite === noradId;
+                }, false)
+            },
+            label: {
+                text: 'Current Position',
+                font: '10pt Arial',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -30),
+                show: new Cesium.CallbackProperty(() => {
+                    return this.selectedSatellite === noradId;
+                }, false),
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+
         this.groundTrackEntities.set(`swath_${noradId}`, swathEntity);
         this.groundTrackEntities.set(`center_${noradId}`, centerLineEntity);
+        this.groundTrackEntities.set(`current_${noradId}`, currentSatellitePosition);
     }
 
     clearSelectedGroundTrack() {
         if (this.selectedSatellite) {
             const swathEntity = this.groundTrackEntities.get(`swath_${this.selectedSatellite}`);
             const centerEntity = this.groundTrackEntities.get(`center_${this.selectedSatellite}`);
+            const currentEntity = this.groundTrackEntities.get(`current_${this.selectedSatellite}`);
             
             if (swathEntity) {
                 this.viewer.entities.remove(swathEntity);
@@ -671,6 +744,10 @@ class SatelliteViewer {
             if (centerEntity) {
                 this.viewer.entities.remove(centerEntity);
                 this.groundTrackEntities.delete(`center_${this.selectedSatellite}`);
+            }
+            if (currentEntity) {
+                this.viewer.entities.remove(currentEntity);
+                this.groundTrackEntities.delete(`current_${this.selectedSatellite}`);
             }
         }
     }
@@ -940,25 +1017,29 @@ class SatelliteViewer {
         const satellite = this.satellites.get(noradId);
         if (!satellite) return;
 
-        const groundPosition = Cesium.Cartesian3.fromDegrees(
-            satellite.longitude,
-            satellite.latitude,
-            0
-        );
-
-        const satellitePosition = Cesium.Cartesian3.fromDegrees(
-            satellite.longitude,
-            satellite.latitude,
-            satellite.altitude * 1000
-        );
-
         const color = satellite ? satellite.color : '#64b5f6';
 
-        // Create nadir line
+        // Create dynamic nadir line that updates with satellite position
         const nadirLine = this.viewer.entities.add({
             id: `nadir_line_${noradId}`,
             polyline: {
-                positions: [groundPosition, satellitePosition],
+                positions: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat) {
+                        const groundPos = Cesium.Cartesian3.fromDegrees(
+                            currentSat.longitude,
+                            currentSat.latitude,
+                            0
+                        );
+                        const satPos = Cesium.Cartesian3.fromDegrees(
+                            currentSat.longitude,
+                            currentSat.latitude,
+                            currentSat.altitude * 1000
+                        );
+                        return [groundPos, satPos];
+                    }
+                    return [];
+                }, false),
                 width: 2,
                 material: new Cesium.PolylineGlowMaterialProperty({
                     glowPower: 0.3,
@@ -967,24 +1048,63 @@ class SatelliteViewer {
             }
         });
 
-        // Create circular light at ground position
-        const circularLight = this.viewer.entities.add({
+        // Create dynamic circular swath footprint that updates with satellite position
+        const circularSwath = this.viewer.entities.add({
             id: `nadir_circle_${noradId}`,
-            position: groundPosition,
+            position: new Cesium.CallbackProperty(() => {
+                const currentSat = this.satellites.get(noradId);
+                if (currentSat) {
+                    return Cesium.Cartesian3.fromDegrees(
+                        currentSat.longitude,
+                        currentSat.latitude,
+                        0
+                    );
+                }
+                return Cesium.Cartesian3.fromDegrees(
+                    satellite.longitude,
+                    satellite.latitude,
+                    0
+                );
+            }, false),
             ellipse: {
-                semiMajorAxis: 150000, // 150km radius to match typical Earth observation swath
-                semiMinorAxis: 150000,
+                semiMajorAxis: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat) {
+                        // Calculate swath radius based on altitude (300km default swath width)
+                        const swathWidth = 300000; // 300km in meters
+                        const altitude = currentSat.altitude * 1000; // Convert to meters
+                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6)); // Max 30° viewing angle
+                    }
+                    return 150000; // Default 150km radius
+                }, false),
+                semiMinorAxis: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat) {
+                        const swathWidth = 300000; // 300km in meters
+                        const altitude = currentSat.altitude * 1000;
+                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6));
+                    }
+                    return 150000;
+                }, false),
                 material: new Cesium.ColorMaterialProperty(
                     Cesium.Color.fromCssColorString(color).withAlpha(0.2)
                 ),
                 outline: true,
                 outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
-                height: 0
+                height: 0,
+                rotation: new Cesium.CallbackProperty(() => {
+                    // Add slight rotation based on satellite movement for realism
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat && currentSat.velocity) {
+                        return (Date.now() / 10000) % (2 * Math.PI); // Slow rotation
+                    }
+                    return 0;
+                }, false)
             }
         });
 
         this.nadirEntities.set(`line_${noradId}`, nadirLine);
-        this.nadirEntities.set(`circle_${noradId}`, circularLight);
+        this.nadirEntities.set(`circle_${noradId}`, circularSwath);
     }
 
     clearNadirLine() {
