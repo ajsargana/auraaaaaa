@@ -10,6 +10,7 @@ class SatelliteViewer {
         this.categories = {};
         this.activeCategoryFilter = null;
         this.showOrbits = false;
+        this.showGroundTracks = false;
         this.trackingMode = true;
         this.updateInterval = null;
         this.fpsCounter = 0;
@@ -165,6 +166,10 @@ class SatelliteViewer {
 
         document.getElementById('orbitsBtn').addEventListener('click', () => {
             this.toggleOrbits();
+        });
+
+        document.getElementById('groundTracksBtn').addEventListener('click', () => {
+            this.toggleGroundTracks();
         });
 
         document.getElementById('saveLocationBtn').addEventListener('click', () => {
@@ -566,8 +571,11 @@ class SatelliteViewer {
                 this.renderSatelliteOrbit(noradId, data.orbit_points);
             }
 
-            // Also load ground track
-            await this.loadSatelliteGroundTrack(noradId);
+            // Load ground track only if ground tracks are enabled OR if it's an Earth observation satellite
+            const satellite = this.satellites.get(noradId);
+            if (this.showGroundTracks || (satellite && satellite.category === 'Earth_Observation')) {
+                await this.loadSatelliteGroundTrack(noradId);
+            }
         } catch (error) {
             console.error('Error loading satellite orbit:', error);
         }
@@ -592,34 +600,152 @@ class SatelliteViewer {
 
         if (groundTrackPoints.length < 2) return;
 
+        const satellite = this.satellites.get(noradId);
+        const color = satellite ? satellite.color : '#64b5f6';
+
+        // Create ground track line (clamped to ground)
         const positions = groundTrackPoints.map(point =>
             Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude)
         );
-
-        const satellite = this.satellites.get(noradId);
-        const color = satellite ? satellite.color : '#64b5f6';
 
         const groundTrackEntity = this.viewer.entities.add({
             id: `ground_track_${noradId}`,
             polyline: {
                 positions: positions,
-                width: 5,
+                width: 3,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
+                    glowPower: 0.2,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.6)
                 }),
                 clampToGround: true
             }
         });
 
         this.orbitEntities.set(`ground_track_${noradId}`, groundTrackEntity);
+
+        // Create swath coverage visualization (polygons showing coverage width)
+        if (groundTrackPoints.length > 1 && groundTrackPoints[0].swath_width_km) {
+            this.renderSwathCoverage(noradId, groundTrackPoints, color);
+        }
+
+        // Add nadir line for selected satellite
+        if (noradId === this.selectedSatellite) {
+            this.renderNadirLine(noradId, satellite, color);
+        }
+    }
+
+    renderSwathCoverage(noradId, groundTrackPoints, color) {
+        // Create polygons to show swath width coverage
+        for (let i = 0; i < groundTrackPoints.length - 1; i += 5) { // Skip some points for performance
+            const point = groundTrackPoints[i];
+            const nextPoint = groundTrackPoints[i + 1] || point;
+            
+            // Calculate swath boundary points
+            const swathHalfWidth = point.swath_width_km / 2;
+            const earthRadius = 6371; // km
+            const latOffset = (swathHalfWidth / earthRadius) * (180 / Math.PI);
+            
+            // Create a simple rectangular swath coverage
+            const swathPositions = [
+                Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude - latOffset),
+                Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude + latOffset),
+                Cesium.Cartesian3.fromDegrees(nextPoint.longitude, nextPoint.latitude + latOffset),
+                Cesium.Cartesian3.fromDegrees(nextPoint.longitude, nextPoint.latitude - latOffset)
+            ];
+
+            const swathEntity = this.viewer.entities.add({
+                id: `swath_${noradId}_${i}`,
+                polygon: {
+                    hierarchy: swathPositions,
+                    material: Cesium.Color.fromCssColorString(color).withAlpha(0.15),
+                    outline: false,
+                    extrudedHeight: 0
+                }
+            });
+
+            this.orbitEntities.set(`swath_${noradId}_${i}`, swathEntity);
+        }
+    }
+
+    renderNadirLine(noradId, satellite, color) {
+        // Create nadir point on ground
+        const nadirPosition = Cesium.Cartesian3.fromDegrees(
+            satellite.longitude, 
+            satellite.latitude, 
+            0
+        );
+
+        // Create satellite position
+        const satellitePosition = Cesium.Cartesian3.fromDegrees(
+            satellite.longitude, 
+            satellite.latitude, 
+            satellite.altitude * 1000
+        );
+
+        // Create nadir line (vertical line from satellite to ground)
+        const nadirLineEntity = this.viewer.entities.add({
+            id: `nadir_line_${noradId}`,
+            polyline: {
+                positions: [satellitePosition, nadirPosition],
+                width: 2,
+                material: Cesium.Color.fromCssColorString(color).withAlpha(0.7),
+                clampToGround: false
+            }
+        });
+
+        this.orbitEntities.set(`nadir_line_${noradId}`, nadirLineEntity);
+
+        // Create circular ground footprint with blur effect
+        const footprintRadius = (satellite.altitude * 1000) * Math.tan(0.1); // Approximate sensor footprint
+        const footprintEntity = this.viewer.entities.add({
+            id: `nadir_footprint_${noradId}`,
+            position: nadirPosition,
+            ellipse: {
+                semiMajorAxis: footprintRadius,
+                semiMinorAxis: footprintRadius,
+                material: new Cesium.RadialGradientMaterialProperty({
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.3),
+                    radius: 1.0
+                }),
+                outline: true,
+                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6)
+            }
+        });
+
+        this.orbitEntities.set(`nadir_footprint_${noradId}`, footprintEntity);
     }
 
     clearGroundTrack(noradId) {
+        // Clear ground track line
         const groundTrackEntity = this.orbitEntities.get(`ground_track_${noradId}`);
         if (groundTrackEntity) {
             this.viewer.entities.remove(groundTrackEntity);
             this.orbitEntities.delete(`ground_track_${noradId}`);
+        }
+
+        // Clear swath coverage polygons
+        const swathKeys = Array.from(this.orbitEntities.keys()).filter(key => 
+            key.startsWith(`swath_${noradId}_`)
+        );
+        swathKeys.forEach(key => {
+            const entity = this.orbitEntities.get(key);
+            if (entity) {
+                this.viewer.entities.remove(entity);
+                this.orbitEntities.delete(key);
+            }
+        });
+
+        // Clear nadir line and footprint
+        const nadirLineEntity = this.orbitEntities.get(`nadir_line_${noradId}`);
+        if (nadirLineEntity) {
+            this.viewer.entities.remove(nadirLineEntity);
+            this.orbitEntities.delete(`nadir_line_${noradId}`);
+        }
+
+        const nadirFootprintEntity = this.orbitEntities.get(`nadir_footprint_${noradId}`);
+        if (nadirFootprintEntity) {
+            this.viewer.entities.remove(nadirFootprintEntity);
+            this.orbitEntities.delete(`nadir_footprint_${noradId}`);
         }
     }
 
@@ -675,19 +801,26 @@ class SatelliteViewer {
         const container = document.getElementById('passPredictions');
 
         if (passes.length === 0) {
-            container.innerHTML = '<p class="text-muted">No upcoming passes found</p>';
+            container.innerHTML = '<p class="text-muted">No upcoming passes found for your location</p>';
+            document.getElementById('passInfo').style.display = 'block';
         } else {
-            container.innerHTML = passes.slice(0, 6).map(pass => `
+            container.innerHTML = passes.slice(0, 6).map((pass, index) => `
                 <div class="pass-item">
-                    <div class="pass-time">${new Date(pass.rise_time).toLocaleString()}</div>
+                    <div class="pass-time">Pass ${index + 1}: ${new Date(pass.rise_time).toLocaleDateString()} ${new Date(pass.rise_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                     <div class="pass-details">
-                        <small>Max elevation: ${pass.max_elevation?.toFixed(1)}° • Duration: ${pass.duration_minutes?.toFixed(1)} min</small>
+                        <small>
+                            <strong>Rise:</strong> ${new Date(pass.rise_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} 
+                            (${pass.rise_azimuth ? pass.rise_azimuth.toFixed(0) + '°' : 'N/A'})<br>
+                            <strong>Peak:</strong> ${pass.max_elevation ? pass.max_elevation.toFixed(1) + '°' : 'N/A'} elevation<br>
+                            <strong>Set:</strong> ${pass.set_time ? new Date(pass.set_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}
+                            (${pass.set_azimuth ? pass.set_azimuth.toFixed(0) + '°' : 'N/A'})<br>
+                            <strong>Duration:</strong> ${pass.duration_minutes ? pass.duration_minutes.toFixed(1) + ' min' : 'N/A'}
+                        </small>
                     </div>
                 </div>
             `).join('');
+            document.getElementById('passInfo').style.display = 'block';
         }
-
-        document.getElementById('passInfo').style.display = 'block';
     }
 
     async searchSatellites(query) {
@@ -867,6 +1000,43 @@ class SatelliteViewer {
         } else {
             btn.classList.remove('active');
         }
+    }
+
+    toggleGroundTracks() {
+        this.showGroundTracks = !this.showGroundTracks;
+        const btn = document.getElementById('groundTracksBtn');
+
+        if (this.showGroundTracks) {
+            btn.classList.add('active');
+            this.showAllGroundTracks();
+        } else {
+            btn.classList.remove('active');
+            this.clearAllGroundTracks();
+        }
+    }
+
+    async showAllGroundTracks() {
+        // Show ground tracks for Earth observation satellites
+        for (const [noradId, satellite] of this.satellites) {
+            if (satellite.category === 'Earth_Observation') {
+                await this.loadSatelliteGroundTrack(noradId);
+            }
+        }
+    }
+
+    clearAllGroundTracks() {
+        // Clear all ground track entities
+        const groundTrackKeys = Array.from(this.orbitEntities.keys()).filter(key => 
+            key.startsWith('ground_track_') || key.startsWith('nadir_')
+        );
+        
+        groundTrackKeys.forEach(key => {
+            const entity = this.orbitEntities.get(key);
+            if (entity) {
+                this.viewer.entities.remove(entity);
+                this.orbitEntities.delete(key);
+            }
+        });
     }
 
     resetView() {

@@ -224,6 +224,14 @@ class SatelliteTracker:
         """Categorize satellite based on name and NORAD ID"""
         name_lower = name.lower()
         
+        # Earth observation satellites (moved to top priority)
+        if ('landsat' in name_lower or 'sentinel' in name_lower or 'terra' in name_lower or 
+            'aqua' in name_lower or 'modis' in name_lower or 'worldview' in name_lower or
+            'spot' in name_lower or 'resourcesat' in name_lower or 'cartosat' in name_lower or
+            'rapideye' in name_lower or 'pleiades' in name_lower or 'deimos' in name_lower or
+            'formosat' in name_lower or 'kompsat' in name_lower or 'alos' in name_lower):
+            return 'Earth_Observation'
+        
         # ISS
         if norad_id == 25544 or 'iss' in name_lower:
             return 'ISS'
@@ -753,10 +761,30 @@ class SatelliteTracker:
         
         try:
             satellite = self.satellites[norad_id]['satellite']
+            sat_data = self.satellites[norad_id]
             current_time = self.ts.now()
             
+            # Determine appropriate swath width based on satellite type
+            if sat_data['category'] == 'Earth_Observation':
+                # Use specific swath widths for known Earth observation satellites
+                name_lower = sat_data['name'].lower()
+                if 'landsat' in name_lower:
+                    swath_width_km = 185  # Landsat swath width
+                elif 'sentinel-2' in name_lower:
+                    swath_width_km = 290  # Sentinel-2 swath width
+                elif 'sentinel-1' in name_lower:
+                    swath_width_km = 250  # Sentinel-1 swath width
+                elif 'modis' in name_lower:
+                    swath_width_km = 2330  # MODIS swath width
+                elif 'worldview' in name_lower:
+                    swath_width_km = 16.4  # WorldView swath width
+                elif 'spot' in name_lower:
+                    swath_width_km = 60  # SPOT swath width
+                else:
+                    swath_width_km = 300  # Default for Earth observation
+            
             ground_track = []
-            time_step = 60  # 1 minute in seconds for more detail
+            time_step = 30  # 30 seconds for more detail
             num_points = int((duration_hours * 3600) / time_step)
             
             for i in range(num_points):
@@ -764,18 +792,19 @@ class SatelliteTracker:
                 geocentric = satellite.at(future_time)
                 subpoint = geocentric.subpoint()
                 
-                # Calculate swath boundaries (simplified calculation)
-                # In reality, this would need more complex calculations for different sensor types
                 lat = subpoint.latitude.degrees
                 lon = subpoint.longitude.degrees
                 alt = subpoint.elevation.km
                 
-                # Approximate swath calculation based on altitude and swath width
+                # More accurate swath calculation
                 earth_radius = 6371  # km
-                swath_angle = np.arctan2(swath_width_km / 2, alt) * 180 / np.pi
+                # Calculate the swath angle based on sensor viewing angle
+                sensor_angle = np.arctan2(swath_width_km / 2, alt)
+                swath_half_width_km = alt * np.tan(sensor_angle)
                 
-                # Calculate approximate lat/lon offsets for swath boundaries
-                lat_offset = swath_angle * 0.5  # Simplified approximation
+                # Convert to lat/lon offsets (simplified)
+                lat_offset = swath_half_width_km / earth_radius * (180 / np.pi)
+                lon_offset = swath_half_width_km / (earth_radius * np.cos(np.radians(lat))) * (180 / np.pi) if lat != 90 else 0
                 
                 ground_track.append({
                     'latitude': lat,
@@ -784,8 +813,8 @@ class SatelliteTracker:
                     'time_offset_minutes': (i * time_step) / 60,
                     'swath_left_lat': lat - lat_offset,
                     'swath_right_lat': lat + lat_offset,
-                    'swath_left_lon': lon,
-                    'swath_right_lon': lon,
+                    'swath_left_lon': lon - lon_offset,
+                    'swath_right_lon': lon + lon_offset,
                     'swath_width_km': swath_width_km
                 })
             
