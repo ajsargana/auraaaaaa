@@ -688,7 +688,7 @@ class SatelliteTracker:
         except Exception as e:
             logging.error(f"Error calculating passes: {e}")
         
-        return passes[:6]  # Return next 3 passes
+        return passes[:6]  # Return next 6 passes
     
     def get_satellite_categories(self):
         """Get satellite categories with counts"""

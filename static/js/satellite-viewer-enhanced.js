@@ -107,7 +107,7 @@ class SatelliteViewer {
             if (data.success && data.preferences) {
                 this.preferences = data.preferences;
                 this.userLocation = this.preferences.location || { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = (this.preferences.update_interval || 5) * 200;
+                this.updateRate = (this.preferences.update_interval || 1) * 200;
 
                 // Update UI safely
                 const latElement = document.getElementById('latitude');
@@ -118,16 +118,16 @@ class SatelliteViewer {
                 if (latElement) latElement.value = this.userLocation.lat;
                 if (lonElement) lonElement.value = this.userLocation.lon;
                 if (altElement) altElement.value = this.userLocation.alt;
-                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 5}s`;
+                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 1}s`;
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = 1000; // 5 seconds
+                this.updateRate = 200; // 1 seconds
             }
         } catch (error) {
             console.warn('Could not load user preferences, using defaults:', error);
             this.userLocation = { lat: 0, lon: 0, alt: 0 };
-            this.updateRate = 1000;
+            this.updateRate = 200;
         }
     }
 
@@ -623,7 +623,7 @@ class SatelliteViewer {
         if (passes.length === 0) {
             container.innerHTML = '<p class="text-muted">No upcoming passes found</p>';
         } else {
-            container.innerHTML = passes.slice(0, 3).map(pass => `
+            container.innerHTML = passes.slice(0, 6).map(pass => `
                 <div class="pass-item">
                     <div class="pass-time">${new Date(pass.rise_time).toLocaleString()}</div>
                     <div class="pass-details">
@@ -714,7 +714,7 @@ class SatelliteViewer {
             ),
             orientation: {
                 heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_FOUR,
+                pitch: -Cesium.Math.PI_OVER_TWO,
                 roll: 0.0
             },
             duration: 3.0
@@ -820,7 +820,7 @@ class SatelliteViewer {
             destination: Cesium.Cartesian3.fromDegrees(0, 30, 12000000),
             orientation: {
                 heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_FOUR,
+                pitch: -Cesium.Math.PI_OVER_TWO    ,
                 roll: 0.0
             },
             duration: 2.0
