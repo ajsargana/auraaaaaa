@@ -19,7 +19,6 @@ class SatelliteViewer {
         this.lastFrameTime = 0;
         this.frameCount = 0;
         this.preferences = {};
-        this.detailUpdateInterval = null;
 
         // Performance optimizations
         this.updateRate = 1000; // 1000ms (1 second) for better synchronization
@@ -477,13 +476,6 @@ class SatelliteViewer {
     }
 
     deselectSatellite() {
-        // Clear detail update interval
-        if (this.detailUpdateInterval) {
-            clearInterval(this.detailUpdateInterval);
-            this.detailUpdateInterval = null;
-        }
-
-        const previousSatellite = this.selectedSatellite;
         this.selectedSatellite = null;
 
         document.getElementById('satelliteInfo').style.display = 'none';
@@ -492,7 +484,7 @@ class SatelliteViewer {
         this.updateSatelliteSelection();
         this.clearSelectedOrbit();
         this.clearSelectedGroundTrack();
-        this.clearNadirLine(previousSatellite);
+        this.clearNadirLine();
     }
 
     updateSatelliteSelection() {
@@ -528,27 +520,13 @@ class SatelliteViewer {
 
             if (data.success && data.satellite) {
                 this.renderSatelliteDetails(data.satellite);
-                // Start real-time updates for details
-                this.startDetailUpdates(noradId);
             } else {
                 console.warn('Failed to load satellite details:', data);
-                // If API fails, show basic details from satellite data
-                const satellite = this.satellites.get(noradId);
-                if (satellite) {
-                    this.renderBasicSatelliteDetails(satellite);
-                } else {
-                    document.getElementById('satelliteInfo').style.display = 'none';
-                }
+                document.getElementById('satelliteInfo').style.display = 'none';
             }
         } catch (error) {
             console.error('Error loading satellite details:', error);
-            // Fallback to basic details from cached satellite data
-            const satellite = this.satellites.get(noradId);
-            if (satellite) {
-                this.renderBasicSatelliteDetails(satellite);
-            } else {
-                document.getElementById('satelliteInfo').style.display = 'none';
-            }
+            document.getElementById('satelliteInfo').style.display = 'none';
         }
     }
 
@@ -567,13 +545,13 @@ class SatelliteViewer {
                 </h6>
                 <div class="row g-2">
                     <div class="col-6"><small class="text-muted">Altitude:</small></div>
-                    <div class="col-6"><small class="text-success" id="detail-altitude">${satellite.orbit.altitude.toFixed(1)} km</small></div>
+                    <div class="col-6"><small class="text-success">${satellite.orbit.altitude.toFixed(1)} km</small></div>
                     <div class="col-6"><small class="text-muted">Inclination:</small></div>
                     <div class="col-6"><small class="text-info">${satellite.orbit.inclination.toFixed(2)}°</small></div>
                     <div class="col-6"><small class="text-muted">Period:</small></div>
                     <div class="col-6"><small class="text-primary">${satellite.orbit.period.toFixed(1)} min</small></div>
                     <div class="col-6"><small class="text-muted">Velocity:</small></div>
-                    <div class="col-6"><small class="text-warning" id="detail-velocity">${satellite.orbit.velocity.toFixed(2)} km/s</small></div>
+                    <div class="col-6"><small class="text-warning">${satellite.orbit.velocity.toFixed(2)} km/s</small></div>
                     <div class="col-6"><small class="text-muted">Orbit Type:</small></div>
                     <div class="col-6"><small class="text-cyan">${satellite.orbit.orbit_type}</small></div>
                 </div>
@@ -586,9 +564,9 @@ class SatelliteViewer {
                 </h6>
                 <div class="row g-2">
                     <div class="col-6"><small class="text-muted">Latitude:</small></div>
-                    <div class="col-6"><small class="text-success" id="detail-latitude">${satellite.position.latitude.toFixed(4)}°</small></div>
+                    <div class="col-6"><small class="text-success">${satellite.position.latitude.toFixed(4)}°</small></div>
                     <div class="col-6"><small class="text-muted">Longitude:</small></div>
-                    <div class="col-6"><small class="text-success" id="detail-longitude">${satellite.position.longitude.toFixed(4)}°</small></div>
+                    <div class="col-6"><small class="text-success">${satellite.position.longitude.toFixed(4)}°</small></div>
                     <div class="col-6"><small class="text-muted">Country:</small></div>
                     <div class="col-6"><small class="text-info">${satellite.position.country}</small></div>
                     <div class="col-6"><small class="text-muted">Visibility:</small></div>
@@ -617,81 +595,6 @@ class SatelliteViewer {
         `;
 
         document.getElementById('satelliteInfo').style.display = 'block';
-    }
-
-    renderBasicSatelliteDetails(satellite) {
-        const container = document.getElementById('satelliteDetails');
-
-        container.innerHTML = `
-            <div class="satellite-header mb-3">
-                <strong class="text-info">${satellite.name}</strong>
-            </div>
-
-            <!-- Basic Position Information -->
-            <div class="satellite-section mb-3">
-                <h6 class="text-success mb-2">
-                    <i class="fas fa-map-marker-alt me-2"></i>Position
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Latitude:</small></div>
-                    <div class="col-6"><small class="text-success" id="detail-latitude">${satellite.latitude.toFixed(4)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Longitude:</small></div>
-                    <div class="col-6"><small class="text-success" id="detail-longitude">${satellite.longitude.toFixed(4)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Altitude:</small></div>
-                    <div class="col-6"><small class="text-warning" id="detail-altitude">${satellite.altitude.toFixed(1)} km</small></div>
-                    <div class="col-6"><small class="text-muted">Velocity:</small></div>
-                    <div class="col-6"><small class="text-primary" id="detail-velocity">${(satellite.velocity/1000).toFixed(2)} km/s</small></div>
-                </div>
-            </div>
-
-            <!-- Technical Information -->
-            <div class="satellite-section">
-                <h6 class="text-cyan mb-2">
-                    <i class="fas fa-cog me-2"></i>Technical
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">NORAD ID:</small></div>
-                    <div class="col-6"><small class="text-white">${satellite.norad_id}</small></div>
-                    <div class="col-6"><small class="text-muted">Category:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.category}</small></div>
-                    <div class="col-6"><small class="text-muted">Launch Date:</small></div>
-                    <div class="col-6"><small class="text-primary">${satellite.launch_date}</small></div>
-                    <div class="col-6"><small class="text-muted">Period:</small></div>
-                    <div class="col-6"><small class="text-success">${satellite.orbital_period.toFixed(1)} min</small></div>
-                </div>
-            </div>
-        `;
-
-        document.getElementById('satelliteInfo').style.display = 'block';
-    }
-
-    startDetailUpdates(noradId) {
-        // Clear any existing detail update interval
-        if (this.detailUpdateInterval) {
-            clearInterval(this.detailUpdateInterval);
-        }
-
-        // Update details every second for real-time effect
-        this.detailUpdateInterval = setInterval(() => {
-            if (this.selectedSatellite !== noradId) {
-                clearInterval(this.detailUpdateInterval);
-                return;
-            }
-
-            const satellite = this.satellites.get(noradId);
-            if (satellite) {
-                // Update real-time position data
-                const latElement = document.getElementById('detail-latitude');
-                const lonElement = document.getElementById('detail-longitude');
-                const altElement = document.getElementById('detail-altitude');
-                const velElement = document.getElementById('detail-velocity');
-
-                if (latElement) latElement.textContent = `${satellite.latitude.toFixed(4)}°`;
-                if (lonElement) lonElement.textContent = `${satellite.longitude.toFixed(4)}°`;
-                if (altElement) altElement.textContent = `${satellite.altitude.toFixed(1)} km`;
-                if (velElement) velElement.textContent = `${(satellite.velocity/1000).toFixed(2)} km/s`;
-            }
-        }, 1000); // Update every second
     }
 
     async loadSatelliteOrbit(noradId) {
@@ -913,19 +816,9 @@ class SatelliteViewer {
     }
 
     clearSelectedOrbit() {
-        if (this.selectedSatellite) {
-            // Clear current orbit
-            if (this.orbitEntities.has(this.selectedSatellite)) {
-                this.viewer.entities.remove(this.orbitEntities.get(this.selectedSatellite));
-                this.orbitEntities.delete(this.selectedSatellite);
-            }
-            
-            // Clear future orbit
-            const futureOrbitKey = `future_${this.selectedSatellite}`;
-            if (this.orbitEntities.has(futureOrbitKey)) {
-                this.viewer.entities.remove(this.orbitEntities.get(futureOrbitKey));
-                this.orbitEntities.delete(futureOrbitKey);
-            }
+        if (this.selectedSatellite && this.orbitEntities.has(this.selectedSatellite)) {
+            this.viewer.entities.remove(this.orbitEntities.get(this.selectedSatellite));
+            this.orbitEntities.delete(this.selectedSatellite);
         }
     }
 
@@ -1310,60 +1203,19 @@ class SatelliteViewer {
         }
     }
 
-    clearNadirLine(noradId = null) {
-        const satelliteId = noradId || this.selectedSatellite;
-        if (satelliteId) {
-            const lineEntity = this.nadirEntities.get(`line_${satelliteId}`);
-            const circleEntity = this.nadirEntities.get(`circle_${satelliteId}`);
+    clearNadirLine() {
+        if (this.selectedSatellite) {
+            const lineEntity = this.nadirEntities.get(`line_${this.selectedSatellite}`);
+            const circleEntity = this.nadirEntities.get(`circle_${this.selectedSatellite}`);
             
             if (lineEntity) {
                 this.viewer.entities.remove(lineEntity);
-                this.nadirEntities.delete(`line_${satelliteId}`);
+                this.nadirEntities.delete(`line_${this.selectedSatellite}`);
             }
             if (circleEntity) {
                 this.viewer.entities.remove(circleEntity);
-                this.nadirEntities.delete(`circle_${satelliteId}`);
+                this.nadirEntities.delete(`circle_${this.selectedSatellite}`);
             }
-        }
-    }
-
-    async loadFutureOrbit(noradId) {
-        try {
-            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=6`);
-            const data = await response.json();
-
-            if (data.success && data.orbit_points.length > 0) {
-                const satellite = this.satellites.get(noradId);
-                const color = satellite ? satellite.color : '#64b5f6';
-                
-                // Split orbit into past and future segments
-                const currentIndex = Math.floor(data.orbit_points.length / 3); // Approximate current position
-                const futurePoints = data.orbit_points.slice(currentIndex);
-                
-                if (futurePoints.length < 2) return;
-
-                const futurePositions = futurePoints.map(point => 
-                    Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, point.altitude * 1000)
-                );
-
-                // Add future orbital path
-                const futureOrbitEntity = this.viewer.entities.add({
-                    id: `future_orbit_${noradId}`,
-                    polyline: {
-                        positions: futurePositions,
-                        width: 2,
-                        material: new Cesium.PolylineDashMaterialProperty({
-                            color: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
-                            dashLength: 16
-                        }),
-                        clampToGround: false
-                    }
-                });
-
-                this.orbitEntities.set(`future_${noradId}`, futureOrbitEntity);
-            }
-        } catch (error) {
-            console.error('Error loading future orbit:', error);
         }
     }
 
@@ -1391,7 +1243,6 @@ class SatelliteViewer {
             btn.classList.add('active');
             if (this.selectedSatellite) {
                 this.loadSatelliteOrbit(this.selectedSatellite);
-                this.loadFutureOrbit(this.selectedSatellite);
             }
         } else {
             btn.classList.remove('active');
