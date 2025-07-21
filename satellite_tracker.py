@@ -224,6 +224,14 @@ class SatelliteTracker:
         """Categorize satellite based on name and NORAD ID"""
         name_lower = name.lower()
         
+        # Earth Observation - TOP PRIORITY
+        if ('landsat' in name_lower or 'sentinel' in name_lower or 'terra' in name_lower or 
+            'aqua' in name_lower or 'modis' in name_lower or 'worldview' in name_lower or
+            'spot' in name_lower or 'rapideye' in name_lower or 'pleiades' in name_lower or
+            'ikonos' in name_lower or 'quickbird' in name_lower or 'geoeye' in name_lower or
+            'skysat' in name_lower or 'planet' in name_lower or 'dove' in name_lower):
+            return 'Earth_Observation'
+        
         # ISS
         if norad_id == 25544 or 'iss' in name_lower:
             return 'ISS'
@@ -246,13 +254,10 @@ class SatelliteTracker:
         if 'iridium' in name_lower:
             return 'Iridium'
         
-        # Weather and Earth observation
+        # Weather satellites
         if ('noaa' in name_lower or 'goes' in name_lower or 'meteosat' in name_lower or 
             'weather' in name_lower or 'metop' in name_lower or 'himawari' in name_lower):
             return 'Weather'
-        if ('landsat' in name_lower or 'sentinel' in name_lower or 'terra' in name_lower or 
-            'aqua' in name_lower or 'modis' in name_lower or 'worldview' in name_lower):
-            return 'Earth_Observation'
         
         # Space telescopes and astronomy
         if ('hubble' in name_lower or 'kepler' in name_lower or 'tess' in name_lower or 
@@ -756,7 +761,7 @@ class SatelliteTracker:
             current_time = self.ts.now()
             
             ground_track = []
-            time_step = 60  # 1 minute in seconds for more detail
+            time_step = 30  # 30 seconds for higher detail
             num_points = int((duration_hours * 3600) / time_step)
             
             for i in range(num_points):
@@ -764,29 +769,32 @@ class SatelliteTracker:
                 geocentric = satellite.at(future_time)
                 subpoint = geocentric.subpoint()
                 
-                # Calculate swath boundaries (simplified calculation)
-                # In reality, this would need more complex calculations for different sensor types
                 lat = subpoint.latitude.degrees
                 lon = subpoint.longitude.degrees
                 alt = subpoint.elevation.km
                 
-                # Approximate swath calculation based on altitude and swath width
+                # Enhanced swath calculation
                 earth_radius = 6371  # km
-                swath_angle = np.arctan2(swath_width_km / 2, alt) * 180 / np.pi
                 
-                # Calculate approximate lat/lon offsets for swath boundaries
-                lat_offset = swath_angle * 0.5  # Simplified approximation
+                # Calculate half-swath angle more accurately
+                half_swath_angle = np.arctan(swath_width_km / (2 * alt)) * 180 / np.pi
+                
+                # Calculate perpendicular swath boundaries
+                # This is a simplified calculation - real satellites would need velocity vector consideration
+                lat_offset = half_swath_angle / 111.32  # degrees per km at equator
+                lon_offset = half_swath_angle / (111.32 * np.cos(np.radians(lat)))
                 
                 ground_track.append({
                     'latitude': lat,
                     'longitude': lon,
-                    'altitude': alt,
+                    'altitude': 0,  # Ground level for ground track
                     'time_offset_minutes': (i * time_step) / 60,
                     'swath_left_lat': lat - lat_offset,
                     'swath_right_lat': lat + lat_offset,
-                    'swath_left_lon': lon,
-                    'swath_right_lon': lon,
-                    'swath_width_km': swath_width_km
+                    'swath_left_lon': lon - lon_offset,
+                    'swath_right_lon': lon + lon_offset,
+                    'swath_width_km': swath_width_km,
+                    'sensor_altitude': alt
                 })
             
             return ground_track

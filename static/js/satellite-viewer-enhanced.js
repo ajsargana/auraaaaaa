@@ -10,8 +10,11 @@ class SatelliteViewer {
         this.categories = {};
         this.activeCategoryFilter = null;
         this.showOrbits = false;
+        this.showGroundTracks = false;
         this.trackingMode = true;
         this.updateInterval = null;
+        this.groundTrackEntities = new Map();
+        this.nadirEntities = new Map();
         this.fpsCounter = 0;
         this.lastFrameTime = 0;
         this.frameCount = 0;
@@ -165,6 +168,10 @@ class SatelliteViewer {
 
         document.getElementById('orbitsBtn').addEventListener('click', () => {
             this.toggleOrbits();
+        });
+
+        document.getElementById('groundTracksBtn').addEventListener('click', () => {
+            this.toggleGroundTracks();
         });
 
         document.getElementById('saveLocationBtn').addEventListener('click', () => {
@@ -424,6 +431,14 @@ class SatelliteViewer {
             await this.loadSatelliteOrbit(noradId);
         }
 
+        // Load ground tracks if enabled
+        if (this.showGroundTracks) {
+            await this.loadSatelliteGroundTrack(noradId);
+        }
+
+        // Always show nadir line for selected satellite
+        this.renderNadirLine(noradId);
+
         // Load pass predictions
         if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
             await this.loadPassPredictions(noradId);
@@ -443,6 +458,8 @@ class SatelliteViewer {
 
         this.updateSatelliteSelection();
         this.clearSelectedOrbit();
+        this.clearSelectedGroundTrack();
+        this.clearNadirLine();
     }
 
     updateSatelliteSelection() {
@@ -565,9 +582,6 @@ class SatelliteViewer {
             if (data.success && data.orbit_points.length > 0) {
                 this.renderSatelliteOrbit(noradId, data.orbit_points);
             }
-
-            // Also load ground track
-            await this.loadSatelliteGroundTrack(noradId);
         } catch (error) {
             console.error('Error loading satellite orbit:', error);
         }
@@ -588,38 +602,76 @@ class SatelliteViewer {
 
     renderSatelliteGroundTrack(noradId, groundTrackPoints) {
         // Remove existing ground track for this satellite
-        this.clearGroundTrack(noradId);
+        this.clearSelectedGroundTrack();
 
         if (groundTrackPoints.length < 2) return;
-
-        const positions = groundTrackPoints.map(point =>
-            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude)
-        );
 
         const satellite = this.satellites.get(noradId);
         const color = satellite ? satellite.color : '#64b5f6';
 
-        const groundTrackEntity = this.viewer.entities.add({
-            id: `ground_track_${noradId}`,
+        // Create center line positions
+        const centerPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
+        );
+
+        // Create swath boundary positions
+        const leftBoundaryPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.swath_left_lon, point.swath_left_lat, 0)
+        );
+
+        const rightBoundaryPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.swath_right_lon, point.swath_right_lat, 0)
+        );
+
+        // Create swath polygon for coverage area
+        const swathPositions = [];
+        leftBoundaryPositions.forEach(pos => swathPositions.push(pos));
+        rightBoundaryPositions.reverse().forEach(pos => swathPositions.push(pos));
+
+        // Add swath coverage area
+        const swathEntity = this.viewer.entities.add({
+            id: `ground_swath_${noradId}`,
+            polygon: {
+                hierarchy: swathPositions,
+                material: Cesium.Color.fromCssColorString(color).withAlpha(0.3),
+                outline: true,
+                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
+                height: 0,
+                extrudedHeight: 0
+            }
+        });
+
+        // Add center line
+        const centerLineEntity = this.viewer.entities.add({
+            id: `ground_track_center_${noradId}`,
             polyline: {
-                positions: positions,
-                width: 5,
+                positions: centerPositions,
+                width: 3,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
+                    glowPower: 0.4,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.9)
                 }),
                 clampToGround: true
             }
         });
 
-        this.orbitEntities.set(`ground_track_${noradId}`, groundTrackEntity);
+        this.groundTrackEntities.set(`swath_${noradId}`, swathEntity);
+        this.groundTrackEntities.set(`center_${noradId}`, centerLineEntity);
     }
 
-    clearGroundTrack(noradId) {
-        const groundTrackEntity = this.orbitEntities.get(`ground_track_${noradId}`);
-        if (groundTrackEntity) {
-            this.viewer.entities.remove(groundTrackEntity);
-            this.orbitEntities.delete(`ground_track_${noradId}`);
+    clearSelectedGroundTrack() {
+        if (this.selectedSatellite) {
+            const swathEntity = this.groundTrackEntities.get(`swath_${this.selectedSatellite}`);
+            const centerEntity = this.groundTrackEntities.get(`center_${this.selectedSatellite}`);
+            
+            if (swathEntity) {
+                this.viewer.entities.remove(swathEntity);
+                this.groundTrackEntities.delete(`swath_${this.selectedSatellite}`);
+            }
+            if (centerEntity) {
+                this.viewer.entities.remove(centerEntity);
+                this.groundTrackEntities.delete(`center_${this.selectedSatellite}`);
+            }
         }
     }
 
@@ -672,21 +724,66 @@ class SatelliteViewer {
     }
 
     renderPassPredictions(passes) {
-        const container = document.getElementById('passPredictions');
-
+        const tabsContainer = document.getElementById('passNavTabs');
+        const contentContainer = document.getElementById('passTabContent');
+        
         if (passes.length === 0) {
-            container.innerHTML = '<p class="text-muted">No upcoming passes found</p>';
-        } else {
-            container.innerHTML = passes.slice(0, 6).map(pass => `
-                <div class="pass-item">
-                    <div class="pass-time">${new Date(pass.rise_time).toLocaleString()}</div>
-                    <div class="pass-details">
-                        <small>Max elevation: ${pass.max_elevation?.toFixed(1)}° • Duration: ${pass.duration_minutes?.toFixed(1)} min</small>
-                    </div>
-                </div>
-            `).join('');
+            tabsContainer.innerHTML = '';
+            contentContainer.innerHTML = '<p class="text-muted p-3">No upcoming passes found</p>';
+            document.getElementById('passInfo').style.display = 'block';
+            return;
         }
 
+        // Create tabs for each pass
+        const tabsHtml = passes.slice(0, 6).map((pass, index) => `
+            <li class="nav-item" role="presentation">
+                <button class="nav-link ${index === 0 ? 'active' : ''}" id="pass-tab-${index}" 
+                        data-bs-toggle="tab" data-bs-target="#pass-${index}" type="button" 
+                        role="tab" aria-controls="pass-${index}" aria-selected="${index === 0}">
+                    Pass ${index + 1}
+                </button>
+            </li>
+        `).join('');
+
+        // Create tab content for each pass
+        const contentHtml = passes.slice(0, 6).map((pass, index) => `
+            <div class="tab-pane fade ${index === 0 ? 'show active' : ''}" id="pass-${index}" 
+                 role="tabpanel" aria-labelledby="pass-tab-${index}">
+                <div class="p-3">
+                    <div class="mb-2">
+                        <strong class="text-info">Rise Time:</strong><br>
+                        <small>${new Date(pass.rise_time).toLocaleString()}</small>
+                    </div>
+                    <div class="mb-2">
+                        <strong class="text-success">Max Elevation:</strong><br>
+                        <small>${pass.max_elevation?.toFixed(1)}° at ${new Date(pass.culmination_time || pass.rise_time).toLocaleTimeString()}</small>
+                    </div>
+                    <div class="mb-2">
+                        <strong class="text-warning">Duration:</strong><br>
+                        <small>${pass.duration_minutes?.toFixed(1)} minutes</small>
+                    </div>
+                    ${pass.set_time ? `
+                    <div class="mb-2">
+                        <strong class="text-danger">Set Time:</strong><br>
+                        <small>${new Date(pass.set_time).toLocaleString()}</small>
+                    </div>
+                    ` : ''}
+                    <div class="row g-2 mt-2">
+                        <div class="col-6">
+                            <small class="text-muted">Rise Az:</small><br>
+                            <small class="text-primary">${pass.rise_azimuth?.toFixed(1)}°</small>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted">Set Az:</small><br>
+                            <small class="text-primary">${pass.set_azimuth?.toFixed(1)}°</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+
+        tabsContainer.innerHTML = tabsHtml;
+        contentContainer.innerHTML = contentHtml;
         document.getElementById('passInfo').style.display = 'block';
     }
 
@@ -834,6 +931,90 @@ class SatelliteViewer {
         if (orbitEntity) {
             this.viewer.entities.remove(orbitEntity);
             this.orbitEntities.delete(noradId);
+        }
+    }
+
+    renderNadirLine(noradId) {
+        this.clearNadirLine();
+
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return;
+
+        const groundPosition = Cesium.Cartesian3.fromDegrees(
+            satellite.longitude,
+            satellite.latitude,
+            0
+        );
+
+        const satellitePosition = Cesium.Cartesian3.fromDegrees(
+            satellite.longitude,
+            satellite.latitude,
+            satellite.altitude * 1000
+        );
+
+        const color = satellite ? satellite.color : '#64b5f6';
+
+        // Create nadir line
+        const nadirLine = this.viewer.entities.add({
+            id: `nadir_line_${noradId}`,
+            polyline: {
+                positions: [groundPosition, satellitePosition],
+                width: 2,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.3,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.7)
+                })
+            }
+        });
+
+        // Create circular light at ground position
+        const circularLight = this.viewer.entities.add({
+            id: `nadir_circle_${noradId}`,
+            position: groundPosition,
+            ellipse: {
+                semiMajorAxis: 150000, // 150km radius to match typical Earth observation swath
+                semiMinorAxis: 150000,
+                material: new Cesium.ColorMaterialProperty(
+                    Cesium.Color.fromCssColorString(color).withAlpha(0.2)
+                ),
+                outline: true,
+                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
+                height: 0
+            }
+        });
+
+        this.nadirEntities.set(`line_${noradId}`, nadirLine);
+        this.nadirEntities.set(`circle_${noradId}`, circularLight);
+    }
+
+    clearNadirLine() {
+        if (this.selectedSatellite) {
+            const lineEntity = this.nadirEntities.get(`line_${this.selectedSatellite}`);
+            const circleEntity = this.nadirEntities.get(`circle_${this.selectedSatellite}`);
+            
+            if (lineEntity) {
+                this.viewer.entities.remove(lineEntity);
+                this.nadirEntities.delete(`line_${this.selectedSatellite}`);
+            }
+            if (circleEntity) {
+                this.viewer.entities.remove(circleEntity);
+                this.nadirEntities.delete(`circle_${this.selectedSatellite}`);
+            }
+        }
+    }
+
+    toggleGroundTracks() {
+        this.showGroundTracks = !this.showGroundTracks;
+        const btn = document.getElementById('groundTracksBtn');
+
+        if (this.showGroundTracks) {
+            btn.classList.add('active');
+            if (this.selectedSatellite) {
+                this.loadSatelliteGroundTrack(this.selectedSatellite);
+            }
+        } else {
+            btn.classList.remove('active');
+            this.clearSelectedGroundTrack();
         }
     }
 
