@@ -15,6 +15,8 @@ class SatelliteViewer {
         this.updateInterval = null;
         this.groundTrackEntities = new Map();
         this.nadirEntities = new Map();
+        this.groundCircleEntities = new Map();
+        this.realTimeUpdateInterval = null;
         this.fpsCounter = 0;
         this.lastFrameTime = 0;
         this.frameCount = 0;
@@ -442,6 +444,11 @@ class SatelliteViewer {
     }
 
     async selectSatellite(noradId) {
+        // Clear previous selection visualizations
+        if (this.selectedSatellite && this.selectedSatellite !== noradId) {
+            this.clearSatelliteVisualizations(this.selectedSatellite);
+        }
+        
         this.selectedSatellite = noradId;
 
         // Enhanced visual selection
@@ -449,10 +456,13 @@ class SatelliteViewer {
 
         // Load detailed information
         await this.loadSatelliteDetails(noradId);
+        
+        // Start real-time details updates
+        this.startRealTimeDetailsUpdates(noradId);
 
         // Load orbital path if enabled
         if (this.showOrbits) {
-            await this.loadSatelliteOrbit(noradId);
+            await this.showOrbitPath(noradId);
         }
 
         // Load ground tracks if enabled
@@ -463,6 +473,9 @@ class SatelliteViewer {
 
         // Always show nadir line for selected satellite
         this.renderNadirLine(noradId);
+        
+        // Show future ground track
+        await this.renderFutureGroundTrack(noradId);
 
         // Load pass predictions
         if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
@@ -475,16 +488,55 @@ class SatelliteViewer {
         }
     }
 
+    clearSatelliteVisualizations(noradId) {
+        // Clear nadir line
+        this.clearNadirLine(noradId);
+        
+        // Clear ground track circle
+        this.clearGroundTrackCircle(noradId);
+        
+        // Clear future ground track
+        this.clearFutureGroundTrack(noradId);
+        
+        // Clear orbit path
+        this.clearOrbitPath(noradId);
+        
+        // Clear ground track
+        this.clearSelectedGroundTrack();
+        
+        // Stop real-time updates
+        this.stopRealTimeDetailsUpdates();
+    }
+
+    startRealTimeDetailsUpdates(noradId) {
+        // Clear any existing interval
+        this.stopRealTimeDetailsUpdates();
+        
+        // Update details every second for real-time feel
+        this.realTimeUpdateInterval = setInterval(async () => {
+            if (this.selectedSatellite === noradId) {
+                await this.loadSatelliteDetails(noradId);
+            }
+        }, 1000);
+    }
+
+    stopRealTimeDetailsUpdates() {
+        if (this.realTimeUpdateInterval) {
+            clearInterval(this.realTimeUpdateInterval);
+            this.realTimeUpdateInterval = null;
+        }
+    }
+
     deselectSatellite() {
+        if (this.selectedSatellite) {
+            this.clearSatelliteVisualizations(this.selectedSatellite);
+        }
         this.selectedSatellite = null;
 
         document.getElementById('satelliteInfo').style.display = 'none';
         document.getElementById('passInfo').style.display = 'none';
 
         this.updateSatelliteSelection();
-        this.clearSelectedOrbit();
-        this.clearSelectedGroundTrack();
-        this.clearNadirLine();
     }
 
     updateSatelliteSelection() {

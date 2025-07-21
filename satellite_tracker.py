@@ -750,6 +750,38 @@ class SatelliteTracker:
         except Exception as e:
             logging.error(f"Error calculating orbit path: {e}")
             return []
+
+    def get_future_ground_track(self, norad_id, duration_hours=3):
+        """Calculate future ground track for a satellite"""
+        if norad_id not in self.satellites:
+            return []
+        
+        try:
+            satellite = self.satellites[norad_id]['satellite']
+            current_time = self.ts.now()
+            
+            # Calculate ground track points for the next duration_hours
+            ground_track_points = []
+            time_step = 300  # 5 minutes in seconds
+            num_points = int((duration_hours * 3600) / time_step)
+            
+            for i in range(num_points):
+                future_time = self.ts.tt_jd(current_time.tt + (i * time_step) / 86400)
+                geocentric = satellite.at(future_time)
+                subpoint = geocentric.subpoint()
+                
+                ground_track_points.append({
+                    'latitude': subpoint.latitude.degrees,
+                    'longitude': subpoint.longitude.degrees,
+                    'altitude': 0,  # Ground level
+                    'time_offset_minutes': (i * time_step) / 60
+                })
+            
+            return ground_track_points
+            
+        except Exception as e:
+            logging.error(f"Error calculating future ground track: {e}")
+            return []
     
     def get_satellite_ground_track(self, norad_id, duration_hours=3, swath_width_km=300):
         """Calculate ground track with swath coverage for a satellite"""

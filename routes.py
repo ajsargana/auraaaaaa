@@ -200,3 +200,23 @@ def user_preferences():
             'success': False,
             'error': f"Failed to handle user preferences: {str(e)}"
         }), 500
+
+@app.route('/api/satellite/<int:norad_id>/future_ground_track')
+def get_future_ground_track(norad_id):
+    """Get future ground track for a specific satellite"""
+    try:
+        duration_hours = request.args.get('duration', 3, type=int)
+        ground_track_points = tracker.get_future_ground_track(norad_id, duration_hours)
+        
+        return jsonify({
+            'success': True,
+            'ground_track_points': ground_track_points,
+            'duration_hours': duration_hours
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting future ground track: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'ground_track_points': []
+        }), 200
