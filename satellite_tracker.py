@@ -150,44 +150,106 @@ class SatelliteTracker:
             logging.info("Loading TLE data from primary source...")
             
             # Use only primary source to reduce load time and redundancy
-            tle_url = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle'
-            
+            tle_url = [
+                # CelesTrak (primary) - comprehensive set
+                [
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=glonass-ops&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33-debris&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-next&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=noaa&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=goes&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=cubesat&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=x-comm&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=orbcomm&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=globalstar&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=military&FORMAT=tle',
+                    'https://celestrak.org/NORAD/elements/gp.php?GROUP=radar&FORMAT=tle'
+                ],
+                # N2YO (fallback 1)
+                [
+                    'https://www.n2yo.com/tle/download.php?catalog=stations',
+                    'https://www.n2yo.com/tle/download.php?catalog=weather',
+                    'https://www.n2yo.com/tle/download.php?catalog=gps'
+                ],
+                # Space-Track.org alternative format (fallback 2)
+                [
+                    'https://celestrak.org/NORAD/elements/stations.txt',
+                    'https://celestrak.org/NORAD/elements/weather.txt',
+                    'https://celestrak.org/NORAD/elements/gps.txt'
+                ]
+            ]
+
             all_satellites = {}
             satellite_count = 0
-            
-            try:
-                response = requests.get(tle_url, timeout=30)
-                response.raise_for_status()
-                
-                lines = response.text.strip().split('\n')
-                
-                # Parse TLE data efficiently
-                for i in range(0, len(lines) - 2, 3):
-                    if satellite_count >= 200:  # Limit for performance
+
+            for source_index, tle_urls in enumerate(tle_url):
+                if satellite_count >= 20:  # Increased limit for more satellites
+                    break
+
+                logging.info(f"Trying TLE source set {source_index + 1}")
+                successful_loads = 0
+
+                for url in tle_urls:
+                    if satellite_count >= 20:
                         break
-                        
-                    if i + 2 < len(lines):
-                        name = lines[i].strip()
-                        line1 = lines[i + 1].strip()
-                        line2 = lines[i + 2].strip()
-                        
-                        # Validate TLE format
-                        if (line1.startswith('1 ') and line2.startswith('2 ') and 
-                            len(line1) == 69 and len(line2) == 69):
-                            
-                            try:
-                                satellite = EarthSatellite(line1, line2, name, self.ts)
-                                norad_id = int(line1[2:7])
-                                
-                                if norad_id not in all_satellites:
-                                    all_satellites[norad_id] = {
-                                        'satellite': satellite,
-                                        'name': name,
-                                        'tle_line1': line1,
-                                        'tle_line2': line2,
-                                        'category': self._categorize_satellite(name, norad_id)
-                                    }
-                                    satellite_count += 1
+
+                    try:
+                        response = requests.get(url, timeout=15)
+                        response.raise_for_status()
+
+                        lines = response.text.strip().split('\n')
+                        url_satellite_count = 0
+
+                        # Parse TLE data
+                        for i in range(0, len(lines) - 2, 3):
+                            if satellite_count >= 20 or url_satellite_count >= 20:
+                                break
+
+                            if i + 2 < len(lines):
+                                name = lines[i].strip()
+                                line1 = lines[i + 1].strip()
+                                line2 = lines[i + 2].strip()
+
+                                # Validate TLE format
+                                if (line1.startswith('1 ') and line2.startswith('2 ') and 
+                                    len(line1) == 69 and len(line2) == 69):
+
+                                    try:
+                                        satellite = EarthSatellite(line1, line2, name, self.ts)
+                                        norad_id = int(line1[2:7])
+
+                                        if norad_id not in all_satellites:
+                                            all_satellites[norad_id] = {
+                                                'satellite': satellite,
+                                                'name': name,
+                                                'tle_line1': line1,
+                                                'tle_line2': line2,
+                                                'category': self._categorize_satellite(name, norad_id)
+                                            }
+                                            satellite_count += 1
+                                            url_satellite_count += 1
+
+                                    except Exception as e:
+                                        logging.warning(f"Error creating satellite {name}: {e}")
+                                        continue
+
+                        if url_satellite_count > 0:
+                            successful_loads += 1
+                            logging.info(f"Loaded {url_satellite_count} satellites from {url}")
                                     
                             except Exception as e:
                                 logging.warning(f"Error creating satellite {name}: {e}")
