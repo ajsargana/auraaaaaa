@@ -1,63 +1,19 @@
-
 import os
 import logging
-from flask import Flask, session, render_template, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
-from werkzeug.middleware.proxy_fix import ProxyFix
+from flask import Flask, render_template, jsonify, request
 from satellite_tracker import SatelliteTracker
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
-
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET") or "dev-secret-key-change-in-production"
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-
-# Configure the database (optional - can work without database)
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-    app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-        "pool_recycle": 300,
-        "pool_pre_ping": True,
-    }
-    db.init_app(app)
+app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key")
 
 # Initialize satellite tracker
 tracker = SatelliteTracker()
 
-# Simple user preferences model (no authentication required)
-class UserPreferences(db.Model):
-    __tablename__ = 'user_preferences'
-    __table_args__ = {'extend_existing': True}
-    id = db.Column(db.Integer, primary_key=True)
-    session_id = db.Column(db.String, nullable=False)
-    preferred_location_lat = db.Column(db.Float, default=0.0)
-    preferred_location_lon = db.Column(db.Float, default=0.0)
-    preferred_location_alt = db.Column(db.Float, default=0.0)
-    preferred_update_interval = db.Column(db.Integer, default=10)
-    show_satellite_paths = db.Column(db.Boolean, default=True)
-    favorite_satellites = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.now)
-    updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
-
-if database_url:
-    with app.app_context():
-        db.create_all()
-
 # Routes
-@app.before_request
-def make_session_permanent():
-    session.permanent = True
-
 @app.route('/')
 def index():
     return render_template('landing.html')
@@ -110,25 +66,23 @@ def get_satellite_orbit(norad_id):
             'orbit_points': []
         }), 200
 
-@app.route('/api/satellite/<int:norad_id>/ground-track')
-def get_satellite_ground_track(norad_id):
+@app.route('/api/satellite/<int:norad_id>/future_ground_track')
+def get_future_ground_track(norad_id):
     try:
         duration_hours = request.args.get('duration', 3, type=int)
-        swath_width = request.args.get('swath_width', 300, type=int)
-        ground_track = tracker.get_satellite_ground_track(norad_id, duration_hours, swath_width)
+        ground_track_points = tracker.get_future_ground_track(norad_id, duration_hours)
         
         return jsonify({
             'success': True,
-            'ground_track': ground_track,
-            'duration_hours': duration_hours,
-            'swath_width_km': swath_width
+            'ground_track_points': ground_track_points,
+            'duration_hours': duration_hours
         })
     except Exception as e:
-        app.logger.error(f"Error getting satellite ground track: {e}")
+        app.logger.error(f"Error getting future ground track: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
-            'ground_track': []
+            'ground_track_points': []
         }), 200
 
 @app.route('/api/satellites/search')

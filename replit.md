@@ -13,15 +13,13 @@ This is a real-time 3D satellite tracking application built with Flask and Cesiu
 - **Font Awesome**: Icon library for comprehensive UI elements
 
 ### Backend Architecture
-- **Flask**: Lightweight Python web framework with PostgreSQL database integration
-- **Flask-Login & Replit Auth**: Complete authentication system with user sessions and OAuth
+- **Flask**: Lightweight Python web framework (no authentication system)
 - **Skyfield**: Python library for astronomical calculations and satellite position tracking
 - **TLE Data Integration**: Fetches Two-Line Element sets with robust error handling and caching
 
-### Database Architecture
-- **PostgreSQL**: Primary database for user management and preferences
-- **User Management**: Complete user authentication with profile data and session storage
-- **User Preferences**: Location settings, update intervals, and personalization options
+### Simple Architecture
+- **No Database**: Simplified architecture without user authentication or database dependencies
+- **Session-based Preferences**: Basic preferences handled via browser session/localStorage
 
 ## Key Components
 
@@ -32,15 +30,14 @@ This is a real-time 3D satellite tracking application built with Flask and Cesiu
    - Categorizes satellites by type (ISS, GPS, Weather, Communication, Scientific, Military)
    - Handles periodic data updates with robust caching mechanism
 
-2. **Authentication System** (`replit_auth.py`, `models.py`)
-   - Complete user authentication with Replit OAuth integration
-   - User session management and security
-   - User preferences storage and retrieval
-   - PostgreSQL database models for users and preferences
+2. **Simplified Architecture** (no authentication system)
+   - Clean Flask application without database dependencies
+   - Basic session handling for user preferences
+   - Focus on core satellite tracking functionality
 
-3. **Flask Application** (`app.py`, `routes.py`)
-   - Modular route structure with authentication protection
-   - REST API endpoints for satellite data and user management
+3. **Flask Application** (`app.py`)
+   - Single-file application structure
+   - REST API endpoints for satellite data
    - Enhanced error handling and logging
    - Performance monitoring and optimization
 
@@ -101,17 +98,16 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 Recent Updates:
+- July 23, 2025: Removed all authentication and database dependencies (user request)
+- July 23, 2025: Simplified to single-file Flask application with landing page only
+- July 21, 2025: Added real-time details updates for satellite position/velocity
+- July 21, 2025: Implemented future ground tracks and nadir lines
+- July 21, 2025: Added proper cleanup when satellites are deselected
 - July 18, 2025: Landing page now serves as introductory page (requested by user)
 - July 18, 2025: Optimized TLE data loading to once per day for improved efficiency
 - July 18, 2025: Added orbital path prediction with 3-hour orbit visualization
 - July 18, 2025: Enhanced search functionality to show only searched satellites
 - July 18, 2025: Orbit removal feature - orbits are cleared when deselected
-- July 18, 2025: Removed duplicate JavaScript files and unused templates
-- July 18, 2025: Fixed application startup issues and route conflicts
-- July 11, 2025: Enhanced authentication system with Replit OAuth integration
 - July 11, 2025: Performance optimization for 10fps smooth visualization experience
 - July 11, 2025: Beautiful UI redesign with stunning landing page and enhanced tracker interface
-- July 11, 2025: PostgreSQL database integration for user management and preferences
-- July 11, 2025: Real-time FPS monitoring and performance indicators
-- July 11, 2025: Mobile-responsive design with dark theme enhancements
 - July 03, 2025: Initial setup with basic satellite tracking functionality

@@ -111,7 +111,7 @@ class SatelliteViewer {
             if (data.success && data.preferences) {
                 this.preferences = data.preferences;
                 this.userLocation = this.preferences.location || { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = (this.preferences.update_interval || 20) * 10;
+                this.updateRate = (this.preferences.update_interval || 1000) * 10;
 
                 // Update UI safely
                 const latElement = document.getElementById('latitude');
@@ -122,16 +122,16 @@ class SatelliteViewer {
                 if (latElement) latElement.value = this.userLocation.lat;
                 if (lonElement) lonElement.value = this.userLocation.lon;
                 if (altElement) altElement.value = this.userLocation.alt;
-                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 0.2}s`;
+                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 1}s`;
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = 200; // 1 seconds
+                this.updateRate = 1000; // 1 seconds
             }
         } catch (error) {
             console.warn('Could not load user preferences, using defaults:', error);
             this.userLocation = { lat: 0, lon: 0, alt: 0 };
-            this.updateRate = 200;
+            this.updateRate = 1000;
         }
     }
 
