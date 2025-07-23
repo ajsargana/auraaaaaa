@@ -95,8 +95,6 @@ class SatelliteViewer {
             this.onSatelliteClick.bind(this),
             Cesium.ScreenSpaceEventType.LEFT_CLICK
         );
-
-        // Loading overlay removed for smoother experience
     }
 
     async loadUserPreferences() {
@@ -107,65 +105,32 @@ class SatelliteViewer {
             }
 
             const data = await response.json();
-
-            if (data.success && data.preferences) {
+            if (data.success) {
                 this.preferences = data.preferences;
                 this.userLocation = this.preferences.location || { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = (this.preferences.update_interval || 1000) * 10;
-
-                // Update UI safely
-                const latElement = document.getElementById('latitude');
-                const lonElement = document.getElementById('longitude');
-                const altElement = document.getElementById('altitude');
-                const updateRateElement = document.getElementById('updateRate');
-
-                if (latElement) latElement.value = this.userLocation.lat;
-                if (lonElement) lonElement.value = this.userLocation.lon;
-                if (altElement) altElement.value = this.userLocation.alt;
-                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 1}s`;
-            } else {
-                // Set defaults
-                this.userLocation = { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = 1000; // 1 seconds
             }
         } catch (error) {
-            console.warn('Could not load user preferences, using defaults:', error);
-            this.userLocation = { lat: 0, lon: 0, alt: 0 };
-            this.updateRate = 1000;
-        }
-    }
-
-    async saveUserPreferences() {
-        try {
-            await fetch('/api/user/preferences', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(this.preferences)
-            });
-        } catch (error) {
-            console.warn('Could not save user preferences:', error);
+            console.error('Error loading user preferences:', error);
+            this.preferences = {
+                location: { lat: 0, lon: 0, alt: 0 },
+                update_interval: 1,
+                show_satellite_paths: true,
+                favorite_satellites: []
+            };
         }
     }
 
     setupEventListeners() {
-        // Enhanced event listeners with performance considerations
-        document.getElementById('refreshBtn').addEventListener('click', () => {
-            this.refreshData();
-        });
-
-        document.getElementById('locationBtn').addEventListener('click', () => {
-            const modal = new bootstrap.Modal(document.getElementById('locationModal'));
-            modal.show();
-        });
-
+        // Control buttons
         document.getElementById('homeBtn').addEventListener('click', () => {
-            this.resetView();
+            this.viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000)
+            });
         });
 
         document.getElementById('trackingBtn').addEventListener('click', () => {
-            this.toggleTracking();
+            this.trackingMode = !this.trackingMode;
+            document.getElementById('trackingBtn').classList.toggle('btn-outline-success', this.trackingMode);
         });
 
         document.getElementById('orbitsBtn').addEventListener('click', () => {
@@ -174,6 +139,15 @@ class SatelliteViewer {
 
         document.getElementById('groundTracksBtn').addEventListener('click', () => {
             this.toggleGroundTracks();
+        });
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.refreshSatelliteData();
+        });
+
+        document.getElementById('locationBtn').addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('locationModal'));
+            modal.show();
         });
 
         document.getElementById('saveLocationBtn').addEventListener('click', () => {
@@ -260,22 +234,35 @@ class SatelliteViewer {
         item.dataset.category = key;
 
         item.innerHTML = `
-            <div style="display: flex; align-items: center;">
-                <div class="category-color" style="background-color: ${color};"></div>
-                <span class="category-name text-white">${name}</span>
+            <div class="d-flex align-items-center">
+                <div class="category-color" style="background-color: ${color}"></div>
+                <span class="category-name">${name}</span>
             </div>
-            <span class="category-count badge bg-secondary">${count}</span>
+            <span class="badge bg-secondary">${count}</span>
         `;
 
         item.addEventListener('click', () => {
-            this.filterByCategory(key === 'all' ? null : key);
-
-            // Update active state with animation
-            document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+            this.filterByCategory(key);
+            document.querySelectorAll('.category-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
         });
 
         return item;
+    }
+
+    filterByCategory(categoryKey) {
+        this.activeCategoryFilter = categoryKey === 'all' ? null : categoryKey;
+        this.updateSatelliteVisibility();
+    }
+
+    updateSatelliteVisibility() {
+        this.satelliteEntities.forEach((entity, noradId) => {
+            const satellite = this.satellites.get(noradId);
+            if (satellite) {
+                const shouldShow = !this.activeCategoryFilter || satellite.category === this.activeCategoryFilter;
+                entity.show = shouldShow;
+            }
+        });
     }
 
     async loadSatellites() {
@@ -287,278 +274,210 @@ class SatelliteViewer {
 
             const data = await response.json();
 
-            if (data.success && data.satellites && data.satellites.length > 0) {
-                // Efficient satellite data update with position interpolation
-                const isFirstLoad = this.satellites.size === 0;
-
-                // Update satellite data with smooth transitions
-                const newSatellites = new Map();
-                data.satellites.forEach(sat => {
-                    const existingSat = this.satellites.get(sat.norad_id);
-                    if (existingSat) {
-                        // Smooth interpolation for position updates
-                        sat.lastUpdateTime = Date.now();
-                        sat.previousPosition = {
-                            latitude: existingSat.latitude,
-                            longitude: existingSat.longitude,
-                            altitude: existingSat.altitude
-                        };
-                    }
-                    newSatellites.set(sat.norad_id, sat);
-                });
-
-                this.satellites = newSatellites;
-
-                // Always update positions for smooth motion
-                this.updateSatellitePositions();
-
-                // Only re-render entities if necessary
-                if (isFirstLoad || this.satelliteEntities.size === 0) {
-                    this.renderSatellites();
-                }
-
-                this.updateStatus(data.satellites.length, data.timestamp);
-                document.getElementById('connectionStatus').textContent = 'Connected';
-                document.getElementById('connectionStatus').className = 'badge bg-success ms-auto';
-
-                const satCountElement = document.getElementById('satCount');
-                if (satCountElement) {
-                    satCountElement.textContent = data.satellites.length;
-                }
+            if (data.success && data.satellites) {
+                this.updateSatellites(data.satellites);
+                this.updateStatusBar(data.satellites.length, data.timestamp);
             } else {
-                console.warn('No satellite data received:', data);
-                document.getElementById('connectionStatus').textContent = 'No Data';
-                document.getElementById('connectionStatus').className = 'badge bg-warning ms-auto';
+                this.showError('Failed to load satellites');
             }
         } catch (error) {
             console.error('Error loading satellites:', error);
-            document.getElementById('connectionStatus').textContent = 'Disconnected';
-            document.getElementById('connectionStatus').className = 'badge bg-danger ms-auto';
+            this.showError('Error loading satellite data');
         }
     }
 
-    updateSatellitePositions() {
-        // Update positions of existing entities without recreating them
-        this.satelliteEntities.forEach((entity, noradId) => {
-            const satellite = this.satellites.get(noradId);
-            if (satellite && entity.position) {
-                // Force position update for smooth motion
-                entity.position._callback();
+    updateSatellites(satellitesData) {
+        const existingEntities = new Set(this.satelliteEntities.keys());
+
+        satellitesData.forEach(sat => {
+            this.satellites.set(sat.norad_id, sat);
+            existingEntities.delete(sat.norad_id);
+
+            if (!this.satelliteEntities.has(sat.norad_id)) {
+                this.createSatelliteEntity(sat);
+            } else {
+                this.updateSatelliteEntity(sat);
             }
         });
+
+        // Remove satellites that no longer exist
+        existingEntities.forEach(noradId => {
+            this.removeSatelliteEntity(noradId);
+        });
+
+        this.updateSatelliteVisibility();
     }
 
-    renderSatellites() {
-        // Enhanced performance rendering
-        const camera = this.viewer.camera;
-        const scene = this.viewer.scene;
+    createSatelliteEntity(satellite) {
+        const entity = this.viewer.entities.add({
+            id: `satellite_${satellite.norad_id}`,
+            name: satellite.name,
+            position: Cesium.Cartesian3.fromDegrees(
+                satellite.longitude,
+                satellite.latitude,
+                satellite.altitude * 1000
+            ),
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.fromCssColorString(satellite.color),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                heightReference: Cesium.HeightReference.NONE
+            },
+            label: {
+                text: satellite.name,
+                font: '12pt sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new Cesium.Cartesian2(0, -20),
+                show: false
+            },
+            satellite_data: satellite
+        });
 
-        // Clear existing entities efficiently
-        this.satelliteEntities.forEach(entity => {
+        this.satelliteEntities.set(satellite.norad_id, entity);
+    }
+
+    updateSatelliteEntity(satellite) {
+        const entity = this.satelliteEntities.get(satellite.norad_id);
+        if (entity) {
+            entity.position = Cesium.Cartesian3.fromDegrees(
+                satellite.longitude,
+                satellite.latitude,
+                satellite.altitude * 1000
+            );
+            entity.satellite_data = satellite;
+        }
+    }
+
+    removeSatelliteEntity(noradId) {
+        const entity = this.satelliteEntities.get(noradId);
+        if (entity) {
             this.viewer.entities.remove(entity);
-        });
-        this.satelliteEntities.clear();
-
-        // Render satellites with LOD and performance optimizations
-        let renderedCount = 0;
-        this.satellites.forEach((satellite, noradId) => {
-            if (this.activeCategoryFilter && satellite.category !== this.activeCategoryFilter) {
-                return;
-            }
-
-            if (renderedCount >= this.maxVisibleSatellites) {
-                return;
-            }
-
-            // Dynamic position property with enhanced performance
-            const positionProperty = new Cesium.CallbackProperty(() => {
-                const currentSat = this.satellites.get(noradId);
-                if (currentSat) {
-                    return Cesium.Cartesian3.fromDegrees(
-                        currentSat.longitude,
-                        currentSat.latitude,
-                        currentSat.altitude * 1000
-                    );
-                }
-                return Cesium.Cartesian3.fromDegrees(
-                    satellite.longitude,
-                    satellite.latitude,
-                    satellite.altitude * 1000
-                );
-            }, false);
-
-            const entity = this.viewer.entities.add({
-                id: `satellite_${noradId}`,
-                name: satellite.name,
-                position: positionProperty,
-                point: {
-                    pixelSize: 10,
-                    color: Cesium.Color.fromCssColorString(satellite.color),
-                    outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 0.5,
-                    heightReference: Cesium.HeightReference.NONE,
-                    scaleByDistance: new Cesium.NearFarScalar(1.5e6, 2.0, 1.5e7, 0.5),
-                    translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e7, 0.8)
-                },
-                label: {
-                    text: satellite.name,
-                    font: '12pt Arial',
-                    fillColor: Cesium.Color.RED,
-                    outlineColor: Cesium.Color.GOLD,
-                    outlineWidth: 2,
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                    pixelOffset: new Cesium.Cartesian2(0, -25),
-                    show: false,
-                    scaleByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e7, 0.5)
-                },
-                path: {
-                    show: false,
-                    leadTime: 3600, // 15 minutes
-                    trailTime: 900,
-                    width: 3,
-                    resolution: 60,
-                    material: new Cesium.PolylineGlowMaterialProperty({
-                        glowPower: 0.4,
-                        color: Cesium.Color.fromCssColorString(satellite.color).withAlpha(0.8)
-                    })
-                },
-                satelliteData: satellite
-            });
-
-            this.satelliteEntities.set(noradId, entity);
-            renderedCount++;
-        });
-
-        console.log(`Rendered ${renderedCount} satellites for optimal performance`);
+            this.satelliteEntities.delete(noradId);
+        }
+        this.satellites.delete(noradId);
     }
 
     onSatelliteClick(event) {
-        const pickedObject = this.viewer.scene.pick(event.position);
-
-        if (Cesium.defined(pickedObject) && pickedObject.id.satelliteData) {
-            const satellite = pickedObject.id.satelliteData;
-            this.selectSatellite(satellite.norad_id);
+        const picked = this.viewer.scene.pick(event.position);
+        if (picked && picked.id && picked.id.id.startsWith('satellite_')) {
+            const noradId = parseInt(picked.id.id.replace('satellite_', ''));
+            this.selectSatellite(noradId);
         } else {
             this.deselectSatellite();
         }
     }
 
     async selectSatellite(noradId) {
-        // Clear previous selection visualizations
-        if (this.selectedSatellite && this.selectedSatellite !== noradId) {
-            this.clearSatelliteVisualizations(this.selectedSatellite);
-        }
+        // Clear previous selection
+        this.deselectSatellite();
         
         this.selectedSatellite = noradId;
-
-        // Enhanced visual selection
-        this.updateSatelliteSelection();
-
-        // Load detailed information
-        await this.loadSatelliteDetails(noradId);
+        const entity = this.satelliteEntities.get(noradId);
         
-        // Start real-time details updates
-        this.startRealTimeDetailsUpdates(noradId);
-
-        // Load orbital path if enabled
-        if (this.showOrbits) {
-            await this.showOrbitPath(noradId);
-        }
-
-        // Load ground tracks if enabled
-        if (this.showGroundTracks) {
-            await this.loadSatelliteGroundTrack(noradId);
-            await this.renderFutureGroundTrack(noradId);
-        }
-
-        // Always show nadir line for selected satellite
-        this.renderNadirLine(noradId);
-        
-        // Show future ground track
-        await this.renderFutureGroundTrack(noradId);
-
-        // Load pass predictions
-        if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
+        if (entity) {
+            // Highlight selected satellite
+            entity.point.pixelSize = 12;
+            entity.label.show = true;
+            
+            // Load and display satellite details
+            await this.loadSatelliteDetails(noradId);
+            
+            // Load and display pass predictions
             await this.loadPassPredictions(noradId);
-        }
-
-        // Enhanced tracking
-        if (this.trackingMode) {
-            this.focusOnSatellite(noradId);
-        }
-    }
-
-    clearSatelliteVisualizations(noradId) {
-        // Clear nadir line
-        this.clearNadirLine();
-        
-        // Clear ground track circle
-        this.clearGroundTrackCircle();
-        
-        // Clear future ground track
-        this.clearFutureGroundTrack();
-        
-        // Clear orbit path
-        this.clearOrbitPath(noradId);
-        
-        // Clear ground track
-        this.clearSelectedGroundTrack();
-        
-        // Stop real-time updates
-        this.stopRealTimeDetailsUpdates();
-    }
-
-    startRealTimeDetailsUpdates(noradId) {
-        // Clear any existing interval
-        this.stopRealTimeDetailsUpdates();
-        
-        // Update details every second for real-time feel
-        this.realTimeUpdateInterval = setInterval(async () => {
-            if (this.selectedSatellite === noradId) {
-                await this.loadSatelliteDetails(noradId);
+            
+            // Create nadir line and ground track circle
+            this.createNadirLine(noradId);
+            this.createGroundTrackCircle(noradId);
+            
+            // Track the satellite if tracking mode is enabled
+            if (this.trackingMode) {
+                this.viewer.trackedEntity = entity;
             }
-        }, 1000);
-    }
-
-    stopRealTimeDetailsUpdates() {
-        if (this.realTimeUpdateInterval) {
-            clearInterval(this.realTimeUpdateInterval);
-            this.realTimeUpdateInterval = null;
         }
     }
 
     deselectSatellite() {
         if (this.selectedSatellite) {
-            this.clearSatelliteVisualizations(this.selectedSatellite);
+            const entity = this.satelliteEntities.get(this.selectedSatellite);
+            if (entity) {
+                entity.point.pixelSize = 8;
+                entity.label.show = false;
+            }
+            
+            // Remove nadir line and ground track circle
+            this.removeNadirLine(this.selectedSatellite);
+            this.removeGroundTrackCircle(this.selectedSatellite);
+            
+            this.selectedSatellite = null;
+            this.viewer.trackedEntity = undefined;
+            
+            // Hide satellite info panels
+            document.getElementById('satelliteInfo').style.display = 'none';
+            document.getElementById('passInfo').style.display = 'none';
         }
-        this.selectedSatellite = null;
-
-        document.getElementById('satelliteInfo').style.display = 'none';
-        document.getElementById('passInfo').style.display = 'none';
-
-        this.updateSatelliteSelection();
     }
 
-    updateSatelliteSelection() {
-        this.satelliteEntities.forEach((entity, noradId) => {
-            const isSelected = noradId === this.selectedSatellite;
+    createNadirLine(noradId) {
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return;
 
-            // Enhanced selection appearance
-            entity.point.pixelSize = isSelected ? 16 : 12;
-            entity.point.outlineWidth = isSelected ? 3 : 2;
-            entity.label.show = isSelected;
-
-            if (isSelected) {
-                entity.point.color = Cesium.Color.YELLOW;
-                entity.point.outlineColor = Cesium.Color.WHITE;
-            } else {
-                const sat = this.satellites.get(noradId);
-                if (sat) {
-                    entity.point.color = Cesium.Color.fromCssColorString(sat.color);
-                    entity.point.outlineColor = Cesium.Color.WHITE;
-                }
+        const entity = this.viewer.entities.add({
+            id: `nadir_${noradId}`,
+            polyline: {
+                positions: [
+                    Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, satellite.altitude * 1000),
+                    Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, 0)
+                ],
+                width: 2,
+                material: Cesium.Color.YELLOW.withAlpha(0.8),
+                clampToGround: false
             }
         });
+
+        this.nadirEntities.set(noradId, entity);
+    }
+
+    createGroundTrackCircle(noradId) {
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return;
+
+        // Create circular ground track with 300km radius
+        const entity = this.viewer.entities.add({
+            id: `ground_circle_${noradId}`,
+            position: Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, 0),
+            ellipse: {
+                semiMajorAxis: 300000, // 300km in meters
+                semiMinorAxis: 300000,
+                material: Cesium.Color.CYAN.withAlpha(0.3),
+                outline: true,
+                outlineColor: Cesium.Color.CYAN,
+                extrudedHeight: 0,
+                clampToGround: true
+            }
+        });
+
+        this.groundCircleEntities.set(noradId, entity);
+    }
+
+    removeNadirLine(noradId) {
+        const entity = this.nadirEntities.get(noradId);
+        if (entity) {
+            this.viewer.entities.remove(entity);
+            this.nadirEntities.delete(noradId);
+        }
+    }
+
+    removeGroundTrackCircle(noradId) {
+        const entity = this.groundCircleEntities.get(noradId);
+        if (entity) {
+            this.viewer.entities.remove(entity);
+            this.groundCircleEntities.delete(noradId);
+        }
     }
 
     async loadSatelliteDetails(noradId) {
@@ -572,6 +491,9 @@ class SatelliteViewer {
 
             if (data.success && data.satellite) {
                 this.renderSatelliteDetails(data.satellite);
+                
+                // Start real-time updates for selected satellite
+                this.startRealTimeUpdates(noradId);
             } else {
                 console.warn('Failed to load satellite details:', data);
                 document.getElementById('satelliteInfo').style.display = 'none';
@@ -582,6 +504,61 @@ class SatelliteViewer {
         }
     }
 
+    startRealTimeUpdates(noradId) {
+        // Clear existing interval
+        if (this.realTimeUpdateInterval) {
+            clearInterval(this.realTimeUpdateInterval);
+        }
+        
+        // Update satellite details every second
+        this.realTimeUpdateInterval = setInterval(async () => {
+            if (this.selectedSatellite === noradId) {
+                await this.updateRealTimeDetails(noradId);
+            } else {
+                clearInterval(this.realTimeUpdateInterval);
+            }
+        }, 1000);
+    }
+
+    async updateRealTimeDetails(noradId) {
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return;
+
+        // Update the details display with current satellite data
+        const latElement = document.getElementById('realtime-lat');
+        const lonElement = document.getElementById('realtime-lon');
+        const velElement = document.getElementById('realtime-vel');
+        
+        if (latElement) latElement.textContent = satellite.latitude.toFixed(4) + '°';
+        if (lonElement) lonElement.textContent = satellite.longitude.toFixed(4) + '°';
+        if (velElement) velElement.textContent = (satellite.velocity / 1000).toFixed(2) + ' km/s';
+        
+        // Update nadir line position
+        this.updateNadirLine(noradId);
+        this.updateGroundTrackCircle(noradId);
+    }
+
+    updateNadirLine(noradId) {
+        const satellite = this.satellites.get(noradId);
+        const entity = this.nadirEntities.get(noradId);
+        
+        if (satellite && entity) {
+            entity.polyline.positions = [
+                Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, satellite.altitude * 1000),
+                Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, 0)
+            ];
+        }
+    }
+
+    updateGroundTrackCircle(noradId) {
+        const satellite = this.satellites.get(noradId);
+        const entity = this.groundCircleEntities.get(noradId);
+        
+        if (satellite && entity) {
+            entity.position = Cesium.Cartesian3.fromDegrees(satellite.longitude, satellite.latitude, 0);
+        }
+    }
+
     renderSatelliteDetails(satellite) {
         const container = document.getElementById('satelliteDetails');
 
@@ -589,59 +566,64 @@ class SatelliteViewer {
             <div class="satellite-header mb-3">
                 <strong class="text-info">${satellite.name}</strong>
             </div>
-
-            <!-- Orbit Information -->
+            
             <div class="satellite-section mb-3">
-                <h6 class="text-warning mb-2">
-                    <i class="fas fa-circle-notch me-2"></i>Orbit
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Altitude:</small></div>
-                    <div class="col-6"><small class="text-success">${satellite.orbit.altitude.toFixed(1)} km</small></div>
-                    <div class="col-6"><small class="text-muted">Inclination:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.orbit.inclination.toFixed(2)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Period:</small></div>
-                    <div class="col-6"><small class="text-primary">${satellite.orbit.period.toFixed(1)} min</small></div>
-                    <div class="col-6"><small class="text-muted">Velocity:</small></div>
-                    <div class="col-6"><small class="text-warning">${satellite.orbit.velocity.toFixed(2)} km/s</small></div>
-                    <div class="col-6"><small class="text-muted">Orbit Type:</small></div>
-                    <div class="col-6"><small class="text-cyan">${satellite.orbit.orbit_type}</small></div>
+                <h6 class="text-warning mb-2">Real-time Position</h6>
+                <div class="satellite-detail-item">
+                    <span>Latitude:</span>
+                    <span id="realtime-lat">${satellite.position.latitude.toFixed(4)}°</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Longitude:</span>
+                    <span id="realtime-lon">${satellite.position.longitude.toFixed(4)}°</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Velocity:</span>
+                    <span id="realtime-vel">${satellite.orbit.velocity.toFixed(2)} km/s</span>
                 </div>
             </div>
 
-            <!-- Position Information -->
             <div class="satellite-section mb-3">
-                <h6 class="text-success mb-2">
-                    <i class="fas fa-map-marker-alt me-2"></i>Position
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Latitude:</small></div>
-                    <div class="col-6"><small class="text-success">${satellite.position.latitude.toFixed(4)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Longitude:</small></div>
-                    <div class="col-6"><small class="text-success">${satellite.position.longitude.toFixed(4)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Country:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.position.country}</small></div>
-                    <div class="col-6"><small class="text-muted">Visibility:</small></div>
-                    <div class="col-6"><small class="text-warning">${satellite.position.visibility}</small></div>
+                <h6 class="text-warning mb-2">Orbital Information</h6>
+                <div class="satellite-detail-item">
+                    <span>Altitude:</span>
+                    <span>${satellite.orbit.altitude.toFixed(0)} km</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Inclination:</span>
+                    <span>${satellite.orbit.inclination.toFixed(2)}°</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Period:</span>
+                    <span>${satellite.orbit.period.toFixed(1)} min</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Orbit Type:</span>
+                    <span class="text-cyan">${satellite.orbit.orbit_type}</span>
                 </div>
             </div>
 
-            <!-- Technical Information -->
             <div class="satellite-section">
-                <h6 class="text-cyan mb-2">
-                    <i class="fas fa-cog me-2"></i>Technical
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">NORAD ID:</small></div>
-                    <div class="col-6"><small class="text-white">${satellite.technical.norad_id}</small></div>
-                    <div class="col-6"><small class="text-muted">Launch Date:</small></div>
-                    <div class="col-6"><small class="text-primary">${satellite.technical.launch_date}</small></div>
-                    <div class="col-6"><small class="text-muted">Type:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.technical.type}</small></div>
-                    <div class="col-6"><small class="text-muted">Agency:</small></div>
-                    <div class="col-6"><small class="text-warning">${satellite.technical.agency}</small></div>
-                    <div class="col-6"><small class="text-muted">Status:</small></div>
-                    <div class="col-6"><small class="text-success">${satellite.technical.status}</small></div>
+                <h6 class="text-warning mb-2">Technical Details</h6>
+                <div class="satellite-detail-item">
+                    <span>NORAD ID:</span>
+                    <span>${satellite.technical.norad_id}</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Launch Date:</span>
+                    <span>${satellite.technical.launch_date}</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Type:</span>
+                    <span>${satellite.technical.type}</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Agency:</span>
+                    <span>${satellite.technical.agency}</span>
+                </div>
+                <div class="satellite-detail-item">
+                    <span>Status:</span>
+                    <span class="text-success">${satellite.technical.status}</span>
                 </div>
             </div>
         `;
@@ -649,199 +631,136 @@ class SatelliteViewer {
         document.getElementById('satelliteInfo').style.display = 'block';
     }
 
-    async loadSatelliteOrbit(noradId) {
+    async loadPassPredictions(noradId) {
         try {
-            this.clearSelectedOrbit();
+            const response = await fetch(`/api/satellite/${noradId}/passes?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
 
-            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
             const data = await response.json();
 
-            if (data.success && data.orbit_points.length > 0) {
-                this.renderSatelliteOrbit(noradId, data.orbit_points);
+            if (data.success && data.passes) {
+                this.renderPassPredictions(data.passes);
+            } else {
+                console.warn('Failed to load pass predictions:', data);
+                document.getElementById('passInfo').style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error loading pass predictions:', error);
+            document.getElementById('passInfo').style.display = 'none';
+        }
+    }
+
+    renderPassPredictions(passes) {
+        if (!passes || passes.length === 0) {
+            document.getElementById('passInfo').style.display = 'none';
+            return;
+        }
+
+        const navTabs = document.getElementById('passNavTabs');
+        const tabContent = document.getElementById('passTabContent');
+        
+        navTabs.innerHTML = '';
+        tabContent.innerHTML = '';
+
+        passes.slice(0, 6).forEach((pass, index) => {
+            const tabId = `pass-tab-${index}`;
+            const contentId = `pass-content-${index}`;
+            
+            // Create tab
+            const tab = document.createElement('li');
+            tab.className = 'nav-item';
+            tab.innerHTML = `
+                <button class="nav-link ${index === 0 ? 'active' : ''}" 
+                        id="${tabId}" 
+                        data-bs-toggle="tab" 
+                        data-bs-target="#${contentId}" 
+                        type="button" 
+                        role="tab">
+                    Pass ${index + 1}
+                </button>
+            `;
+            navTabs.appendChild(tab);
+            
+            // Create content
+            const content = document.createElement('div');
+            content.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
+            content.id = contentId;
+            content.setAttribute('role', 'tabpanel');
+            
+            const riseTime = new Date(pass.rise_time).toLocaleString();
+            const setTime = new Date(pass.set_time).toLocaleString();
+            const culminationTime = new Date(pass.culmination_time).toLocaleString();
+            
+            content.innerHTML = `
+                <div class="mt-3">
+                    <div class="satellite-detail-item">
+                        <span>Rise Time:</span>
+                        <span>${riseTime}</span>
+                    </div>
+                    <div class="satellite-detail-item">
+                        <span>Culmination:</span>
+                        <span>${culminationTime}</span>
+                    </div>
+                    <div class="satellite-detail-item">
+                        <span>Set Time:</span>
+                        <span>${setTime}</span>
+                    </div>
+                    <div class="satellite-detail-item">
+                        <span>Max Elevation:</span>
+                        <span>${pass.max_elevation ? pass.max_elevation.toFixed(1) + '°' : 'N/A'}</span>
+                    </div>
+                    <div class="satellite-detail-item">
+                        <span>Duration:</span>
+                        <span>${pass.duration_minutes ? pass.duration_minutes.toFixed(1) + ' min' : 'N/A'}</span>
+                    </div>
+                </div>
+            `;
+            
+            tabContent.appendChild(content);
+        });
+
+        document.getElementById('passInfo').style.display = 'block';
+    }
+
+    toggleOrbits() {
+        this.showOrbits = !this.showOrbits;
+        document.getElementById('orbitsBtn').classList.toggle('btn-outline-success', this.showOrbits);
+        
+        if (this.showOrbits) {
+            this.loadOrbitsForVisibleSatellites();
+        } else {
+            this.clearAllOrbits();
+        }
+    }
+
+    async loadOrbitsForVisibleSatellites() {
+        const visibleSatellites = Array.from(this.satellites.keys()).slice(0, 10); // Limit for performance
+        
+        for (const noradId of visibleSatellites) {
+            await this.loadSatelliteOrbit(noradId);
+        }
+    }
+
+    async loadSatelliteOrbit(noradId) {
+        try {
+            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            const data = await response.json();
+
+            if (data.success && data.orbit_points) {
+                this.createOrbitEntity(noradId, data.orbit_points);
             }
         } catch (error) {
             console.error('Error loading satellite orbit:', error);
         }
     }
 
-    async loadSatelliteGroundTrack(noradId) {
-        try {
-            const response = await fetch(`/api/satellite/${noradId}/ground-track?duration=3&swath_width=300`);
-            const data = await response.json();
-
-            if (data.success && data.ground_track.length > 0) {
-                this.renderSatelliteGroundTrack(noradId, data.ground_track);
-            }
-        } catch (error) {
-            console.error('Error loading satellite ground track:', error);
-        }
-    }
-
-    renderSatelliteGroundTrack(noradId, groundTrackPoints) {
-        // Remove existing ground track for this satellite
-        this.clearSelectedGroundTrack();
-
-        if (groundTrackPoints.length < 2) return;
-
-        const satellite = this.satellites.get(noradId);
-        const color = satellite ? satellite.color : '#64b5f6';
-
-        // Create center line positions
-        const centerPositions = groundTrackPoints.map(point =>
-            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
-        );
-
-        // Create swath boundary positions
-        const leftBoundaryPositions = groundTrackPoints.map(point =>
-            Cesium.Cartesian3.fromDegrees(point.swath_left_lon, point.swath_left_lat, 0)
-        );
-
-        const rightBoundaryPositions = groundTrackPoints.map(point =>
-            Cesium.Cartesian3.fromDegrees(point.swath_right_lon, point.swath_right_lat, 0)
-        );
-
-        // Create swath polygon for coverage area
-        const swathPositions = [];
-        leftBoundaryPositions.forEach(pos => swathPositions.push(pos));
-        rightBoundaryPositions.reverse().forEach(pos => swathPositions.push(pos));
-
-        // Add enhanced swath coverage area with real-time satellite reference
-        const swathEntity = this.viewer.entities.add({
-            id: `ground_swath_${noradId}`,
-            polygon: {
-                hierarchy: swathPositions,
-                material: new Cesium.ColorMaterialProperty(
-                    new Cesium.CallbackProperty(() => {
-                        const currentSat = this.satellites.get(noradId);
-                        if (currentSat && this.selectedSatellite === noradId) {
-                            return Cesium.Color.fromCssColorString(color).withAlpha(0.4);
-                        }
-                        return Cesium.Color.fromCssColorString(color).withAlpha(0.2);
-                    }, false)
-                ),
-                outline: true,
-                outlineColor: new Cesium.CallbackProperty(() => {
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat && this.selectedSatellite === noradId) {
-                        return Cesium.Color.fromCssColorString(color).withAlpha(0.8);
-                    }
-                    return Cesium.Color.fromCssColorString(color).withAlpha(0.5);
-                }, false),
-                height: 0,
-                extrudedHeight: 0
-            }
-        });
-
-        // Add enhanced center line with dynamic properties
-        const centerLineEntity = this.viewer.entities.add({
-            id: `ground_track_center_${noradId}`,
-            polyline: {
-                positions: centerPositions,
-                width: new Cesium.CallbackProperty(() => {
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat && this.selectedSatellite === noradId) {
-                        return 4; // Thicker line for selected satellite
-                    }
-                    return 2;
-                }, false),
-                material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: new Cesium.CallbackProperty(() => {
-                        const currentSat = this.satellites.get(noradId);
-                        if (currentSat && this.selectedSatellite === noradId) {
-                            return 0.6; // More glow for selected satellite
-                        }
-                        return 0.3;
-                    }, false),
-                    color: new Cesium.CallbackProperty(() => {
-                        const currentSat = this.satellites.get(noradId);
-                        if (currentSat && this.selectedSatellite === noradId) {
-                            return Cesium.Color.fromCssColorString(color).withAlpha(1.0);
-                        }
-                        return Cesium.Color.fromCssColorString(color).withAlpha(0.7);
-                    }, false)
-                }),
-                clampToGround: true
-            }
-        });
-
-        // Add satellite reference markers along the ground track
-        const currentSatellitePosition = this.viewer.entities.add({
-            id: `ground_track_current_${noradId}`,
-            position: new Cesium.CallbackProperty(() => {
-                const currentSat = this.satellites.get(noradId);
-                if (currentSat) {
-                    return Cesium.Cartesian3.fromDegrees(
-                        currentSat.longitude,
-                        currentSat.latitude,
-                        0
-                    );
-                }
-                return undefined;
-            }, false),
-            point: {
-                pixelSize: 8,
-                color: Cesium.Color.fromCssColorString(color),
-                outlineColor: Cesium.Color.WHITE,
-                outlineWidth: 2,
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                show: new Cesium.CallbackProperty(() => {
-                    return this.selectedSatellite === noradId;
-                }, false)
-            },
-            label: {
-                text: 'Current Position',
-                font: '10pt Arial',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                pixelOffset: new Cesium.Cartesian2(0, -30),
-                show: new Cesium.CallbackProperty(() => {
-                    return this.selectedSatellite === noradId;
-                }, false),
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
-            }
-        });
-
-        this.groundTrackEntities.set(`swath_${noradId}`, swathEntity);
-        this.groundTrackEntities.set(`center_${noradId}`, centerLineEntity);
-        this.groundTrackEntities.set(`current_${noradId}`, currentSatellitePosition);
-    }
-
-    clearSelectedGroundTrack() {
-        if (this.selectedSatellite) {
-            const swathEntity = this.groundTrackEntities.get(`swath_${this.selectedSatellite}`);
-            const centerEntity = this.groundTrackEntities.get(`center_${this.selectedSatellite}`);
-            const currentEntity = this.groundTrackEntities.get(`current_${this.selectedSatellite}`);
-            const futureSwathEntity = this.groundTrackEntities.get(`future_swath_${this.selectedSatellite}`);
-            const futureCenterEntity = this.groundTrackEntities.get(`future_center_${this.selectedSatellite}`);
-            
-            if (swathEntity) {
-                this.viewer.entities.remove(swathEntity);
-                this.groundTrackEntities.delete(`swath_${this.selectedSatellite}`);
-            }
-            if (centerEntity) {
-                this.viewer.entities.remove(centerEntity);
-                this.groundTrackEntities.delete(`center_${this.selectedSatellite}`);
-            }
-            if (currentEntity) {
-                this.viewer.entities.remove(currentEntity);
-                this.groundTrackEntities.delete(`current_${this.selectedSatellite}`);
-            }
-            if (futureSwathEntity) {
-                this.viewer.entities.remove(futureSwathEntity);
-                this.groundTrackEntities.delete(`future_swath_${this.selectedSatellite}`);
-            }
-            if (futureCenterEntity) {
-                this.viewer.entities.remove(futureCenterEntity);
-                this.groundTrackEntities.delete(`future_center_${this.selectedSatellite}`);
-            }
-        }
-    }
-
-    renderSatelliteOrbit(noradId, orbitPoints) {
-        this.clearSelectedOrbit();
-
+    createOrbitEntity(noradId, orbitPoints) {
         if (orbitPoints.length < 2) return;
 
         const positions = orbitPoints.map(point => 
@@ -849,117 +768,97 @@ class SatelliteViewer {
         );
 
         const satellite = this.satellites.get(noradId);
-        const color = satellite ? satellite.color : '#64b5f6';
+        const color = satellite ? satellite.color : '#FFFFFF';
 
-        const orbitEntity = this.viewer.entities.add({
+        const entity = this.viewer.entities.add({
             id: `orbit_${noradId}`,
             polyline: {
                 positions: positions,
-                width: 3,
-                material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
-                }),
+                width: 2,
+                material: Cesium.Color.fromCssColorString(color).withAlpha(0.7),
                 clampToGround: false
             }
         });
 
-        this.orbitEntities.set(noradId, orbitEntity);
+        this.orbitEntities.set(noradId, entity);
     }
 
-    clearSelectedOrbit() {
-        if (this.selectedSatellite) {
-            const orbitEntity = this.orbitEntities.get(this.selectedSatellite);
-            if (orbitEntity) {
-                this.viewer.entities.remove(orbitEntity);
-                this.orbitEntities.delete(this.selectedSatellite);
-            }
+    clearAllOrbits() {
+        this.orbitEntities.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.orbitEntities.clear();
+    }
+
+    toggleGroundTracks() {
+        this.showGroundTracks = !this.showGroundTracks;
+        document.getElementById('groundTracksBtn').classList.toggle('btn-outline-success', this.showGroundTracks);
+        
+        if (this.showGroundTracks) {
+            this.loadGroundTracksForVisibleSatellites();
+        } else {
+            this.clearAllGroundTracks();
         }
     }
 
-    async loadPassPredictions(noradId) {
+    async loadGroundTracksForVisibleSatellites() {
+        const visibleSatellites = Array.from(this.satellites.keys()).slice(0, 10); // Limit for performance
+        
+        for (const noradId of visibleSatellites) {
+            await this.loadSatelliteGroundTrack(noradId);
+        }
+    }
+
+    async loadSatelliteGroundTrack(noradId) {
         try {
-            const response = await fetch(`/api/satellite/${noradId}/passes?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}`);
+            const response = await fetch(`/api/satellite/${noradId}/ground-track?duration=3&swath_width=300`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
             const data = await response.json();
 
-            if (data.success) {
-                this.renderPassPredictions(data.passes);
+            if (data.success && data.ground_track) {
+                this.createGroundTrackEntity(noradId, data.ground_track);
             }
         } catch (error) {
-            console.error('Error loading pass predictions:', error);
+            console.error('Error loading satellite ground track:', error);
         }
     }
 
-    renderPassPredictions(passes) {
-        const tabsContainer = document.getElementById('passNavTabs');
-        const contentContainer = document.getElementById('passTabContent');
-        
-        if (passes.length === 0) {
-            tabsContainer.innerHTML = '';
-            contentContainer.innerHTML = '<p class="text-muted p-3">No upcoming passes found</p>';
-            document.getElementById('passInfo').style.display = 'block';
-            return;
-        }
+    createGroundTrackEntity(noradId, groundTrackPoints) {
+        if (groundTrackPoints.length < 2) return;
 
-        // Create tabs for each pass
-        const tabsHtml = passes.slice(0, 6).map((pass, index) => `
-            <li class="nav-item" role="presentation">
-                <button class="nav-link ${index === 0 ? 'active' : ''}" id="pass-tab-${index}" 
-                        data-bs-toggle="tab" data-bs-target="#pass-${index}" type="button" 
-                        role="tab" aria-controls="pass-${index}" aria-selected="${index === 0}">
-                    Pass ${index + 1}
-                </button>
-            </li>
-        `).join('');
+        const positions = groundTrackPoints.map(point => 
+            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
+        );
 
-        // Create tab content for each pass
-        const contentHtml = passes.slice(0, 6).map((pass, index) => `
-            <div class="tab-pane fade ${index === 0 ? 'show active' : ''}" id="pass-${index}" 
-                 role="tabpanel" aria-labelledby="pass-tab-${index}">
-                <div class="p-3">
-                    <div class="mb-2">
-                        <strong class="text-info">Rise Time:</strong><br>
-                        <small>${new Date(pass.rise_time).toLocaleString()}</small>
-                    </div>
-                    <div class="mb-2">
-                        <strong class="text-success">Max Elevation:</strong><br>
-                        <small>${pass.max_elevation?.toFixed(1)}° at ${new Date(pass.culmination_time || pass.rise_time).toLocaleTimeString()}</small>
-                    </div>
-                    <div class="mb-2">
-                        <strong class="text-warning">Duration:</strong><br>
-                        <small>${pass.duration_minutes?.toFixed(1)} minutes</small>
-                    </div>
-                    ${pass.set_time ? `
-                    <div class="mb-2">
-                        <strong class="text-danger">Set Time:</strong><br>
-                        <small>${new Date(pass.set_time).toLocaleString()}</small>
-                    </div>
-                    ` : ''}
-                    <div class="row g-2 mt-2">
-                        <div class="col-6">
-                            <small class="text-muted">Rise Az:</small><br>
-                            <small class="text-primary">${pass.rise_azimuth?.toFixed(1)}°</small>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">Set Az:</small><br>
-                            <small class="text-primary">${pass.set_azimuth?.toFixed(1)}°</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
+        const satellite = this.satellites.get(noradId);
+        const color = satellite ? satellite.color : '#FFFFFF';
 
-        tabsContainer.innerHTML = tabsHtml;
-        contentContainer.innerHTML = contentHtml;
-        document.getElementById('passInfo').style.display = 'block';
+        const entity = this.viewer.entities.add({
+            id: `ground_track_${noradId}`,
+            polyline: {
+                positions: positions,
+                width: 3,
+                material: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
+                clampToGround: true
+            }
+        });
+
+        this.groundTrackEntities.set(noradId, entity);
+    }
+
+    clearAllGroundTracks() {
+        this.groundTrackEntities.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.groundTrackEntities.clear();
     }
 
     async searchSatellites(query) {
-        const container = document.getElementById('searchResults');
-
-        if (!query || query.length < 2) {
-            container.innerHTML = '';
-            this.showAllSatellites();
+        if (!query || query.trim().length < 2) {
+            document.getElementById('searchResults').innerHTML = '';
             return;
         }
 
@@ -967,409 +866,58 @@ class SatelliteViewer {
             const response = await fetch(`/api/satellites/search?q=${encodeURIComponent(query)}`);
             const data = await response.json();
 
-            if (data.success && data.satellites.length > 0) {
-                // Show only searched satellites
-                this.showOnlySearchedSatellites(data.satellites);
-
-                container.innerHTML = data.satellites.slice(0, 10).map(sat => `
-                    <div class="search-result" data-norad-id="${sat.norad_id}">
-                        <div class="d-flex align-items-center">
-                            <div class="category-color me-2"></div>
-                            <span class="text-white">${sat.name}</span>
-                            <small class="text-muted ms-auto">${sat.category}</small>
-                        </div>
-                    </div>
-                `).join('');
-
-                // Add click handlers
-                container.querySelectorAll('.search-result').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const noradId = parseInt(item.dataset.noradId);
-                        this.selectSatellite(noradId);
-                        this.focusOnSatellite(noradId);
-                        container.innerHTML = '';
-                    });
-                });
-            } else {
-                container.innerHTML = '<div class="text-muted p-2">No satellites found</div>';
+            if (data.success) {
+                this.renderSearchResults(data.satellites);
             }
         } catch (error) {
             console.error('Error searching satellites:', error);
         }
     }
 
-    showOnlySearchedSatellites(searchedSatellites) {
-        // Hide all satellite entities first
-        this.satelliteEntities.forEach(entity => {
-            entity.show = false;
-        });
+    renderSearchResults(satellites) {
+        const container = document.getElementById('searchResults');
+        container.innerHTML = '';
 
-        // Show only searched satellites
-        searchedSatellites.forEach(searchedSat => {
-            const entity = this.satelliteEntities.get(searchedSat.norad_id);
-            if (entity) {
-                entity.show = true;
-            }
-        });
-    }
+        satellites.slice(0, 20).forEach(sat => {
+            const item = document.createElement('div');
+            item.className = 'search-result';
+            item.innerHTML = `
+                <div class="fw-bold">${sat.name}</div>
+                <small class="text-muted">${sat.category}</small>
+            `;
 
-    showAllSatellites() {
-        // Show all satellite entities
-        this.satelliteEntities.forEach(entity => {
-            entity.show = true;
-        });
-    }
+            item.addEventListener('click', () => {
+                this.selectSatellite(sat.norad_id);
+                container.innerHTML = '';
+                document.getElementById('satelliteSearch').value = '';
+            });
 
-    focusOnSatellite(noradId) {
-        const satellite = this.satellites.get(noradId);
-        if (!satellite) return;
-
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                satellite.longitude,
-                satellite.latitude,
-                satellite.altitude * 1000 + 2000000 // 2000km above satellite
-            ),
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
-            },
-            duration: 3.0
+            container.appendChild(item);
         });
     }
 
-    filterByCategory(category) {
-        this.activeCategoryFilter = category;
-        this.renderSatellites();
+    startAutoUpdate() {
+        this.updateInterval = setInterval(() => {
+            this.loadSatellites();
+        }, this.updateRate);
     }
 
-    
-
-    async showOrbitPath(noradId) {
+    async refreshSatelliteData() {
         try {
-            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
+            const response = await fetch('/api/refresh');
             const data = await response.json();
 
-            if (data.success && data.orbit_points.length > 0) {
-                this.renderOrbitPath(noradId, data.orbit_points);
+            if (data.success) {
+                await this.loadCategories();
+                await this.loadSatellites();
+                this.showSuccess('Satellite data refreshed successfully');
+            } else {
+                this.showError('Failed to refresh satellite data');
             }
         } catch (error) {
-            console.error('Error loading orbit path:', error);
+            console.error('Error refreshing satellite data:', error);
+            this.showError('Error refreshing satellite data');
         }
-    }
-
-    renderOrbitPath(noradId, orbitPoints) {
-        // Remove existing orbit for this satellite
-        this.clearOrbitPath(noradId);
-
-        if (orbitPoints.length < 2) return;
-
-        const positions = [];
-        orbitPoints.forEach(point => {
-            positions.push(Cesium.Cartesian3.fromDegrees(
-                point.longitude,
-                point.latitude,
-                point.altitude * 1000
-            ));
-        });
-
-        const satellite = this.satellites.get(noradId);
-        const color = satellite ? satellite.color : '#FFFF00';
-
-        const orbitEntity = this.viewer.entities.add({
-            id: `orbit_${noradId}`,
-            polyline: {
-                positions: positions,
-                width: 3,
-                material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
-                }),
-                clampToGround: false
-            }
-        });
-
-        this.orbitEntities.set(noradId, orbitEntity);
-    }
-
-    clearOrbitPath(noradId) {
-        const orbitEntity = this.orbitEntities.get(noradId);
-        if (orbitEntity) {
-            this.viewer.entities.remove(orbitEntity);
-            this.orbitEntities.delete(noradId);
-        }
-    }
-
-    renderNadirLine(noradId) {
-        this.clearNadirLine();
-
-        const satellite = this.satellites.get(noradId);
-        if (!satellite) return;
-
-        const color = satellite ? satellite.color : '#64b5f6';
-
-        // Create dynamic nadir line that updates with satellite position
-        const nadirLine = this.viewer.entities.add({
-            id: `nadir_line_${noradId}`,
-            polyline: {
-                positions: new Cesium.CallbackProperty(() => {
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat) {
-                        const groundPos = Cesium.Cartesian3.fromDegrees(
-                            currentSat.longitude,
-                            currentSat.latitude,
-                            0
-                        );
-                        const satPos = Cesium.Cartesian3.fromDegrees(
-                            currentSat.longitude,
-                            currentSat.latitude,
-                            currentSat.altitude * 1000
-                        );
-                        return [groundPos, satPos];
-                    }
-                    return [];
-                }, false),
-                width: 2,
-                material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.7)
-                })
-            }
-        });
-
-        // Create dynamic circular swath footprint that updates with satellite position
-        const circularSwath = this.viewer.entities.add({
-            id: `nadir_circle_${noradId}`,
-            position: new Cesium.CallbackProperty(() => {
-                const currentSat = this.satellites.get(noradId);
-                if (currentSat) {
-                    return Cesium.Cartesian3.fromDegrees(
-                        currentSat.longitude,
-                        currentSat.latitude,
-                        0
-                    );
-                }
-                return Cesium.Cartesian3.fromDegrees(
-                    satellite.longitude,
-                    satellite.latitude,
-                    0
-                );
-            }, false),
-            ellipse: {
-                semiMajorAxis: new Cesium.CallbackProperty(() => {
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat) {
-                        // Calculate swath radius based on altitude (300km default swath width)
-                        const swathWidth = 300000; // 300km in meters
-                        const altitude = currentSat.altitude * 1000; // Convert to meters
-                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6)); // Max 30° viewing angle
-                    }
-                    return 150000; // Default 150km radius
-                }, false),
-                semiMinorAxis: new Cesium.CallbackProperty(() => {
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat) {
-                        const swathWidth = 300000; // 300km in meters
-                        const altitude = currentSat.altitude * 1000;
-                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6));
-                    }
-                    return 150000;
-                }, false),
-                material: new Cesium.ColorMaterialProperty(
-                    Cesium.Color.fromCssColorString(color).withAlpha(0.2)
-                ),
-                outline: true,
-                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
-                height: 0,
-                rotation: new Cesium.CallbackProperty(() => {
-                    // Add slight rotation based on satellite movement for realism
-                    const currentSat = this.satellites.get(noradId);
-                    if (currentSat && currentSat.velocity) {
-                        return (Date.now() / 10000) % (2 * Math.PI); // Slow rotation
-                    }
-                    return 0;
-                }, false)
-            }
-        });
-
-        this.nadirEntities.set(`line_${noradId}`, nadirLine);
-        this.nadirEntities.set(`circle_${noradId}`, circularSwath);
-    }
-
-    async renderFutureGroundTrack(noradId) {
-        try {
-            const response = await fetch(`/api/satellite/${noradId}/ground-track?duration=6&swath_width=300`);
-            const data = await response.json();
-
-            if (data.success && data.ground_track.length > 0) {
-                const satellite = this.satellites.get(noradId);
-                const color = satellite ? satellite.color : '#64b5f6';
-                
-                // Split ground track into past (dimmer) and future (brighter)
-                const currentTime = Date.now();
-                const futurePoints = data.ground_track.filter(point => point.time_offset_minutes > 0);
-                
-                if (futurePoints.length < 2) return;
-
-                // Create future center line positions
-                const futureCenterPositions = futurePoints.map(point =>
-                    Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
-                );
-
-                // Create future swath boundary positions
-                const futureLeftBoundary = futurePoints.map(point =>
-                    Cesium.Cartesian3.fromDegrees(point.swath_left_lon, point.swath_left_lat, 0)
-                );
-
-                const futureRightBoundary = futurePoints.map(point =>
-                    Cesium.Cartesian3.fromDegrees(point.swath_right_lon, point.swath_right_lat, 0)
-                );
-
-                // Create future swath polygon
-                const futureSwathPositions = [];
-                futureLeftBoundary.forEach(pos => futureSwathPositions.push(pos));
-                futureRightBoundary.reverse().forEach(pos => futureSwathPositions.push(pos));
-
-                // Add future swath coverage area
-                const futureSwathEntity = this.viewer.entities.add({
-                    id: `future_ground_swath_${noradId}`,
-                    polygon: {
-                        hierarchy: futureSwathPositions,
-                        material: Cesium.Color.fromCssColorString(color).withAlpha(0.15),
-                        outline: true,
-                        outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.4),
-                        height: 0,
-                        extrudedHeight: 0
-                    }
-                });
-
-                // Add future center line
-                const futureCenterLineEntity = this.viewer.entities.add({
-                    id: `future_ground_track_center_${noradId}`,
-                    polyline: {
-                        positions: futureCenterPositions,
-                        width: 2,
-                        material: new Cesium.PolylineDashMaterialProperty({
-                            color: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
-                            dashLength: 16
-                        }),
-                        clampToGround: true
-                    }
-                });
-
-                this.groundTrackEntities.set(`future_swath_${noradId}`, futureSwathEntity);
-                this.groundTrackEntities.set(`future_center_${noradId}`, futureCenterLineEntity);
-            }
-        } catch (error) {
-            console.error('Error loading future ground track:', error);
-        }
-    }
-
-    clearNadirLine() {
-        if (this.selectedSatellite) {
-            const lineEntity = this.nadirEntities.get(`line_${this.selectedSatellite}`);
-            const circleEntity = this.nadirEntities.get(`circle_${this.selectedSatellite}`);
-            
-            if (lineEntity) {
-                this.viewer.entities.remove(lineEntity);
-                this.nadirEntities.delete(`line_${this.selectedSatellite}`);
-            }
-            if (circleEntity) {
-                this.viewer.entities.remove(circleEntity);
-                this.nadirEntities.delete(`circle_${this.selectedSatellite}`);
-            }
-        }
-    }
-
-    clearFutureGroundTrack() {
-        if (this.selectedSatellite) {
-            const futureSwathEntity = this.groundTrackEntities.get(`future_swath_${this.selectedSatellite}`);
-            const futureCenterEntity = this.groundTrackEntities.get(`future_center_${this.selectedSatellite}`);
-            
-            if (futureSwathEntity) {
-                this.viewer.entities.remove(futureSwathEntity);
-                this.groundTrackEntities.delete(`future_swath_${this.selectedSatellite}`);
-            }
-            if (futureCenterEntity) {
-                this.viewer.entities.remove(futureCenterEntity);
-                this.groundTrackEntities.delete(`future_center_${this.selectedSatellite}`);
-            }
-        }
-    }
-
-    clearGroundTrackCircle() {
-        // This method is for compatibility - ground track circles are handled by clearNadirLine
-        // since the circular swath is part of the nadir visualization
-    }
-
-    toggleGroundTracks() {
-        this.showGroundTracks = !this.showGroundTracks;
-        const btn = document.getElementById('groundTracksBtn');
-
-        if (this.showGroundTracks) {
-            btn.classList.add('active');
-            if (this.selectedSatellite) {
-                this.loadSatelliteGroundTrack(this.selectedSatellite);
-                this.renderFutureGroundTrack(this.selectedSatellite);
-            }
-        } else {
-            btn.classList.remove('active');
-            this.clearSelectedGroundTrack();
-        }
-    }
-
-    toggleOrbits() {
-        this.showOrbits = !this.showOrbits;
-        const btn = document.getElementById('orbitsBtn');
-
-        if (this.showOrbits) {
-            btn.classList.add('active');
-            if (this.selectedSatellite) {
-                this.showOrbitPath(this.selectedSatellite);
-            }
-        } else {
-            btn.classList.remove('active');
-            this.clearSelectedOrbit();
-        }
-    }
-
-    clearOrbitPaths() {
-        this.orbitEntities.forEach(entity => {
-            this.viewer.entities.remove(entity);
-        });
-        this.orbitEntities.clear();
-    }
-
-    toggleTracking() {
-        this.trackingMode = !this.trackingMode;
-        const btn = document.getElementById('trackingBtn');
-
-        if (this.trackingMode) {
-            btn.classList.add('active');
-            if (this.selectedSatellite) {
-                this.focusOnSatellite(this.selectedSatellite);
-            }
-        } else {
-            btn.classList.remove('active');
-        }
-    }
-
-    resetView() {
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(0, 30, 12000000),
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
-            },
-            duration: 2.0
-        });
-    }
-
-    refreshData() {
-        this.loadSatellites();
-        this.loadCategories();
     }
 
     getCurrentLocation() {
@@ -1381,11 +929,11 @@ class SatelliteViewer {
                     document.getElementById('altitude').value = position.coords.altitude || 0;
                 },
                 (error) => {
-                    this.showError('Could not get your location');
+                    this.showError('Geolocation failed: ' + error.message);
                 }
             );
         } else {
-            this.showError('Geolocation is not supported');
+            this.showError('Geolocation is not supported by this browser');
         }
     }
 
@@ -1394,6 +942,11 @@ class SatelliteViewer {
         const lon = parseFloat(document.getElementById('longitude').value);
         const alt = parseFloat(document.getElementById('altitude').value) || 0;
 
+        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+            this.showError('Invalid coordinates. Please check your input.');
+            return;
+        }
+
         this.userLocation = { lat, lon, alt };
         this.preferences.location = this.userLocation;
         this.saveUserPreferences();
@@ -1401,33 +954,31 @@ class SatelliteViewer {
         const modal = bootstrap.Modal.getInstance(document.getElementById('locationModal'));
         modal.hide();
 
-        // Reload pass predictions for selected satellite
-        if (this.selectedSatellite) {
-            this.loadPassPredictions(this.selectedSatellite);
+        this.showSuccess('Location saved successfully');
+    }
+
+    async saveUserPreferences() {
+        try {
+            await fetch('/api/user/preferences', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(this.preferences)
+            });
+        } catch (error) {
+            console.error('Error saving preferences:', error);
         }
     }
 
-    startAutoUpdate() {
-        // High-frequency updates for smooth 10fps feel
-        this.updateInterval = setInterval(() => {
-            this.loadSatellites();
-        }, this.updateRate);
+    updateStatusBar(satelliteCount, timestamp) {
+        document.getElementById('satCount').textContent = satelliteCount;
+        document.getElementById('lastUpdate').textContent = `Last updated: ${new Date(timestamp).toLocaleTimeString()}`;
     }
 
-    updateStatus(count, timestamp) {
-        document.getElementById('satelliteCount').textContent = `${count} satellites`;
-
-        const lastUpdateTime = new Date(timestamp);
-        document.getElementById('lastUpdate').textContent = 
-            `Updated: ${lastUpdateTime.toLocaleTimeString()}`;
-    }
-
-    showLoadingOverlay() {
-        // Loading overlay removed for smoother experience
-    }
-
-    hideLoadingOverlay() {
-        // Loading overlay removed for smoother experience
+    showSuccess(message) {
+        // You could implement a success toast here
+        console.log('Success:', message);
     }
 
     showError(message) {
