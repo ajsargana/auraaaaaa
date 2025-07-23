@@ -490,13 +490,13 @@ class SatelliteViewer {
 
     clearSatelliteVisualizations(noradId) {
         // Clear nadir line
-        this.clearNadirLine(noradId);
+        this.clearNadirLine();
         
         // Clear ground track circle
-        this.clearGroundTrackCircle(noradId);
+        this.clearGroundTrackCircle();
         
         // Clear future ground track
-        this.clearFutureGroundTrack(noradId);
+        this.clearFutureGroundTrack();
         
         // Clear orbit path
         this.clearOrbitPath(noradId);
@@ -868,9 +868,12 @@ class SatelliteViewer {
     }
 
     clearSelectedOrbit() {
-        if (this.selectedSatellite && this.orbitEntities.has(this.selectedSatellite)) {
-            this.viewer.entities.remove(this.orbitEntities.get(this.selectedSatellite));
-            this.orbitEntities.delete(this.selectedSatellite);
+        if (this.selectedSatellite) {
+            const orbitEntity = this.orbitEntities.get(this.selectedSatellite);
+            if (orbitEntity) {
+                this.viewer.entities.remove(orbitEntity);
+                this.orbitEntities.delete(this.selectedSatellite);
+            }
         }
     }
 
@@ -1060,6 +1063,8 @@ class SatelliteViewer {
         // Remove existing orbit for this satellite
         this.clearOrbitPath(noradId);
 
+        if (orbitPoints.length < 2) return;
+
         const positions = [];
         orbitPoints.forEach(point => {
             positions.push(Cesium.Cartesian3.fromDegrees(
@@ -1069,12 +1074,18 @@ class SatelliteViewer {
             ));
         });
 
+        const satellite = this.satellites.get(noradId);
+        const color = satellite ? satellite.color : '#FFFF00';
+
         const orbitEntity = this.viewer.entities.add({
             id: `orbit_${noradId}`,
             polyline: {
                 positions: positions,
-                width: 2,
-                material: Cesium.Color.YELLOW.withAlpha(0.8),
+                width: 3,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.3,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
+                }),
                 clampToGround: false
             }
         });
@@ -1271,6 +1282,27 @@ class SatelliteViewer {
         }
     }
 
+    clearFutureGroundTrack() {
+        if (this.selectedSatellite) {
+            const futureSwathEntity = this.groundTrackEntities.get(`future_swath_${this.selectedSatellite}`);
+            const futureCenterEntity = this.groundTrackEntities.get(`future_center_${this.selectedSatellite}`);
+            
+            if (futureSwathEntity) {
+                this.viewer.entities.remove(futureSwathEntity);
+                this.groundTrackEntities.delete(`future_swath_${this.selectedSatellite}`);
+            }
+            if (futureCenterEntity) {
+                this.viewer.entities.remove(futureCenterEntity);
+                this.groundTrackEntities.delete(`future_center_${this.selectedSatellite}`);
+            }
+        }
+    }
+
+    clearGroundTrackCircle() {
+        // This method is for compatibility - ground track circles are handled by clearNadirLine
+        // since the circular swath is part of the nadir visualization
+    }
+
     toggleGroundTracks() {
         this.showGroundTracks = !this.showGroundTracks;
         const btn = document.getElementById('groundTracksBtn');
@@ -1294,7 +1326,7 @@ class SatelliteViewer {
         if (this.showOrbits) {
             btn.classList.add('active');
             if (this.selectedSatellite) {
-                this.loadSatelliteOrbit(this.selectedSatellite);
+                this.showOrbitPath(this.selectedSatellite);
             }
         } else {
             btn.classList.remove('active');
