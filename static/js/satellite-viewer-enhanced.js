@@ -19,8 +19,8 @@ class SatelliteViewer {
         this.realTimeUpdateInterval = null;
         this.preferences = {};
 
-        // Performance optimizations
-        this.updateRate = 10000; // 10000ms (10 second) 
+        // Performance optimizations for smooth movement
+        this.updateRate = 5000; // 5000ms (5 seconds) for smooth movement
         this.maxVisibleSatellites = 10000;
         this.lodDistance = 10000000; // Level of detail distance 
 
@@ -59,7 +59,7 @@ class SatelliteViewer {
             creditContainer: document.createElement('div'),
             // Enhanced performance settings
             requestRenderMode: false, // Continuous rendering for smooth animation
-            maximumRenderTimeChange: 10000/10, // Target 10fps
+            maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
         });
 
         // Performance optimizations
