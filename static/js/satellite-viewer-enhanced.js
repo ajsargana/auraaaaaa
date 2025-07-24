@@ -17,15 +17,12 @@ class SatelliteViewer {
         this.nadirEntities = new Map();
         this.groundCircleEntities = new Map();
         this.realTimeUpdateInterval = null;
-        this.fpsCounter = 0;
-        this.lastFrameTime = 0;
-        this.frameCount = 0;
         this.preferences = {};
 
         // Performance optimizations
-        this.updateRate = 1000; // 1000ms (1 second) for better synchronization
+        this.updateRate = 10000; // 10000ms (10 second) 
         this.maxVisibleSatellites = 10000;
-        this.lodDistance = 10000000; // Level of detail distance
+        this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
     }
@@ -62,7 +59,7 @@ class SatelliteViewer {
             creditContainer: document.createElement('div'),
             // Enhanced performance settings
             requestRenderMode: false, // Continuous rendering for smooth animation
-            maximumRenderTimeChange: 1000/10, // Target 10fps
+            maximumRenderTimeChange: 10000/10, // Target 10fps
         });
 
         // Performance optimizations
@@ -126,12 +123,12 @@ class SatelliteViewer {
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = 1000; // 1 seconds
+                this.updateRate = 10000; // 1 seconds
             }
         } catch (error) {
             console.warn('Could not load user preferences, using defaults:', error);
             this.userLocation = { lat: 0, lon: 0, alt: 0 };
-            this.updateRate = 1000;
+            this.updateRate = 10000;
         }
     }
 
