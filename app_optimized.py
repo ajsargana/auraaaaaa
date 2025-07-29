@@ -280,7 +280,7 @@ def user_preferences():
                 'success': True,
                 'preferences': {
                     'location': {'lat': 0.0, 'lon': 0.0, 'alt': 0.0},
-                    'update_interval': 5,  # 5 seconds for smooth movement
+                    'update_interval': 10,  # 5 seconds for smooth movement
                     'show_satellite_paths': True,
                     'show_ground_tracks': True,
                     'favorite_satellites': [],

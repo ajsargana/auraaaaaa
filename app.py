@@ -217,7 +217,7 @@ def user_preferences():
                 'success': True,
                 'preferences': {
                     'location': {'lat': 0.0, 'lon': 0.0, 'alt': 0.0},
-                    'update_interval': 1,
+                    'update_interval': 10,
                     'show_satellite_paths': True,
                     'favorite_satellites': []
                 }

@@ -19,9 +19,9 @@ class SatelliteViewer {
         this.realTimeUpdateInterval = null;
         this.preferences = {};
 
-        // Performance optimizations for smooth movement
+        // Performance optimizations for smooth movement  
         this.updateRate = 5000; // 5000ms (5 seconds) for smooth movement
-        this.maxVisibleSatellites = 10000;
+        this.maxVisibleSatellites = 1000; // Limit to 1000 for better performance
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
@@ -119,7 +119,7 @@ class SatelliteViewer {
                 if (latElement) latElement.value = this.userLocation.lat;
                 if (lonElement) lonElement.value = this.userLocation.lon;
                 if (altElement) altElement.value = this.userLocation.alt;
-                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 1}s`;
+                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 10}s`;
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
@@ -323,12 +323,14 @@ class SatelliteViewer {
                     satCountElement.textContent = data.satellites.length;
                 }
             } else {
-                console.warn('No satellite data received:', data);
+                console.error('Failed to load satellites:', data);
+                this.showError(data.error || 'Failed to load satellite data');
                 document.getElementById('connectionStatus').textContent = 'No Data';
                 document.getElementById('connectionStatus').className = 'badge bg-warning ms-auto';
             }
         } catch (error) {
             console.error('Error loading satellites:', error);
+            this.showError(`Network error: ${error.message}`);
             document.getElementById('connectionStatus').textContent = 'Disconnected';
             document.getElementById('connectionStatus').className = 'badge bg-danger ms-auto';
         }
@@ -1349,6 +1351,17 @@ class SatelliteViewer {
             }
         } else {
             btn.classList.remove('active');
+        }
+    }
+
+    showError(message) {
+        console.error('Satellite Tracker Error:', message);
+        // Show error in UI if needed
+        const statusElement = document.getElementById('connectionStatus');
+        if (statusElement) {
+            statusElement.textContent = 'Error';
+            statusElement.className = 'badge bg-danger ms-auto';
+            statusElement.title = message;
         }
     }
 
