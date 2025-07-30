@@ -233,5 +233,14 @@ def user_preferences():
             'error': f"Failed to handle user preferences: {str(e)}"
         }), 500
 
+#Integrating llm
+@app.route("/api/chat", methods=["POST"])
+def chat_api():
+    user_input = request.json.get("user_input")
+    if not user_input:
+        return jsonify({"error": "No input provided"}), 400
+    response = chat_with_llm(user_input)
+    return jsonify({"response": response})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
