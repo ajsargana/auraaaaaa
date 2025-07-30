@@ -54,12 +54,6 @@ This is a real-time 3D satellite tracking application built with Flask and Cesiu
    - Real-time status monitoring and performance indicators
    - Mobile-optimized responsive design with dark theme
 
-3. **AI Chat Assistant** (`Chat.js`, `simple_chat.py`)
-   - Interactive chatbot for satellite tracking assistance
-   - Responds to queries about satellites, orbits, and tracking
-   - Real-time conversation with `/api/chat` endpoint integration
-   - Context-aware responses about satellite data and orbital mechanics
-
 ## Data Flow
 
 1. **Initialization**: Backend loads TLE data from external sources and categorizes satellites
@@ -104,11 +98,6 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 Recent Updates:
-- July 30, 2025: ✅ **COMPLETED**: Added AI Chat Assistant with SimpleChatBot integration
-  - Created interactive chatbot with Flask `/api/chat` endpoint
-  - Chatbot responds to satellite queries, provides tracking help, and explains orbital mechanics
-  - Successfully tested: greetings, satellite count queries, conversation history
-  - Enhanced UI with styled chat interface in tracker.html
 - July 23, 2025: Removed all authentication and database dependencies (user request)
 - July 23, 2025: Simplified to single-file Flask application with landing page only
 - July 21, 2025: Added real-time details updates for satellite position/velocity

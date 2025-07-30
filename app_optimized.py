@@ -6,7 +6,6 @@ import os
 import logging
 from flask import Flask, render_template, jsonify, request
 from satellite_tracker_optimized import SatelliteTrackerOptimized
-from simple_chat import SimpleChatBot
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,9 +17,6 @@ app.secret_key = os.environ.get("SESSION_SECRET", "dev-secret-key-change-in-prod
 # Initialize optimized satellite tracker
 offline_mode = os.environ.get("OFFLINE_MODE", "false").lower() == "true"
 tracker = SatelliteTrackerOptimized(offline_mode=offline_mode)
-
-# Initialize simple chatbot
-chatbot = SimpleChatBot(tracker)
 
 @app.route('/')
 def index():
@@ -161,7 +157,7 @@ def get_satellite_passes(norad_id):
         lon = float(request.args.get('lon', 0))
         alt = float(request.args.get('alt', 0))
         
-        passes = tracker.get_next_passes(norad_id, lat, lon, int(alt))
+        passes = tracker.get_next_passes(norad_id, lat, lon, alt)
         
         return jsonify({
             'success': True,
@@ -222,7 +218,7 @@ def refresh_cache():
                 'error': 'Cannot refresh cache in offline mode'
             }), 400
         
-        force = request.json.get('force', False) if request.is_json and request.json else False
+        force = request.json.get('force', False) if request.is_json else False
         success = tracker.refresh_data(force=force)
         
         if success:
@@ -277,67 +273,38 @@ def get_app_status():
 
 @app.route('/api/user/preferences', methods=['GET', 'POST'])
 def user_preferences():
-    """Handle user preferences"""
+    """Handle user preferences (simplified for offline app)"""
     try:
-        if request.method == 'POST':
-            return jsonify({'success': True, 'message': 'Preferences saved'})
-        else:
-            return jsonify({'success': True, 'preferences': {}})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/chat', methods=['POST'])
-def chat_endpoint():
-    """Handle chatbot interactions"""
-    try:
-        data = request.get_json()
-        if not data or 'message' not in data:
+        if request.method == 'GET':
             return jsonify({
-                'success': False,
-                'error': 'Message is required'
-            }), 400
+                'success': True,
+                'preferences': {
+                    'location': {'lat': 0.0, 'lon': 0.0, 'alt': 0.0},
+                    'update_interval': 10,  # 5 seconds for smooth movement
+                    'show_satellite_paths': True,
+                    'show_ground_tracks': True,
+                    'favorite_satellites': [],
+                    'offline_mode': tracker.offline_mode
+                }
+            })
         
-        user_message = data['message'].strip()
-        if not user_message:
+        elif request.method == 'POST':
+            # In a real app, you'd save these preferences
             return jsonify({
-                'success': False,
-                'error': 'Empty message'
-            }), 400
-        
-        # Get response from chatbot
-        bot_response = chatbot.get_response(user_message)
-        
-        return jsonify({
-            'success': True,
-            'response': bot_response,
-            'timestamp': chatbot.conversation_history[-1]['timestamp'] if chatbot.conversation_history else None
-        })
-        
+                'success': True,
+                'message': 'Preferences saved locally'
+            })
+    
     except Exception as e:
-        app.logger.error(f"Error in chat endpoint: {e}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to process chat message'
-        }), 500
-
-@app.route('/api/chat/history')
-def chat_history():
-    """Get chat conversation history"""
-    try:
-        return jsonify({
-            'success': True,
-            'history': chatbot.get_conversation_history()
-        })
-    except Exception as e:
-        app.logger.error(f"Error getting chat history: {e}")
+        app.logger.error(f"Error handling preferences: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
 if __name__ == '__main__':
-    print("🛰️  Optimized 3D Satellite Tracker with Chat Bot")
-    print("=" * 50)
+    print("🛰️  Optimized 3D Satellite Tracker")
+    print("=" * 40)
     print(f"📡 Offline mode: {'ON' if tracker.offline_mode else 'OFF'}")
     print(f"🌍 Satellites loaded: {tracker.get_satellite_count()}")
     
@@ -347,8 +314,7 @@ if __name__ == '__main__':
         if cache_status['cache_age_days']:
             print(f"⏰ Cache age: {cache_status['cache_age_days']} days")
     
-    print("🤖 AI Chat Assistant: Ready")
-    print("🚀 Starting server on http://0.0.0.0:5000")
-    print("=" * 50)
+    print("🚀 Starting server on http://localhost:5000")
+    print("=" * 40)
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)
