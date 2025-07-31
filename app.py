@@ -164,6 +164,95 @@ def refresh_data():
             'error': str(e)
         }), 500
 
+@app.route('/api/satellite/<int:norad_id>/orbit')
+def get_satellite_orbit(norad_id):
+    """Get satellite orbit path"""
+    try:
+        duration = int(request.args.get('duration', 3))
+        orbit_points = satellite_manager.get_satellite_orbit(norad_id, duration)
+        
+        if orbit_points:
+            return jsonify({
+                'success': True,
+                'orbit_points': orbit_points
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Satellite not found or no orbit data available'
+            }), 404
+    except Exception as e:
+        logger.error(f"Error getting satellite orbit {norad_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/satellite/<int:norad_id>/ground-track')
+def get_satellite_ground_track(norad_id):
+    """Get satellite ground track"""
+    try:
+        duration = int(request.args.get('duration', 3))
+        swath_width = int(request.args.get('swath_width', 300))
+        ground_track = satellite_manager.get_satellite_ground_track(norad_id, duration, swath_width)
+        
+        if ground_track:
+            return jsonify({
+                'success': True,
+                'ground_track': ground_track
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Satellite not found or no ground track data available'
+            }), 404
+    except Exception as e:
+        logger.error(f"Error getting satellite ground track {norad_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/satellite/<int:norad_id>/passes')
+def get_satellite_passes(norad_id):
+    """Get satellite pass predictions"""
+    try:
+        lat = float(request.args.get('lat', 0))
+        lon = float(request.args.get('lon', 0))
+        alt = float(request.args.get('alt', 0))
+        
+        passes = satellite_manager.get_satellite_passes(norad_id, lat, lon, alt)
+        
+        return jsonify({
+            'success': True,
+            'passes': passes
+        })
+    except Exception as e:
+        logger.error(f"Error getting satellite passes {norad_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/user/preferences', methods=['GET', 'POST'])
+def user_preferences():
+    """Get or set user preferences"""
+    if request.method == 'GET':
+        # Return default preferences for now
+        return jsonify({
+            'success': True,
+            'preferences': {
+                'location': {'lat': 0, 'lon': 0, 'alt': 0},
+                'update_interval': 10
+            }
+        })
+    else:
+        # POST - save preferences (mock implementation)
+        return jsonify({
+            'success': True,
+            'message': 'Preferences saved'
+        })
+
 @app.route('/api/status')
 def get_status():
     """Get application status"""

@@ -238,17 +238,110 @@ class SatelliteDataManager:
         
         return categories
     
-    def get_satellite_by_id(self, norad_id):
-        """Get satellite data by NORAD ID"""
-        if norad_id in self.satellites:
-            sat_data = self.satellites[norad_id]
-            return {
-                'norad_id': sat_data['norad_id'],
-                'name': sat_data['name'],
-                'latitude': sat_data['latitude'],
-                'longitude': sat_data['longitude'],
-                'altitude': sat_data['altitude'],
-                'category': sat_data['category'],
-                'color': sat_data['color']
-            }
-        return None
+    def get_satellite_orbit(self, norad_id, duration_hours=3):
+        """Get satellite orbit points"""
+        if norad_id not in self.satellites:
+            return None
+            
+        try:
+            satellite = self.satellites[norad_id]['satellite_obj']
+            orbit_points = []
+            
+            # Generate orbit points for the specified duration
+            start_time = self.ts.now()
+            time_step_minutes = 5  # 5 minute intervals
+            total_minutes = duration_hours * 60
+            
+            for minutes in range(0, total_minutes, time_step_minutes):
+                t = start_time + (minutes / (24 * 60))  # Add days
+                geocentric = satellite.at(t)
+                
+                from skyfield.api import wgs84
+                subpoint = wgs84.subpoint(geocentric)
+                
+                orbit_points.append({
+                    'latitude': float(subpoint.latitude.degrees),
+                    'longitude': float(subpoint.longitude.degrees),
+                    'altitude': float(subpoint.elevation.km),
+                    'time_offset_minutes': minutes
+                })
+                
+            return orbit_points
+        except Exception as e:
+            logger.error(f"Error generating orbit for satellite {norad_id}: {e}")
+            return None
+    
+    def get_satellite_ground_track(self, norad_id, duration_hours=3, swath_width_km=300):
+        """Get satellite ground track with swath"""
+        if norad_id not in self.satellites:
+            return None
+            
+        try:
+            satellite = self.satellites[norad_id]['satellite_obj']
+            ground_track = []
+            
+            # Generate ground track points
+            start_time = self.ts.now()
+            time_step_minutes = 2  # 2 minute intervals for ground track
+            total_minutes = duration_hours * 60
+            
+            for minutes in range(-total_minutes//2, total_minutes//2, time_step_minutes):
+                t = start_time + (minutes / (24 * 60))  # Add days
+                geocentric = satellite.at(t)
+                
+                from skyfield.api import wgs84
+                subpoint = wgs84.subpoint(geocentric)
+                
+                lat = float(subpoint.latitude.degrees)
+                lon = float(subpoint.longitude.degrees)
+                alt = float(subpoint.elevation.km)
+                
+                # Calculate swath boundaries (simplified)
+                import math
+                swath_half_width = swath_width_km / 2
+                earth_radius = 6371  # km
+                angular_width = swath_half_width / earth_radius * (180 / math.pi)
+                
+                ground_track.append({
+                    'latitude': lat,
+                    'longitude': lon,
+                    'altitude': alt,
+                    'time_offset_minutes': minutes,
+                    'swath_left_lat': lat,
+                    'swath_left_lon': lon - angular_width,
+                    'swath_right_lat': lat,
+                    'swath_right_lon': lon + angular_width
+                })
+                
+            return ground_track
+        except Exception as e:
+            logger.error(f"Error generating ground track for satellite {norad_id}: {e}")
+            return None
+    
+    def get_satellite_passes(self, norad_id, observer_lat, observer_lon, observer_alt):
+        """Get satellite pass predictions"""
+        if norad_id not in self.satellites:
+            return []
+            
+        try:
+            # Simplified pass prediction - return mock data for now
+            import datetime
+            now = datetime.datetime.now()
+            
+            passes = []
+            for i in range(3):  # Mock 3 passes
+                rise_time = now + datetime.timedelta(hours=i*8 + 2)
+                passes.append({
+                    'rise_time': rise_time.isoformat(),
+                    'set_time': (rise_time + datetime.timedelta(minutes=10)).isoformat(),
+                    'culmination_time': (rise_time + datetime.timedelta(minutes=5)).isoformat(),
+                    'max_elevation': 45.0 + i * 10,
+                    'rise_azimuth': 45.0 + i * 30,
+                    'set_azimuth': 315.0 - i * 30,
+                    'duration_minutes': 10.0
+                })
+                
+            return passes
+        except Exception as e:
+            logger.error(f"Error generating passes for satellite {norad_id}: {e}")
+            return []

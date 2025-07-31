@@ -340,9 +340,16 @@ class SatelliteViewer {
             const satellite = this.satellites.get(noradId);
             if (satellite && entity.position) {
                 // Force position update for smooth motion
-                entity.position._callback();
+                if (entity.position._callback) {
+                    entity.position._callback();
+                }
+                // Also update any visualization entities
+                entity._updateCallback?.();
             }
         });
+        
+        // Force viewer to re-render
+        this.viewer.scene.requestRender();
     }
 
     renderSatellites() {
@@ -381,12 +388,22 @@ class SatelliteViewer {
                 console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude.toFixed(2)}, ${satellite.longitude.toFixed(2)}, ${satellite.altitude.toFixed(2)}km`);
             }
 
-            // Simple static position for debugging
-            const position = Cesium.Cartesian3.fromDegrees(
-                satellite.longitude,
-                satellite.latitude,
-                satellite.altitude * 1000
-            );
+            // Dynamic position that updates with satellite movement
+            const position = new Cesium.CallbackProperty(() => {
+                const currentSat = this.satellites.get(noradId);
+                if (currentSat) {
+                    return Cesium.Cartesian3.fromDegrees(
+                        currentSat.longitude,
+                        currentSat.latitude,
+                        currentSat.altitude * 1000
+                    );
+                }
+                return Cesium.Cartesian3.fromDegrees(
+                    satellite.longitude,
+                    satellite.latitude,
+                    satellite.altitude * 1000
+                );
+            }, false);
 
             const entity = this.viewer.entities.add({
                 id: `satellite_${noradId}`,
@@ -1140,11 +1157,12 @@ class SatelliteViewer {
                     }
                     return [];
                 }, false),
-                width: 2,
+                width: 3,
                 material: new Cesium.PolylineGlowMaterialProperty({
-                    glowPower: 0.3,
-                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.7)
-                })
+                    glowPower: 0.4,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.9)
+                }),
+                clampToGround: false
             }
         });
 
