@@ -146,3 +146,37 @@ class SatelliteDataManager:
             'last_update': self.last_update.isoformat() if self.last_update else None,
             'categories': len(set(sat['category'] for sat in self.satellites.values()))
         }
+    
+    def get_satellite_data(self):
+        """Return satellites data - alias for get_satellites()"""
+        return self.get_satellites()
+    
+    def get_categories(self):
+        """Return satellite categories with counts"""
+        from collections import defaultdict
+        category_counts = defaultdict(int)
+        
+        for sat_data in self.satellites.values():
+            category_counts[sat_data['category']] += 1
+        
+        # Define category colors directly
+        category_colors = {
+            'iss': '#FF6B6B',
+            'scientific': '#9B59B6', 
+            'weather': '#45B7D1',
+            'gps': '#4ECDC4',
+            'starlink': '#E9C46A',
+            'communication': '#F39C12',
+            'military': '#E74C3C',
+            'other': '#95A5A6'
+        }
+        
+        categories = {}
+        for category, count in category_counts.items():
+            categories[category] = {
+                'name': category.replace('_', ' ').title(),
+                'color': category_colors.get(category, '#64b5f6'),
+                'count': count
+            }
+        
+        return categories
