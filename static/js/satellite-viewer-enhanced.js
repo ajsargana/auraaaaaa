@@ -19,8 +19,8 @@ class SatelliteViewer {
         this.preferences = {};
 
         // Performance optimizations for smooth movement  
-        this.updateRate = 10000; // 10 seconds for smooth movement
-        this.maxVisibleSatellites = 500; // Start with 500 for testing
+        this.updateRate = 30000; // 30 seconds for reasonable updates
+        this.maxVisibleSatellites = 400; // Limit to 400 for better performance
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
@@ -122,12 +122,12 @@ class SatelliteViewer {
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
-                this.updateRate = 10000; // 1 seconds
+                this.updateRate = 30000; // 30 seconds default
             }
         } catch (error) {
             console.warn('Could not load user preferences, using defaults:', error);
             this.userLocation = { lat: 0, lon: 0, alt: 0 };
-            this.updateRate = 10000;
+            this.updateRate = 30000; // 30 seconds default
         }
     }
 
@@ -539,12 +539,12 @@ class SatelliteViewer {
         // Clear any existing interval
         this.stopRealTimeDetailsUpdates();
 
-        // Update details every second for real-time feel
+        // Update details every 10 seconds for reasonable real-time feel
         this.realTimeUpdateInterval = setInterval(async () => {
             if (this.selectedSatellite === noradId) {
                 await this.loadSatelliteDetails(noradId);
             }
-        }, 1000);
+        }, 10000);
     }
 
     stopRealTimeDetailsUpdates() {
@@ -676,7 +676,7 @@ class SatelliteViewer {
                             <i class="fas fa-crosshairs"></i> Track
                         </button>
                         ${this.isISS(satellite) ? `
-                            <button class="btn btn-primary btn-sm" onclick="viewer.showISSLiveVideo()">
+                            <button class="btn btn-primary btn-sm" onclick="showISSVideo()">
                                 <i class="fas fa-video"></i> Live Video
                             </button>
                         ` : ''}
@@ -1480,16 +1480,16 @@ class SatelliteViewer {
     }
 
     startAutoUpdate() {
-        // High-frequency updates for smooth movement
+        // Reasonable update frequency - every 30 seconds for position updates
         this.updateInterval = setInterval(() => {
             console.log('Auto-updating satellite positions...');
             this.loadSatellites();
-        }, this.updateRate);
+        }, 30000); // 30 seconds instead of every second
 
-        // Also start a more frequent position update for smooth animation
+        // Less frequent position interpolation for smooth animation
         this.positionUpdateInterval = setInterval(() => {
             this.updateSatellitePositions();
-        }, 1000); // Update positions every second for smooth movement
+        }, 5000); // Update positions every 5 seconds instead of every second
     }
 
     updateStatus(count, timestamp) {
@@ -1575,36 +1575,9 @@ class SatelliteViewer {
     }
 
     isISS(satellite) {
-        // Check if satellite is ISS based on name
-        const name = satellite.name.toUpperCase();
+        // Check if satellite is ISS based on name or NORAD ID
+        const name = satellite.name ? satellite.name.toUpperCase() : '';
         return name.includes('ISS') || name.includes('ZARYA') || satellite.norad_id === 25544;
-    }
-
-    async showISSLiveVideo() {
-        try {
-            const response = await fetch('/api/iss/live-video');
-            const data = await response.json();
-
-            if (data.success) {
-                const videoFrame = document.getElementById('issVideoFrame');
-                videoFrame.src = data.video_info.video_url;
-
-                // Show modal
-                const modal = new bootstrap.Modal(document.getElementById('issVideoModal'));
-                modal.show();
-
-                // Clear video when modal is closed to stop playback
-                document.getElementById('issVideoModal').addEventListener('hidden.bs.modal', function () {
-                    videoFrame.src = '';
-                }, { once: true });
-            } else {
-                console.error('Failed to load ISS video:', data.error);
-                this.showNotification('Failed to load ISS live video', 'error');
-            }
-        } catch (error) {
-            console.error('Error loading ISS video:', error);
-            this.showNotification('Error loading ISS live video', 'error');
-        }
     }
 }
 
