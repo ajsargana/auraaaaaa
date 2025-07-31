@@ -21,7 +21,7 @@ class SatelliteViewer {
 
         // Performance optimizations for smooth movement  
         this.updateRate = 10000; // 10 seconds for smooth movement
-        this.maxVisibleSatellites = 2000; // Limit to 2000 for better performance
+        this.maxVisibleSatellites = 500; // Start with 500 for testing
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
@@ -309,10 +309,9 @@ class SatelliteViewer {
                 // Always update positions for smooth motion
                 this.updateSatellitePositions();
 
-                // Only re-render entities if necessary
-                if (isFirstLoad || this.satelliteEntities.size === 0) {
-                    this.renderSatellites();
-                }
+                // Always re-render entities for debugging
+                console.log(`Loading ${data.satellites.length} satellites, first load: ${isFirstLoad}`);
+                this.renderSatellites();
 
                 this.updateStatus(data.satellites.length, data.timestamp);
                 document.getElementById('connectionStatus').textContent = 'Connected';
@@ -360,6 +359,8 @@ class SatelliteViewer {
 
         // Render satellites with LOD and performance optimizations
         let renderedCount = 0;
+        console.log(`Starting to render satellites. Total in map: ${this.satellites.size}`);
+        
         this.satellites.forEach((satellite, noradId) => {
             if (this.activeCategoryFilter && satellite.category !== this.activeCategoryFilter) {
                 return;
@@ -368,36 +369,27 @@ class SatelliteViewer {
             if (renderedCount >= this.maxVisibleSatellites) {
                 return;
             }
+            
+            console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude}, ${satellite.longitude}, ${satellite.altitude}km`);
 
-            // Dynamic position property with enhanced performance
-            const positionProperty = new Cesium.CallbackProperty(() => {
-                const currentSat = this.satellites.get(noradId);
-                if (currentSat) {
-                    return Cesium.Cartesian3.fromDegrees(
-                        currentSat.longitude,
-                        currentSat.latitude,
-                        currentSat.altitude * 1000
-                    );
-                }
-                return Cesium.Cartesian3.fromDegrees(
-                    satellite.longitude,
-                    satellite.latitude,
-                    satellite.altitude * 1000
-                );
-            }, false);
+            // Simple static position for debugging
+            const position = Cesium.Cartesian3.fromDegrees(
+                satellite.longitude,
+                satellite.latitude,
+                satellite.altitude * 1000
+            );
 
             const entity = this.viewer.entities.add({
                 id: `satellite_${noradId}`,
                 name: satellite.name,
-                position: positionProperty,
+                position: position,
                 point: {
-                    pixelSize: 10,
+                    pixelSize: 8,
                     color: Cesium.Color.fromCssColorString(satellite.color),
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 0.5,
+                    outlineWidth: 1,
                     heightReference: Cesium.HeightReference.NONE,
-                    scaleByDistance: new Cesium.NearFarScalar(1.5e6, 2.0, 1.5e7, 0.5),
-                    translucencyByDistance: new Cesium.NearFarScalar(1.5e6, 1.0, 1.5e7, 0.8)
+                    show: true
                 },
                 label: {
                     text: satellite.name,
@@ -428,7 +420,11 @@ class SatelliteViewer {
             renderedCount++;
         });
 
-        console.log(`Rendered ${renderedCount} satellites for optimal performance`);
+        console.log(`Rendered ${renderedCount} satellites out of ${this.satellites.size} total satellites`);
+        
+        // Debug: Check if any satellites were actually added to Cesium
+        const totalEntities = this.viewer.entities.values.length;
+        console.log(`Total entities in Cesium viewer: ${totalEntities}`);
     }
 
     onSatelliteClick(event) {
