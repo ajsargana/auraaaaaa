@@ -19,8 +19,8 @@ class SatelliteViewer {
         this.preferences = {};
 
         // Performance optimizations for smooth movement  
-        this.updateRate = 15000; // 15 seconds for faster updates
-        this.maxVisibleSatellites = 500; // Increased limit for more satellites
+        this.updateRate = 30000; // 30 seconds for better performance
+        this.maxVisibleSatellites = 300; // Optimized limit for smooth rendering
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
@@ -384,7 +384,8 @@ class SatelliteViewer {
                 return;
             }
 
-            if (renderedCount < 5) {  // Only log first 5 for debugging
+            // Reduced logging for better performance
+            if (renderedCount < 2) {  // Only log first 2 for debugging
                 console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude.toFixed(2)}, ${satellite.longitude.toFixed(2)}, ${satellite.altitude.toFixed(2)}km`);
             }
 
@@ -492,17 +493,14 @@ class SatelliteViewer {
             await this.showOrbitPath(noradId);
         }
 
-        // Load ground tracks if enabled and satellite is earth observation
-        if (this.showGroundTracks && this.isEarthObservationSatellite(noradId)) {
+        // Only show ground tracks for Earth observation satellites
+        if (this.isEarthObservationSatellite(noradId)) {
             await this.loadSatelliteGroundTrack(noradId);
             await this.renderFutureGroundTrack(noradId);
         }
 
         // Always show nadir line for selected satellite
         this.renderNadirLine(noradId);
-
-        // Show future ground track
-        await this.renderFutureGroundTrack(noradId);
 
         // Load pass predictions
         if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
@@ -1349,10 +1347,7 @@ class SatelliteViewer {
 
         if (this.showGroundTracks) {
             btn.classList.add('active');
-            if (this.selectedSatellite && this.isEarthObservationSatellite(this.selectedSatellite)) {
-                this.loadSatelliteGroundTrack(this.selectedSatellite);
-                this.renderFutureGroundTrack(this.selectedSatellite);
-            }
+            // Ground tracks will be shown automatically when selecting earth observation satellites
         } else {
             btn.classList.remove('active');
             this.clearSelectedGroundTrack();
@@ -1480,16 +1475,16 @@ class SatelliteViewer {
     }
 
     startAutoUpdate() {
-        // Faster update frequency for better real-time tracking
+        // Optimized update frequency for better performance
         this.updateInterval = setInterval(() => {
             console.log('Auto-updating satellite positions...');
             this.loadSatellites();
-        }, 15000); // 15 seconds for faster updates
+        }, 30000); // 30 seconds for better performance
 
-        // More frequent position interpolation for smoother animation
+        // Optimized position interpolation for balanced performance
         this.positionUpdateInterval = setInterval(() => {
             this.updateSatellitePositions();
-        }, 2000); // Update positions every 2 seconds for smoother motion
+        }, 5000); // Update positions every 5 seconds for balanced performance
     }
 
     updateStatus(count, timestamp) {
@@ -1588,15 +1583,16 @@ class SatelliteViewer {
         const category = satellite.category ? satellite.category.toLowerCase() : '';
         const name = satellite.name ? satellite.name.toUpperCase() : '';
         
-        // Check category
-        if (category === 'earth_observation') return true;
+        // Check category first
+        if (category === 'earth_observation' || category === 'scientific') return true;
         
         // Check name patterns for earth observation satellites
         const earthObsKeywords = [
             'LANDSAT', 'SENTINEL', 'SPOT', 'WORLDVIEW', 'QUICKBIRD', 
             'TERRA', 'AQUA', 'MODIS', 'IKONOS', 'GEOEYE', 'PLEIADES',
             'RESOURCESAT', 'CARTOSAT', 'KOMPSAT', 'ALOS', 'RADARSAT',
-            'COSMO-SKYMED', 'TERRASAR', 'ENVISAT', 'ERS', 'CBERS'
+            'COSMO-SKYMED', 'TERRASAR', 'ENVISAT', 'ERS', 'CBERS',
+            'NOAA', 'GOES', 'METEOSAT', 'HIMAWARI', 'METEOR'
         ];
         
         return earthObsKeywords.some(keyword => name.includes(keyword));

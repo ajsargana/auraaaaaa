@@ -38,7 +38,7 @@ class SatelliteDataManager:
                 lines = f.readlines()
 
             satellites_loaded = 0
-            max_satellites = 1000  # Increased to 1000 satellites for more comprehensive tracking
+            max_satellites = 500  # Optimized to 500 satellites for better performance
             i = 0
 
             while i < len(lines) - 2 and satellites_loaded < max_satellites:
