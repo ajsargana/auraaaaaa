@@ -347,7 +347,7 @@ class SatelliteViewer {
                 entity._updateCallback?.();
             }
         });
-        
+
         // Force viewer to re-render
         this.viewer.scene.requestRender();
     }
@@ -1500,6 +1500,46 @@ class SatelliteViewer {
         document.getElementById('errorMessage').textContent = message;
         const toast = new bootstrap.Toast(document.getElementById('errorToast'));
         toast.show();
+    }
+
+    clearGroundTrack() {
+        // Remove ground track entity
+        if (this.groundTrackEntity) {
+            this.viewer.entities.remove(this.groundTrackEntity);
+            this.groundTrackEntity = null;
+        }
+
+        // Remove nadir line entity
+        if (this.nadirLineEntity) {
+            this.viewer.entities.remove(this.nadirLineEntity);
+            this.nadirLineEntity = null;
+        }
+
+        // Remove any ground track related entities
+        const entitiesToRemove = [];
+        this.viewer.entities.values.forEach(entity => {
+            if (entity.id && (entity.id.includes('groundtrack') || entity.id.includes('nadir') || entity.id.includes('swath'))) {
+                entitiesToRemove.push(entity);
+            }
+        });
+
+        entitiesToRemove.forEach(entity => {
+            this.viewer.entities.remove(entity);
+        });
+
+        // Clear any polyline collections
+        if (this.viewer.scene.primitives) {
+            const primitivesToRemove = [];
+            for (let i = 0; i < this.viewer.scene.primitives.length; i++) {
+                const primitive = this.viewer.scene.primitives.get(i);
+                if (primitive.constructor.name === 'PolylineCollection') {
+                    primitivesToRemove.push(primitive);
+                }
+            }
+            primitivesToRemove.forEach(primitive => {
+                this.viewer.scene.primitives.remove(primitive);
+            });
+        }
     }
 }
 
