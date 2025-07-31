@@ -1061,19 +1061,21 @@ class SatelliteViewer {
         const satellite = this.satellites.get(noradId);
         if (!satellite) return;
 
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                satellite.longitude,
-                satellite.latitude,
-                satellite.altitude * 1000 + 2000000 // 2000km above satellite
-            ),
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
-            },
-            duration: 3.0
-        });
+        // Move camera to satellite location
+            const center = Cesium.Cartesian3.fromDegrees(
+                parseFloat(satellite.longitude),
+                parseFloat(satellite.latitude),
+                this.viewer.camera.positionCartographic.height
+            );
+
+            this.viewer.camera.setView({
+                destination: center,
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
+                }
+            });
     }
 
     filterByCategory(category) {
@@ -1603,6 +1605,57 @@ class SatelliteViewer {
             console.error('Error loading ISS video:', error);
             this.showNotification('Error loading ISS live video', 'error');
         }
+    }
+}
+
+// Function to show ISS live video
+function showISSVideo() {
+    // Create modal for ISS video
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.id = 'issVideoModal';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark text-light">
+                <div class="modal-header">
+                    <h5 class="modal-title">ISS Live Video Stream</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ratio ratio-16x9">
+                        <iframe src="https://www.youtube.com/embed/fO9e9jnhYK8?autoplay=1&mute=1" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Check if Bootstrap is available
+    if (typeof bootstrap !== 'undefined') {
+        const modalInstance = new bootstrap.Modal(modal);
+        modalInstance.show();
+
+        // Clean up modal when hidden
+        modal.addEventListener('hidden.bs.modal', function() {
+            document.body.removeChild(modal);
+        });
+    } else {
+        // Fallback if Bootstrap isn't loaded
+        modal.style.display = 'block';
+        modal.classList.add('show');
+
+        // Add close functionality
+        const closeBtn = modal.querySelector('.btn-close');
+        closeBtn.addEventListener('click', function() {
+            modal.style.display = 'none';
+            document.body.removeChild(modal);
+        });
     }
 }
 
