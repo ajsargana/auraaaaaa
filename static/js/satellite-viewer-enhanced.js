@@ -19,8 +19,8 @@ class SatelliteViewer {
         this.preferences = {};
 
         // Performance optimizations for smooth movement  
-        this.updateRate = 30000; // 30 seconds for reasonable updates
-        this.maxVisibleSatellites = 400; // Limit to 400 for better performance
+        this.updateRate = 15000; // 15 seconds for faster updates
+        this.maxVisibleSatellites = 500; // Increased limit for more satellites
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();
@@ -492,8 +492,8 @@ class SatelliteViewer {
             await this.showOrbitPath(noradId);
         }
 
-        // Load ground tracks if enabled
-        if (this.showGroundTracks) {
+        // Load ground tracks if enabled and satellite is earth observation
+        if (this.showGroundTracks && this.isEarthObservationSatellite(noradId)) {
             await this.loadSatelliteGroundTrack(noradId);
             await this.renderFutureGroundTrack(noradId);
         }
@@ -1349,7 +1349,7 @@ class SatelliteViewer {
 
         if (this.showGroundTracks) {
             btn.classList.add('active');
-            if (this.selectedSatellite) {
+            if (this.selectedSatellite && this.isEarthObservationSatellite(this.selectedSatellite)) {
                 this.loadSatelliteGroundTrack(this.selectedSatellite);
                 this.renderFutureGroundTrack(this.selectedSatellite);
             }
@@ -1480,16 +1480,16 @@ class SatelliteViewer {
     }
 
     startAutoUpdate() {
-        // Reasonable update frequency - every 30 seconds for position updates
+        // Faster update frequency for better real-time tracking
         this.updateInterval = setInterval(() => {
             console.log('Auto-updating satellite positions...');
             this.loadSatellites();
-        }, 30000); // 30 seconds instead of every second
+        }, 15000); // 15 seconds for faster updates
 
-        // Less frequent position interpolation for smooth animation
+        // More frequent position interpolation for smoother animation
         this.positionUpdateInterval = setInterval(() => {
             this.updateSatellitePositions();
-        }, 5000); // Update positions every 5 seconds instead of every second
+        }, 2000); // Update positions every 2 seconds for smoother motion
     }
 
     updateStatus(count, timestamp) {
@@ -1579,6 +1579,28 @@ class SatelliteViewer {
         const name = satellite.name ? satellite.name.toUpperCase() : '';
         return name.includes('ISS') || name.includes('ZARYA') || satellite.norad_id === 25544;
     }
+
+    isEarthObservationSatellite(noradId) {
+        // Check if satellite is earth observation based on category
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return false;
+        
+        const category = satellite.category ? satellite.category.toLowerCase() : '';
+        const name = satellite.name ? satellite.name.toUpperCase() : '';
+        
+        // Check category
+        if (category === 'earth_observation') return true;
+        
+        // Check name patterns for earth observation satellites
+        const earthObsKeywords = [
+            'LANDSAT', 'SENTINEL', 'SPOT', 'WORLDVIEW', 'QUICKBIRD', 
+            'TERRA', 'AQUA', 'MODIS', 'IKONOS', 'GEOEYE', 'PLEIADES',
+            'RESOURCESAT', 'CARTOSAT', 'KOMPSAT', 'ALOS', 'RADARSAT',
+            'COSMO-SKYMED', 'TERRASAR', 'ENVISAT', 'ERS', 'CBERS'
+        ];
+        
+        return earthObsKeywords.some(keyword => name.includes(keyword));
+    }
 }
 
 // Function to show ISS live video
@@ -1596,9 +1618,9 @@ function showISSVideo() {
                 </div>
                 <div class="modal-body">
                     <div class="ratio ratio-16x9">
-                        <iframe src="https://www.youtube.com/embed/fO9e9jnhYK8?autoplay=1&mute=1" 
+                        <iframe src="https://www.youtube.com/embed/fO9e9jnhYK8?rel=0&modestbranding=1" 
                                 frameborder="0" 
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                 allowfullscreen>
                         </iframe>
                     </div>
