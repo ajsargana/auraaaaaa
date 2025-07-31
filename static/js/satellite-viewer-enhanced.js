@@ -20,8 +20,8 @@ class SatelliteViewer {
         this.preferences = {};
 
         // Performance optimizations for smooth movement  
-        this.updateRate = 5000; // 5000ms (5 seconds) for smooth movement
-        this.maxVisibleSatellites = 1000; // Limit to 1000 for better performance
+        this.updateRate = 10000; // 10 seconds for smooth movement
+        this.maxVisibleSatellites = 2000; // Limit to 2000 for better performance
         this.lodDistance = 10000000; // Level of detail distance 
 
         this.init();

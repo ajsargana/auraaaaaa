@@ -135,6 +135,61 @@ class SatelliteCategories:
                 'count': len(cat_info['satellites'])
             }
         return categories
+
+def categorize_satellite(name):
+    """
+    Categorize a satellite based on its name and return category and color
+    """
+    name_upper = name.upper()
+    
+    # ISS and Space Stations
+    if any(keyword in name_upper for keyword in ['ISS', 'ZARYA', 'INTERNATIONAL SPACE STATION']):
+        return 'iss', '#FF6B6B'
+    
+    # GPS/GNSS
+    if any(keyword in name_upper for keyword in ['GPS', 'NAVSTAR', 'BIIR', 'BIIF', 'BIII']):
+        return 'gps', '#4ECDC4'
+    if any(keyword in name_upper for keyword in ['GLONASS', 'COSMOS']):
+        return 'glonass', '#FF8C42'
+    if any(keyword in name_upper for keyword in ['GALILEO', 'GSAT']):
+        return 'galileo', '#6A4C93'
+    if any(keyword in name_upper for keyword in ['BEIDOU', 'COMPASS']):
+        return 'beidou', '#F25C54'
+    
+    # Weather
+    if any(keyword in name_upper for keyword in ['NOAA', 'GOES', 'METEOSAT', 'FENGYUN', 'WEATHER', 'HIMAWARI']):
+        return 'weather', '#45B7D1'
+    
+    # Earth Observation  
+    if any(keyword in name_upper for keyword in ['LANDSAT', 'SENTINEL', 'SPOT', 'WORLDVIEW', 'QUICKBIRD', 'TERRA', 'AQUA', 'MODIS']):
+        return 'earth_observation', '#52B788'
+    
+    # Communication
+    if any(keyword in name_upper for keyword in ['INTELSAT', 'EUTELSAT', 'ASTRA', 'HISPASAT', 'TURKSAT', 'NILESAT', 'ARABSAT']):
+        return 'communication', '#96CEB4'
+    
+    # Starlink
+    if 'STARLINK' in name_upper:
+        return 'starlink', '#E9C46A'
+    
+    # OneWeb
+    if any(keyword in name_upper for keyword in ['ONEWEB', 'ONE WEB']):
+        return 'oneweb', '#F4A261'
+    
+    # Iridium
+    if 'IRIDIUM' in name_upper:
+        return 'iridium', '#E76F51'
+    
+    # Scientific
+    if any(keyword in name_upper for keyword in ['SCIENCE', 'RESEARCH', 'EXPERIMENT', 'HUBBLE', 'SPITZER', 'KEPLER']):
+        return 'scientific', '#9B59B6'
+    
+    # Military/Classified
+    if any(keyword in name_upper for keyword in ['MILITARY', 'CLASSIFIED', 'USA', 'NROL', 'DSP', 'SBIRS']):
+        return 'military', '#E74C3C'
+    
+    # Default - Other/Unknown
+    return 'other', '#95A5A6'
     
     def add_satellite_to_category(self, category_id, norad_id):
         """Add satellite to category"""

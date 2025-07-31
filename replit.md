@@ -98,6 +98,10 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 Recent Updates:
+- July 31, 2025: Removed all offline data files except cache folder (user request)
+- July 31, 2025: Removed live TLE fetching and integrated with static tle_data.txt
+- July 31, 2025: Ensured smooth rendering and tracks with optimized satellite loading
+- July 31, 2025: Simplified architecture using static TLE data from cache/tle_data.txt
 - July 23, 2025: Removed all authentication and database dependencies (user request)
 - July 23, 2025: Simplified to single-file Flask application with landing page only
 - July 21, 2025: Added real-time details updates for satellite position/velocity
