@@ -5,7 +5,7 @@ No live fetching, no offline caching - just smooth satellite tracking
 import os
 import logging
 from flask import Flask, render_template, jsonify, request
-from satellite_data import SatelliteDataManager
+from satellite_data_simple import SatelliteDataManager
 from datetime import datetime, timezone
 
 # Configure logging

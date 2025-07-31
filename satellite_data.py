@@ -31,9 +31,10 @@ class SatelliteDataManager:
                 lines = f.readlines()
             
             satellites_loaded = 0
+            max_satellites = 500  # Limit to 500 satellites for performance
             i = 0
             
-            while i < len(lines) - 2:
+            while i < len(lines) - 2 and satellites_loaded < max_satellites:
                 # Skip empty lines
                 if not lines[i].strip():
                     i += 1
@@ -47,36 +48,55 @@ class SatelliteDataManager:
                     
                     # Validate TLE format
                     if len(line1) == 69 and len(line2) == 69 and line1.startswith('1') and line2.startswith('2'):
-                        # Extract NORAD ID
-                        norad_id = int(line1[2:7])
-                        
-                        # Create satellite object
-                        satellite = EarthSatellite(line1, line2, name, self.ts)
-                        
-                        # Get current position
-                        t = self.ts.now()
-                        geocentric = satellite.at(t)
-                        
-                        # Get position relative to Earth
-                        from skyfield.api import wgs84
-                        subpoint = wgs84.subpoint(geocentric)
-                        
-                        # Categorize satellite
-                        category, color = categorize_satellite(name)
-                        
-                        # Store satellite data
-                        self.satellites[norad_id] = {
-                            'norad_id': norad_id,
-                            'name': name.strip(),
-                            'latitude': float(subpoint.latitude.degrees),
-                            'longitude': float(subpoint.longitude.degrees),
-                            'altitude': float(subpoint.elevation.km),
-                            'category': category,
-                            'color': color,
-                            'satellite_obj': satellite
-                        }
-                        
-                        satellites_loaded += 1
+                        try:
+                            # Extract NORAD ID
+                            norad_id = int(line1[2:7])
+                            
+                            # Create satellite object
+                            satellite = EarthSatellite(line1, line2, name, self.ts)
+                            
+                            # Get current position with error handling
+                            t = self.ts.now()
+                            geocentric = satellite.at(t)
+                            
+                            # Get position relative to Earth
+                            from skyfield.api import wgs84
+                            subpoint = wgs84.subpoint(geocentric)
+                            
+                            # Extract position values
+                            lat = float(subpoint.latitude.degrees)
+                            lon = float(subpoint.longitude.degrees)
+                            alt = float(subpoint.elevation.km)
+                            
+                            # Skip satellites with invalid positions or extreme altitudes
+                            if not (lat == lat and lon == lon and alt == alt):  # NaN check
+                                continue
+                            if alt < 0 or alt > 50000:  # Reasonable altitude bounds
+                                continue
+                                
+                            # Categorize satellite
+                            category, color = categorize_satellite(name)
+                            
+                            self.satellites[norad_id] = {
+                                'norad_id': norad_id,
+                                'name': name.strip(),
+                                'latitude': lat,
+                                'longitude': lon,
+                                'altitude': alt,
+                                'category': category,
+                                'color': color,
+                                'satellite_obj': satellite
+                            }
+                            
+                            satellites_loaded += 1
+                            
+                            # Progress logging every 100 satellites
+                            if satellites_loaded % 100 == 0:
+                                logger.info(f"Loaded {satellites_loaded} satellites...")
+                            
+                        except Exception as sat_error:
+                            # Skip problematic satellites silently
+                            continue
                         
                     i += 3
                     
@@ -109,10 +129,16 @@ class SatelliteDataManager:
                 from skyfield.api import wgs84
                 subpoint = wgs84.subpoint(geocentric)
                 
-                # Update position data
-                sat_data['latitude'] = float(subpoint.latitude.degrees)
-                sat_data['longitude'] = float(subpoint.longitude.degrees) 
-                sat_data['altitude'] = float(subpoint.elevation.km)
+                # Update position data with NaN checking
+                lat = float(subpoint.latitude.degrees)
+                lon = float(subpoint.longitude.degrees)
+                alt = float(subpoint.elevation.km)
+                
+                # Only update if values are valid numbers
+                if lat == lat and lon == lon and alt == alt:  # NaN check
+                    sat_data['latitude'] = lat
+                    sat_data['longitude'] = lon
+                    sat_data['altitude'] = alt
                 
         except Exception as e:
             logger.error(f"Error updating satellite positions: {e}")

@@ -370,7 +370,17 @@ class SatelliteViewer {
                 return;
             }
             
-            console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude}, ${satellite.longitude}, ${satellite.altitude}km`);
+            // Validate satellite position data
+            if (typeof satellite.latitude !== 'number' || typeof satellite.longitude !== 'number' || 
+                typeof satellite.altitude !== 'number' || isNaN(satellite.latitude) || 
+                isNaN(satellite.longitude) || isNaN(satellite.altitude)) {
+                console.warn(`Skipping satellite ${satellite.name} due to invalid position:`, satellite);
+                return;
+            }
+            
+            if (renderedCount < 5) {  // Only log first 5 for debugging
+                console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude.toFixed(2)}, ${satellite.longitude.toFixed(2)}, ${satellite.altitude.toFixed(2)}km`);
+            }
 
             // Simple static position for debugging
             const position = Cesium.Cartesian3.fromDegrees(
@@ -384,12 +394,13 @@ class SatelliteViewer {
                 name: satellite.name,
                 position: position,
                 point: {
-                    pixelSize: 8,
-                    color: Cesium.Color.fromCssColorString(satellite.color),
+                    pixelSize: 6,
+                    color: Cesium.Color.fromCssColorString(satellite.color || '#64b5f6'),
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 1,
                     heightReference: Cesium.HeightReference.NONE,
-                    show: true
+                    show: true,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY
                 },
                 label: {
                     text: satellite.name,
