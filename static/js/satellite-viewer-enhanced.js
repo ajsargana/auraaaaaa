@@ -393,13 +393,14 @@ class SatelliteViewer {
                 name: satellite.name,
                 position: position,
                 point: {
-                    pixelSize: 6,
+                    pixelSize: 8,
                     color: Cesium.Color.fromCssColorString(satellite.color || '#64b5f6'),
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 1,
                     heightReference: Cesium.HeightReference.NONE,
                     show: true,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
+                    // Enable depth testing so satellites behind Earth are hidden
+                    disableDepthTestDistance: 0
                 },
                 label: {
                     text: satellite.name,
@@ -435,6 +436,10 @@ class SatelliteViewer {
         // Debug: Check if any satellites were actually added to Cesium
         const totalEntities = this.viewer.entities.values.length;
         console.log(`Total entities in Cesium viewer: ${totalEntities}`);
+
+        // Enable proper depth testing and lighting for realistic rendering
+        this.viewer.scene.globe.enableLighting = true;
+        this.viewer.scene.globe.depthTestAgainstTerrain = true;
     }
 
     onSatelliteClick(event) {

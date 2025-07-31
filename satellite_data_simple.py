@@ -237,3 +237,18 @@ class SatelliteDataManager:
             }
         
         return categories
+    
+    def get_satellite_by_id(self, norad_id):
+        """Get satellite data by NORAD ID"""
+        if norad_id in self.satellites:
+            sat_data = self.satellites[norad_id]
+            return {
+                'norad_id': sat_data['norad_id'],
+                'name': sat_data['name'],
+                'latitude': sat_data['latitude'],
+                'longitude': sat_data['longitude'],
+                'altitude': sat_data['altitude'],
+                'category': sat_data['category'],
+                'color': sat_data['color']
+            }
+        return None
