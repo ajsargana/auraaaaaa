@@ -164,6 +164,12 @@ class SatelliteDataManager:
         self.update_positions()  # Update positions before returning data
         return self.get_satellites()
     
+    def refresh_data(self):
+        """Refresh satellite data by reloading TLE data"""
+        logger.info("Refreshing satellite data...")
+        self.satellites.clear()
+        return self.load_tle_data()
+    
     def get_satellite_by_id(self, norad_id):
         """Get specific satellite by NORAD ID"""
         if norad_id in self.satellites:

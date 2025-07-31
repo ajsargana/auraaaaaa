@@ -1,4 +1,3 @@
-
 class SatelliteViewer {
     constructor() {
         this.viewer = null;
@@ -360,7 +359,7 @@ class SatelliteViewer {
         // Render satellites with LOD and performance optimizations
         let renderedCount = 0;
         console.log(`Starting to render satellites. Total in map: ${this.satellites.size}`);
-        
+
         this.satellites.forEach((satellite, noradId) => {
             if (this.activeCategoryFilter && satellite.category !== this.activeCategoryFilter) {
                 return;
@@ -369,7 +368,7 @@ class SatelliteViewer {
             if (renderedCount >= this.maxVisibleSatellites) {
                 return;
             }
-            
+
             // Validate satellite position data
             if (typeof satellite.latitude !== 'number' || typeof satellite.longitude !== 'number' || 
                 typeof satellite.altitude !== 'number' || isNaN(satellite.latitude) || 
@@ -377,7 +376,7 @@ class SatelliteViewer {
                 console.warn(`Skipping satellite ${satellite.name} due to invalid position:`, satellite);
                 return;
             }
-            
+
             if (renderedCount < 5) {  // Only log first 5 for debugging
                 console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude.toFixed(2)}, ${satellite.longitude.toFixed(2)}, ${satellite.altitude.toFixed(2)}km`);
             }
@@ -432,7 +431,7 @@ class SatelliteViewer {
         });
 
         console.log(`Rendered ${renderedCount} satellites out of ${this.satellites.size} total satellites`);
-        
+
         // Debug: Check if any satellites were actually added to Cesium
         const totalEntities = this.viewer.entities.values.length;
         console.log(`Total entities in Cesium viewer: ${totalEntities}`);
@@ -454,7 +453,7 @@ class SatelliteViewer {
         if (this.selectedSatellite && this.selectedSatellite !== noradId) {
             this.clearSatelliteVisualizations(this.selectedSatellite);
         }
-        
+
         this.selectedSatellite = noradId;
 
         // Enhanced visual selection
@@ -462,7 +461,7 @@ class SatelliteViewer {
 
         // Load detailed information
         await this.loadSatelliteDetails(noradId);
-        
+
         // Start real-time details updates
         this.startRealTimeDetailsUpdates(noradId);
 
@@ -479,7 +478,7 @@ class SatelliteViewer {
 
         // Always show nadir line for selected satellite
         this.renderNadirLine(noradId);
-        
+
         // Show future ground track
         await this.renderFutureGroundTrack(noradId);
 
@@ -497,19 +496,19 @@ class SatelliteViewer {
     clearSatelliteVisualizations(noradId) {
         // Clear nadir line
         this.clearNadirLine();
-        
+
         // Clear ground track circle
         this.clearGroundTrackCircle();
-        
+
         // Clear future ground track
         this.clearFutureGroundTrack();
-        
+
         // Clear orbit path
         this.clearOrbitPath(noradId);
-        
+
         // Clear ground track
         this.clearSelectedGroundTrack();
-        
+
         // Stop real-time updates
         this.stopRealTimeDetailsUpdates();
     }
@@ -517,7 +516,7 @@ class SatelliteViewer {
     startRealTimeDetailsUpdates(noradId) {
         // Clear any existing interval
         this.stopRealTimeDetailsUpdates();
-        
+
         // Update details every second for real-time feel
         this.realTimeUpdateInterval = setInterval(async () => {
             if (this.selectedSatellite === noradId) {
@@ -821,7 +820,7 @@ class SatelliteViewer {
             const currentEntity = this.groundTrackEntities.get(`current_${this.selectedSatellite}`);
             const futureSwathEntity = this.groundTrackEntities.get(`future_swath_${this.selectedSatellite}`);
             const futureCenterEntity = this.groundTrackEntities.get(`future_center_${this.selectedSatellite}`);
-            
+
             if (swathEntity) {
                 this.viewer.entities.remove(swathEntity);
                 this.groundTrackEntities.delete(`swath_${this.selectedSatellite}`);
@@ -899,7 +898,7 @@ class SatelliteViewer {
     renderPassPredictions(passes) {
         const tabsContainer = document.getElementById('passNavTabs');
         const contentContainer = document.getElementById('passTabContent');
-        
+
         if (passes.length === 0) {
             tabsContainer.innerHTML = '';
             contentContainer.innerHTML = '<p class="text-muted p-3">No upcoming passes found</p>';
@@ -1050,7 +1049,7 @@ class SatelliteViewer {
         this.renderSatellites();
     }
 
-    
+
 
     async showOrbitPath(noradId) {
         try {
@@ -1211,11 +1210,11 @@ class SatelliteViewer {
             if (data.success && data.ground_track.length > 0) {
                 const satellite = this.satellites.get(noradId);
                 const color = satellite ? satellite.color : '#64b5f6';
-                
+
                 // Split ground track into past (dimmer) and future (brighter)
                 const currentTime = Date.now();
                 const futurePoints = data.ground_track.filter(point => point.time_offset_minutes > 0);
-                
+
                 if (futurePoints.length < 2) return;
 
                 // Create future center line positions
@@ -1276,7 +1275,7 @@ class SatelliteViewer {
         if (this.selectedSatellite) {
             const lineEntity = this.nadirEntities.get(`line_${this.selectedSatellite}`);
             const circleEntity = this.nadirEntities.get(`circle_${this.selectedSatellite}`);
-            
+
             if (lineEntity) {
                 this.viewer.entities.remove(lineEntity);
                 this.nadirEntities.delete(`line_${this.selectedSatellite}`);
@@ -1292,7 +1291,7 @@ class SatelliteViewer {
         if (this.selectedSatellite) {
             const futureSwathEntity = this.groundTrackEntities.get(`future_swath_${this.selectedSatellite}`);
             const futureCenterEntity = this.groundTrackEntities.get(`future_center_${this.selectedSatellite}`);
-            
+
             if (futureSwathEntity) {
                 this.viewer.entities.remove(futureSwathEntity);
                 this.groundTrackEntities.delete(`future_swath_${this.selectedSatellite}`);
@@ -1384,19 +1383,29 @@ class SatelliteViewer {
         });
     }
 
-    refreshData() {
-        console.log('Refreshing satellite data...');
-        this.loadSatellites();
-        this.loadCategories();
-        
-        // Force position update for existing satellites
-        this.updateSatellitePositions();
-        
-        // Update status
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            statusElement.textContent = 'Refreshing...';
-            statusElement.className = 'badge bg-warning ms-auto';
+    async refreshData() {
+        try {
+            this.updateStatus('Refreshing satellite data...', false);
+
+            const response = await fetch('/api/refresh', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                this.updateStatus(`Data refreshed! Loaded ${data.satellite_count} satellites`, false);
+                // Reload satellites to update the display
+                await this.loadSatellites();
+            } else {
+                this.updateStatus('Failed to refresh data: ' + (data.error || 'Unknown error'), true);
+            }
+        } catch (error) {
+            console.error('Error refreshing data:', error);
+            this.updateStatus('Error refreshing data: ' + error.message, true);
         }
     }
 
@@ -1441,7 +1450,7 @@ class SatelliteViewer {
             console.log('Auto-updating satellite positions...');
             this.loadSatellites();
         }, this.updateRate);
-        
+
         // Also start a more frequent position update for smooth animation
         this.positionUpdateInterval = setInterval(() => {
             this.updateSatellitePositions();

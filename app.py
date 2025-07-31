@@ -138,6 +138,32 @@ def search_satellites():
             'satellites': []
         }), 500
 
+@app.route('/api/refresh', methods=['POST'])
+def refresh_data():
+    """Refresh satellite data"""
+    try:
+        success = satellite_manager.refresh_data()
+        
+        if success:
+            satellites = satellite_manager.get_satellite_data()
+            return jsonify({
+                'success': True,
+                'message': 'Data refreshed successfully',
+                'satellite_count': len(satellites),
+                'timestamp': datetime.now(timezone.utc).isoformat()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to refresh data'
+            }), 500
+    except Exception as e:
+        logger.error(f"Error refreshing data: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/status')
 def get_status():
     """Get application status"""
