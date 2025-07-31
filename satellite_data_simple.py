@@ -114,28 +114,40 @@ class SatelliteDataManager:
         return satellites_list
     
     def update_positions(self):
-        """Update satellite positions (simplified for testing)"""
+        """Update satellite positions for real-time movement"""
         try:
             t = self.ts.now()
+            updated_count = 0
+            
             for norad_id, sat_data in self.satellites.items():
-                satellite = sat_data['satellite_obj']
-                geocentric = satellite.at(t)
+                try:
+                    satellite = sat_data['satellite_obj']
+                    geocentric = satellite.at(t)
+                    
+                    # Get position relative to Earth
+                    from skyfield.api import wgs84
+                    subpoint = wgs84.subpoint(geocentric)
+                    
+                    # Update position data with NaN checking
+                    lat = float(subpoint.latitude.degrees)
+                    lon = float(subpoint.longitude.degrees)
+                    alt = float(subpoint.elevation.km)
+                    
+                    # Only update if values are valid numbers and reasonable
+                    if (lat == lat and lon == lon and alt == alt and  # NaN check
+                        -90 <= lat <= 90 and -180 <= lon <= 180 and 0 < alt < 50000):
+                        
+                        sat_data['latitude'] = lat
+                        sat_data['longitude'] = lon
+                        sat_data['altitude'] = alt
+                        updated_count += 1
+                        
+                except Exception as sat_error:
+                    logger.warning(f"Error updating position for satellite {norad_id}: {sat_error}")
+                    continue
                 
-                # Get position relative to Earth
-                from skyfield.api import wgs84
-                subpoint = wgs84.subpoint(geocentric)
-                
-                # Update position data with NaN checking
-                lat = float(subpoint.latitude.degrees)
-                lon = float(subpoint.longitude.degrees)
-                alt = float(subpoint.elevation.km)
-                
-                # Only update if values are valid numbers
-                if lat == lat and lon == lon and alt == alt:  # NaN check
-                    sat_data['latitude'] = lat
-                    sat_data['longitude'] = lon
-                    sat_data['altitude'] = alt
-                
+            logger.info(f"Updated positions for {updated_count} satellites")
+            
         except Exception as e:
             logger.error(f"Error updating satellite positions: {e}")
     
@@ -149,7 +161,46 @@ class SatelliteDataManager:
     
     def get_satellite_data(self):
         """Return satellites data - alias for get_satellites()"""
+        self.update_positions()  # Update positions before returning data
         return self.get_satellites()
+    
+    def get_satellite_by_id(self, norad_id):
+        """Get specific satellite by NORAD ID"""
+        if norad_id in self.satellites:
+            self.update_positions()  # Update positions before returning data
+            # Return data without the satellite object for JSON serialization
+            sat_data = self.satellites[norad_id]
+            return {
+                'norad_id': sat_data['norad_id'],
+                'name': sat_data['name'],
+                'latitude': sat_data['latitude'],
+                'longitude': sat_data['longitude'],
+                'altitude': sat_data['altitude'],
+                'category': sat_data['category'],
+                'color': sat_data['color'],
+                # Add detailed satellite information for the UI
+                'orbit': {
+                    'altitude': sat_data['altitude'],
+                    'inclination': 0.0,  # Placeholder - would need orbital elements for real calculation
+                    'period': 90.0,  # Placeholder
+                    'velocity': 7.8,  # Placeholder
+                    'orbit_type': 'LEO' if sat_data['altitude'] < 2000 else 'MEO' if sat_data['altitude'] < 35786 else 'GEO'
+                },
+                'position': {
+                    'latitude': sat_data['latitude'],
+                    'longitude': sat_data['longitude'],
+                    'country': 'Unknown',  # Placeholder
+                    'visibility': 'Visible' if sat_data['altitude'] < 1000 else 'Not Visible'
+                },
+                'technical': {
+                    'norad_id': sat_data['norad_id'],
+                    'launch_date': 'Unknown',  # Placeholder
+                    'type': sat_data['category'].replace('_', ' ').title(),
+                    'agency': 'Unknown',  # Placeholder
+                    'status': 'Active'
+                }
+            }
+        return None
     
     def get_categories(self):
         """Return satellite categories with counts"""

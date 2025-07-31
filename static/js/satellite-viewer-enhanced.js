@@ -1385,8 +1385,19 @@ class SatelliteViewer {
     }
 
     refreshData() {
+        console.log('Refreshing satellite data...');
         this.loadSatellites();
         this.loadCategories();
+        
+        // Force position update for existing satellites
+        this.updateSatellitePositions();
+        
+        // Update status
+        const statusElement = document.getElementById('connectionStatus');
+        if (statusElement) {
+            statusElement.textContent = 'Refreshing...';
+            statusElement.className = 'badge bg-warning ms-auto';
+        }
     }
 
     getCurrentLocation() {
@@ -1425,10 +1436,16 @@ class SatelliteViewer {
     }
 
     startAutoUpdate() {
-        // High-frequency updates for smooth 10fps feel
+        // High-frequency updates for smooth movement
         this.updateInterval = setInterval(() => {
+            console.log('Auto-updating satellite positions...');
             this.loadSatellites();
         }, this.updateRate);
+        
+        // Also start a more frequent position update for smooth animation
+        this.positionUpdateInterval = setInterval(() => {
+            this.updateSatellitePositions();
+        }, 1000); // Update positions every second for smooth movement
     }
 
     updateStatus(count, timestamp) {
