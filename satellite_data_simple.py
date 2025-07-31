@@ -5,6 +5,7 @@ import logging
 from skyfield.api import load, EarthSatellite
 from datetime import datetime, timezone
 from satellite_categories import categorize_satellite
+from tle_updater import TLEUpdater
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,11 +16,108 @@ class SatelliteDataManager:
         self.satellites = {}
         self.ts = load.timescale()
         self.last_update = None
+        self.tle_updater = TLEUpdater()
         
     def load_tle_data(self):
-        """Load a small sample of TLE data for testing"""
+        """Load TLE data from cache or update if needed"""
         try:
-            # Sample TLE data for testing - ISS and a few other satellites
+            # Ensure TLE data is up-to-date
+            if not self.tle_updater.ensure_tle_data():
+                logger.error("Failed to ensure TLE data availability")
+                return False
+            
+            # Load TLE data from file
+            tle_file_path = os.path.join('cache', 'tle_data.txt')
+            if not os.path.exists(tle_file_path):
+                logger.error(f"TLE data file not found: {tle_file_path}")
+                return False
+                
+            logger.info(f"Loading TLE data from {tle_file_path}...")
+            
+            with open(tle_file_path, 'r') as f:
+                lines = f.readlines()
+            
+            satellites_loaded = 0
+            max_satellites = 1000  # Increased limit for real data
+            i = 0
+            
+            while i < len(lines) - 2 and satellites_loaded < max_satellites:
+                # Skip empty lines
+                if not lines[i].strip():
+                    i += 1
+                    continue
+                    
+                try:
+                    # Parse TLE format: name line, line1, line2
+                    name = lines[i].strip()
+                    line1 = lines[i + 1].strip()
+                    line2 = lines[i + 2].strip()
+                    
+                    # Validate TLE format
+                    if len(line1) == 69 and len(line2) == 69 and line1.startswith('1') and line2.startswith('2'):
+                        try:
+                            # Extract NORAD ID
+                            norad_id = int(line1[2:7])
+                            
+                            # Create satellite object
+                            satellite = EarthSatellite(line1, line2, name, self.ts)
+                            
+                            # Get current position with error handling
+                            t = self.ts.now()
+                            geocentric = satellite.at(t)
+                            
+                            # Get position relative to Earth
+                            from skyfield.api import wgs84
+                            subpoint = wgs84.subpoint(geocentric)
+                            
+                            # Extract position values
+                            lat = float(subpoint.latitude.degrees)
+                            lon = float(subpoint.longitude.degrees)
+                            alt = float(subpoint.elevation.km)
+                            
+                            # Skip satellites with invalid positions
+                            if not (lat == lat and lon == lon and alt == alt):  # NaN check
+                                continue
+                                
+                            # Categorize satellite
+                            category, color = categorize_satellite(name)
+                            
+                            self.satellites[norad_id] = {
+                                'norad_id': norad_id,
+                                'name': name.strip(),
+                                'latitude': lat,
+                                'longitude': lon,
+                                'altitude': alt,
+                                'category': category,
+                                'color': color,
+                                'satellite_obj': satellite
+                            }
+                            
+                            satellites_loaded += 1
+                            
+                            # Progress logging every 200 satellites
+                            if satellites_loaded % 200 == 0:
+                                logger.info(f"Loaded {satellites_loaded} satellites...")
+                            
+                        except Exception as sat_error:
+                            # Skip problematic satellites silently
+                            continue
+                        
+                    i += 3
+                    
+                except (ValueError, IndexError) as e:
+                    i += 1
+                    continue
+            
+            logger.info(f"Successfully loaded {satellites_loaded} satellites from TLE data")
+            self.last_update = datetime.now(timezone.utc)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error loading TLE data: {e}")
+            
+            # Fallback to sample data if real data fails
+            logger.info("Falling back to sample TLE data...")
             sample_tle_data = [
                 ("ISS (ZARYA)", 
                  "1 25544U 98067A   25212.50000000  .00002182  00000-0  40864-4 0  9992",
@@ -93,7 +191,7 @@ class SatelliteDataManager:
             return True
             
         except Exception as e:
-            logger.error(f"Error loading sample satellite data: {e}")
+            logger.error(f"Error loading satellite data: {e}")
             return False
     
     def get_satellites(self):
@@ -347,6 +445,10 @@ class SatelliteDataManager:
         except Exception as e:
             logger.error(f"Error generating orbit for satellite {norad_id}: {e}")
             return None
+    
+    def get_cache_info(self):
+        """Get TLE cache information"""
+        return self.tle_updater.get_cache_info()
     
     def get_satellite_ground_track(self, norad_id, duration_hours=3, swath_width_km=300):
         """Get satellite ground track with swath"""

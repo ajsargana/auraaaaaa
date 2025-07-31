@@ -253,21 +253,64 @@ def user_preferences():
             'message': 'Preferences saved'
         })
 
+@app.route('/api/cache/info')
+def get_cache_info():
+    """Get TLE cache information"""
+    try:
+        cache_info = satellite_manager.get_cache_info()
+        
+        return jsonify({
+            'success': True,
+            'cache_info': cache_info
+        })
+    except Exception as e:
+        logger.error(f"Error getting cache info: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/iss/live-video')
+def get_iss_live_video():
+    """Get ISS live video information"""
+    try:
+        # YouTube live stream URL for ISS
+        video_info = {
+            'video_url': 'https://www.youtube.com/embed/fO9e9jnhYK8?autoplay=1&mute=1&loop=1&playlist=fO9e9jnhYK8',
+            'title': 'ISS Live Video Stream',
+            'description': 'Live view from the International Space Station',
+            'provider': 'NASA/YouTube'
+        }
+        
+        return jsonify({
+            'success': True,
+            'video_info': video_info
+        })
+    except Exception as e:
+        logger.error(f"Error getting ISS live video info: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/status')
 def get_status():
     """Get application status"""
     try:
         satellites = satellite_manager.get_satellite_data()
+        cache_info = satellite_manager.get_cache_info()
         
         return jsonify({
             'success': True,
             'status': {
                 'satellites_loaded': len(satellites),
                 'last_update': satellite_manager.last_update.isoformat() if satellite_manager.last_update else None,
+                'cache_info': cache_info,
                 'features': {
                     'smooth_movement': True,
                     'real_time_updates': True,
-                    'offline_mode': False
+                    'offline_mode': False,
+                    'iss_live_video': True
                 }
             }
         })
