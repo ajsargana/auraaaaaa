@@ -324,9 +324,6 @@ def get_status():
             'error': str(e)
         }), 500
 
-#Integrating llm
-app = Flask(__name__)
-
 # Set this to True when you want to test the LLM
 USE_LLM = True  # Change this to True now
 
@@ -443,29 +440,3 @@ else:
 print("="*50 + "\n")
 
 # Test your routes with better error handling
-@app.route('/')
-def index():
-    print("🏠 Home route called - trying to render landing.html")
-    try:
-        return render_template('landing.html')
-    except Exception as e:
-        print(f"❌ Error rendering landing.html: {str(e)}")
-        return f"<h1>Template Error</h1><p>{str(e)}</p><p>Check Flask console for details</p>"
-
-@app.route('/tracker')
-def tracker_app():
-    print("🛰️ Tracker route called - trying to render tracker.html") 
-    try:
-        return render_template('tracker.html')
-    except Exception as e:
-        print(f"❌ Error rendering tracker.html: {str(e)}")
-        return f"<h1>Template Error</h1><p>{str(e)}</p><p>Check Flask console for details</p>"
-
-@app.route('/landing')
-def landing():
-    print("🚀 Landing route called - trying to render landing.html")
-    try:
-        return render_template('landing.html')
-    except Exception as e:
-        print(f"❌ Error rendering landing.html: {str(e)}")
-        return "<h1>Template Error</h1>"
