@@ -16,6 +16,7 @@ class SatelliteViewer {
         this.nadirEntities = new Map();
         this.groundCircleEntities = new Map();
         this.realTimeUpdateInterval = null;
+        this.satelliteTrackingInterval = null;
         this.preferences = {};
 
         // Performance optimizations for smooth movement  
@@ -486,8 +487,8 @@ class SatelliteViewer {
         // Enhanced visual selection
         this.updateSatelliteSelection();
 
-        // Always fly to selected satellite with smooth animation
-        this.focusOnSatellite(noradId);
+        // Always fly to selected satellite with smooth animation and start tracking
+        this.trackSatellite(noradId);
 
         // Load detailed information
         await this.loadSatelliteDetails(noradId);
@@ -500,14 +501,12 @@ class SatelliteViewer {
             await this.showOrbitPath(noradId);
         }
 
-        // Only show ground tracks for Earth observation satellites
+        // Only show ground tracks, nadir line, and field of view for Earth observation satellites
         if (this.isEarthObservationSatellite(noradId)) {
             await this.loadSatelliteGroundTrack(noradId);
             await this.renderFutureGroundTrack(noradId);
+            this.renderNadirLine(noradId);
         }
-
-        // Always show nadir line for selected satellite
-        this.renderNadirLine(noradId);
 
         // Load pass predictions
         if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
@@ -516,6 +515,12 @@ class SatelliteViewer {
     }
 
     clearSatelliteVisualizations(noradId) {
+        // Stop satellite tracking
+        if (this.satelliteTrackingInterval) {
+            clearInterval(this.satelliteTrackingInterval);
+            this.satelliteTrackingInterval = null;
+        }
+
         // Clear nadir line
         this.clearNadirLine();
 
@@ -1077,6 +1082,41 @@ class SatelliteViewer {
         });
     }
 
+    trackSatellite(noradId) {
+        // Clear any existing tracking interval
+        if (this.satelliteTrackingInterval) {
+            clearInterval(this.satelliteTrackingInterval);
+        }
+
+        // Initial focus on satellite
+        this.focusOnSatellite(noradId);
+
+        // Set up continuous tracking
+        this.satelliteTrackingInterval = setInterval(() => {
+            if (this.selectedSatellite === noradId && this.trackingMode) {
+                const satellite = this.satellites.get(noradId);
+                if (satellite) {
+                    // Smoothly move camera to follow satellite
+                    const destination = Cesium.Cartesian3.fromDegrees(
+                        parseFloat(satellite.longitude),
+                        parseFloat(satellite.latitude),
+                        2000000 // 2000km altitude for good viewing distance
+                    );
+
+                    // Use setView for smooth continuous tracking instead of flyTo
+                    this.viewer.camera.setView({
+                        destination: destination,
+                        orientation: {
+                            heading: 0.0,
+                            pitch: -Cesium.Math.PI_OVER_TWO,
+                            roll: 0.0
+                        }
+                    });
+                }
+            }
+        }, 5000); // Update camera position every 5 seconds for smooth tracking
+    }
+
     filterByCategory(category) {
         this.activeCategoryFilter = category;
         this.renderSatellites();
@@ -1349,6 +1389,10 @@ class SatelliteViewer {
         if (this.showGroundTracks) {
             btn.classList.add('active');
             // Ground tracks will be shown automatically when selecting earth observation satellites
+            if (this.selectedSatellite && this.isEarthObservationSatellite(this.selectedSatellite)) {
+                this.loadSatelliteGroundTrack(this.selectedSatellite);
+                this.renderFutureGroundTrack(this.selectedSatellite);
+            }
         } else {
             btn.classList.remove('active');
             this.clearSelectedGroundTrack();
@@ -1384,10 +1428,15 @@ class SatelliteViewer {
         if (this.trackingMode) {
             btn.classList.add('active');
             if (this.selectedSatellite) {
-                this.focusOnSatellite(this.selectedSatellite);
+                this.trackSatellite(this.selectedSatellite);
             }
         } else {
             btn.classList.remove('active');
+            // Stop tracking but keep satellite selected
+            if (this.satelliteTrackingInterval) {
+                clearInterval(this.satelliteTrackingInterval);
+                this.satelliteTrackingInterval = null;
+            }
         }
     }
 
