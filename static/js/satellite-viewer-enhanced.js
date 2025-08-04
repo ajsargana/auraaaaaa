@@ -63,8 +63,8 @@ class SatelliteViewer {
         });
 
         // Set near/far parameters for better satellite rendering
-        this.viewer.scene.camera.frustum.near = 1.0;
-        this.viewer.scene.camera.frustum.far = 5906376272000.0;
+        this.viewer.scene.camera.frustum.near = 0.1;
+        this.viewer.scene.camera.frustum.far = 50000000000.0;
 
         // Performance optimizations
         this.viewer.scene.globe.enableLighting = true;
@@ -416,10 +416,10 @@ class SatelliteViewer {
                 name: satellite.name,
                 position: position,
                 point: {
-                    pixelSize: 4,
+                    pixelSize: 3,
                     color: Cesium.Color.fromCssColorString(satellite.color || '#64b5f6'),
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 0.5,
+                    outlineWidth: 0.3,
                     heightReference: Cesium.HeightReference.NONE,
                     show: true,
                     // Enable depth testing so satellites behind Earth are hidden
@@ -576,8 +576,8 @@ class SatelliteViewer {
             const isSelected = noradId === this.selectedSatellite;
 
             // Enhanced selection appearance with smaller sizes
-            entity.point.pixelSize = isSelected ? 8 : 4;
-            entity.point.outlineWidth = isSelected ? 1 : 0.5;
+            entity.point.pixelSize = isSelected ? 6 : 3;
+            entity.point.outlineWidth = isSelected ? 0.8 : 0.3;
             entity.label.show = isSelected;
 
             if (isSelected) {
