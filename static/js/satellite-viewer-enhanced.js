@@ -502,7 +502,7 @@ class SatelliteViewer {
         }
 
         // Only show ground tracks, nadir line, and field of view for Earth observation satellites
-        if (this.isEarthObservationSatellite(noradId)) {
+        if (this.showGroundTracks && this.isEarthObservationSatellite(noradId)) {
             await this.loadSatelliteGroundTrack(noradId);
             await this.renderFutureGroundTrack(noradId);
             this.renderNadirLine(noradId);
@@ -1063,18 +1063,21 @@ class SatelliteViewer {
         const satellite = this.satellites.get(noradId);
         if (!satellite) return;
 
-        // Smooth flyTo animation to satellite location
+        // Smooth flyTo animation to satellite's actual position in space
+        const satelliteAltitude = parseFloat(satellite.altitude) * 1000; // Convert km to meters
+        const viewingDistance = Math.max(satelliteAltitude + 2000000, 2000000); // At least 2000km viewing distance
+        
         const destination = Cesium.Cartesian3.fromDegrees(
             parseFloat(satellite.longitude),
             parseFloat(satellite.latitude),
-            2000000 // 2000km altitude for good viewing distance
+            viewingDistance
         );
 
         this.viewer.camera.flyTo({
             destination: destination,
             orientation: {
                 heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
+                pitch: -Cesium.Math.PI_OVER_FOUR, // Look down at an angle to see satellite
                 roll: 0.0
             },
             duration: 2.0,
@@ -1088,27 +1091,34 @@ class SatelliteViewer {
             clearInterval(this.satelliteTrackingInterval);
         }
 
-        // Initial focus on satellite
+        // Initial focus on satellite in space
         this.focusOnSatellite(noradId);
 
-        // Set up continuous tracking
+        // Set up continuous tracking of satellite in space
         this.satelliteTrackingInterval = setInterval(() => {
             if (this.selectedSatellite === noradId && this.trackingMode) {
                 const satellite = this.satellites.get(noradId);
                 if (satellite) {
-                    // Smoothly move camera to follow satellite
-                    const destination = Cesium.Cartesian3.fromDegrees(
+                    // Track the actual satellite position in space, not ground track
+                    const satellitePosition = Cesium.Cartesian3.fromDegrees(
                         parseFloat(satellite.longitude),
                         parseFloat(satellite.latitude),
-                        2000000 // 2000km altitude for good viewing distance
+                        parseFloat(satellite.altitude) * 1000 // Convert km to meters for satellite altitude
                     );
 
-                    // Use setView for smooth continuous tracking instead of flyTo
+                    // Calculate a viewing position that's offset from the satellite
+                    const offset = Cesium.Cartesian3.fromDegrees(
+                        parseFloat(satellite.longitude),
+                        parseFloat(satellite.latitude),
+                        (parseFloat(satellite.altitude) + 2000) * 1000 // 2000km above satellite
+                    );
+
+                    // Use setView for smooth continuous tracking of the satellite
                     this.viewer.camera.setView({
-                        destination: destination,
+                        destination: offset,
                         orientation: {
                             heading: 0.0,
-                            pitch: -Cesium.Math.PI_OVER_TWO,
+                            pitch: -Cesium.Math.PI_OVER_FOUR, // Look down at an angle
                             roll: 0.0
                         }
                     });
@@ -1388,10 +1398,11 @@ class SatelliteViewer {
 
         if (this.showGroundTracks) {
             btn.classList.add('active');
-            // Ground tracks will be shown automatically when selecting earth observation satellites
+            // Ground tracks will be shown only for earth observation satellites
             if (this.selectedSatellite && this.isEarthObservationSatellite(this.selectedSatellite)) {
                 this.loadSatelliteGroundTrack(this.selectedSatellite);
                 this.renderFutureGroundTrack(this.selectedSatellite);
+                this.renderNadirLine(this.selectedSatellite);
             }
         } else {
             btn.classList.remove('active');
