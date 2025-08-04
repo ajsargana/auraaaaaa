@@ -7,6 +7,9 @@ import logging
 from flask import Flask, render_template, jsonify, request
 from satellite_data_simple import SatelliteDataManager
 from datetime import datetime, timezone
+from llm_chat import chat_with_llm
+import time
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -321,5 +324,148 @@ def get_status():
             'error': str(e)
         }), 500
 
+#Integrating llm
+app = Flask(__name__)
+
+# Set this to True when you want to test the LLM
+USE_LLM = True  # Change this to True now
+
+@app.route("/api/chat", methods=["POST"])
+def chat_api():
+    print("FLASK: Chat API called!")
+    start_time = time.time()
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
+
+        user_input = data.get("message")
+        if not user_input:
+            return jsonify({"error": "No message provided"}), 400
+
+        print(f"FLASK: User message: '{user_input}'")
+
+        if USE_LLM:
+            # Use your improved LLM
+            response = chat_with_llm(user_input)
+        else:
+            # Use simple responses for testing
+            response = simple_chat_response(user_input)
+
+        elapsed_time = time.time() - start_time
+        print(f"FLASK: Response generated in {elapsed_time:.2f} seconds")
+        print(f"FLASK: Sending response: '{response}'")
+
+        return jsonify({"response": response})
+
+    except Exception as e:
+        print(f"FLASK: Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+def simple_chat_response(user_input):
+    """Fast responses for testing"""
+    user_input = user_input.lower().strip()
+
+    responses = {
+        'hi': "Hello! 👋 How can I help you today?",
+        'hello': "Hi there! 😊 What can I do for you?",
+        'hey': "Hey! What's up?",
+        'how are you': "I'm doing great! How are you doing?",
+        'thanks': "You're welcome! Anything else I can help with?",
+        'thank you': "Happy to help! 😊",
+        'bye': "Goodbye! Have a wonderful day! 👋",
+        'help': "I'm here to help! What do you need assistance with?",
+    }
+
+    for key, response in responses.items():
+        if key in user_input:
+            return response
+
+    return f"I received your message: '{user_input}'. I'm currently in test mode!"
+
+
+
+
+@app.route("/test")
+def test():
+    return "✅ Test route works!"
+
+# Add CORS headers
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    return response
+
+
+# ADD THIS CODE to your existing Flask app file
+# Put it BEFORE the "if __name__ == '__main__':" line
+
+
+    print("\n=== CHECKING YOUR EXISTING FLASK APP ===")
+print("📍 Your existing routes:")
+for rule in app.url_map.iter_rules():
+    print(f"  ✅ {rule.rule} -> {rule.endpoint} ({', '.join(rule.methods)})")
+print("=========================================\n")
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print("🛰️  3D Satellite Tracker - Starting...")
+    print(f"📡 Offline mode: {'ON' if tracker.offline_mode else 'OFF'}")
+    print(f"🌍 Satellites loaded: {len(tracker.satellites)}")
+    print("🚀 Server starting on http://localhost:5000")
+
+    app.run(host='127.0.0.1', port=5001, debug=True)
+# Add this debug code to your Flask app
+
+
+
+# Add this right after your app = Flask(__name__) line
+print("\n" + "="*50)
+print("🔍 FLASK TEMPLATE DEBUG")
+print("="*50)
+print(f"📁 Current working directory: {os.getcwd()}")
+print(f"📁 Flask app root path: {app.root_path}")
+print(f"📁 Template folder path: {app.template_folder}")
+
+# Check if templates exist
+templates_path = os.path.join(app.root_path, 'templates')
+print(f"📁 Looking for templates in: {templates_path}")
+print(f"📁 Templates folder exists: {os.path.exists(templates_path)}")
+
+if os.path.exists(templates_path):
+    template_files = os.listdir(templates_path)
+    print(f"📄 Template files found: {template_files}")
+else:
+    print("❌ Templates folder not found!")
+
+print("="*50 + "\n")
+
+# Test your routes with better error handling
+@app.route('/')
+def index():
+    print("🏠 Home route called - trying to render landing.html")
+    try:
+        return render_template('landing.html')
+    except Exception as e:
+        print(f"❌ Error rendering landing.html: {str(e)}")
+        return f"<h1>Template Error</h1><p>{str(e)}</p><p>Check Flask console for details</p>"
+
+@app.route('/tracker')
+def tracker_app():
+    print("🛰️ Tracker route called - trying to render tracker.html") 
+    try:
+        return render_template('tracker.html')
+    except Exception as e:
+        print(f"❌ Error rendering tracker.html: {str(e)}")
+        return f"<h1>Template Error</h1><p>{str(e)}</p><p>Check Flask console for details</p>"
+
+@app.route('/landing')
+def landing():
+    print("🚀 Landing route called - trying to render landing.html")
+    try:
+        return render_template('landing.html')
+    except Exception as e:
+        print(f"❌ Error rendering landing.html: {str(e)}")
+        return "<h1>Template Error</h1>"
