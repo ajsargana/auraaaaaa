@@ -443,27 +443,27 @@
         </div>
     </div>
         <!-- LLM Chatbox -->
-    <div style="position: fixed; bottom: 50px; right: 1px; width: 350px; max-width: 90vw; background: white; border: 1px solid #ddd; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; z-index: 1000; transition: all 0.3s ease;">
+    <div style="position: fixed; bottom: 50px; right: 1px; width: 350px; max-width: 90vw; background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%); border: 1px solid rgba(100, 181, 246, 0.3); border-radius: 15px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); backdrop-filter: blur(15px); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; z-index: 1000; transition: all 0.3s ease;">
         <!-- Header (Clickable to toggle) -->
-        <div id="chat-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 10px 10px 0 0; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
-            <h5 style="margin: 0; font-size: 16px; font-weight: 600;">🤖 AI Assistant</h5>
+        <div id="chat-header" style="background: linear-gradient(135deg, rgba(100, 181, 246, 0.8) 0%, rgba(66, 165, 245, 0.8) 100%); color: white; padding: 15px; border-radius: 15px 15px 0 0; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(100, 181, 246, 0.2);">
+            <h5 style="margin: 0; font-size: 16px; font-weight: 600; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);">🤖 AI Assistant</h5>
             <span id="toggle-icon" style="font-size: 20px; transition: transform 0.3s ease;">▼</span>
         </div>
 
         <!-- Chat Body (Collapsible) -->
         <div id="chat-body" style="transition: all 0.3s ease; overflow: hidden;">
             <!-- Chat Messages Container -->
-            <div id="chat-log" style="height: 300px; overflow-y: auto; padding: 15px; background-color: #fafafa; border-bottom: 1px solid #eee;">
-                <div style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+            <div id="chat-log" style="height: 300px; overflow-y: auto; padding: 15px; background: linear-gradient(135deg, rgba(12, 12, 12, 0.8) 0%, rgba(26, 26, 46, 0.8) 100%); border-bottom: 1px solid rgba(100, 181, 246, 0.2);">
+                <div style="color: #94a3b8; font-style: italic; text-align: center; padding: 20px; background: rgba(100, 181, 246, 0.1); border-radius: 10px; border: 1px solid rgba(100, 181, 246, 0.2);">
                     👋 Hello! How can I help you today?
                 </div>
             </div>
 
             <!-- Input Section -->
-            <div style="padding: 15px; background: white; border-radius: 0 0 10px 10px;">
+            <div style="padding: 15px; background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(12, 12, 12, 0.9) 100%); border-radius: 0 0 15px 15px;">
                 <div style="display: flex; gap: 10px;">
-                    <input type="text" id="chat-input" placeholder="Type your message..." style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; outline: none; font-size: 14px;">
-                    <button id="send-button" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; transition: transform 0.2s;">
+                    <input type="text" id="chat-input" placeholder="Type your message..." style="flex: 1; padding: 12px 16px; background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%); border: 1px solid rgba(100, 181, 246, 0.3); border-radius: 20px; outline: none; font-size: 14px; color: #e2e8f0; transition: all 0.3s ease;" onfocus="this.style.borderColor='#64b5f6'; this.style.boxShadow='0 0 0 0.2rem rgba(100, 181, 246, 0.25)'" onblur="this.style.borderColor='rgba(100, 181, 246, 0.3)'; this.style.boxShadow='none'">
+                    <button id="send-button" style="padding: 12px 20px; background: linear-gradient(135deg, rgba(100, 181, 246, 0.8) 0%, rgba(66, 165, 245, 0.8) 100%); color: white; border: none; border-radius: 20px; cursor: pointer; font-weight: 600; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(100, 181, 246, 0.3);" onmouseover="this.style.background='linear-gradient(135deg, rgba(100, 181, 246, 1) 0%, rgba(66, 165, 245, 1) 100%)'; this.style.boxShadow='0 6px 20px rgba(100, 181, 246, 0.5)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='linear-gradient(135deg, rgba(100, 181, 246, 0.8) 0%, rgba(66, 165, 245, 0.8) 100%)'; this.style.boxShadow='0 4px 15px rgba(100, 181, 246, 0.3)'; this.style.transform='translateY(0)'">
                         Send
                     </button>
                 </div>
@@ -546,8 +546,8 @@
 
             // Add user message to chat
             chatLog.innerHTML += `
-                <div style="margin-bottom: 8px; padding: 8px; background: #e3f2fd; border-radius: 10px; border-left: 4px solid #2196f3;">
-                    <strong style="color: #1976d2;">You:</strong> ${message}
+                <div style="margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(100, 181, 246, 0.2) 0%, rgba(66, 165, 245, 0.2) 100%); border-radius: 12px; border-left: 4px solid #64b5f6; border: 1px solid rgba(100, 181, 246, 0.3); box-shadow: 0 2px 8px rgba(100, 181, 246, 0.1);">
+                    <strong style="color: #64b5f6; font-weight: 600;">You:</strong> <span style="color: #e2e8f0;">${message}</span>
                 </div>
             `;
 
@@ -558,8 +558,8 @@
 
             // Add "thinking" message with animation
             const thinkingDiv = document.createElement('div');
-            thinkingDiv.style.cssText = "margin-bottom: 8px; padding: 8px; background: #f3e5f5; border-radius: 10px; border-left: 4px solid #9c27b0;";
-            thinkingDiv.innerHTML = '<strong style="color: #7b1fa2;">Bot:</strong> <em>Thinking<span id="thinking-dots">...</span></em>';
+            thinkingDiv.style.cssText = "margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(64, 224, 208, 0.2) 100%); border-radius: 12px; border-left: 4px solid #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); box-shadow: 0 2px 8px rgba(78, 205, 196, 0.1);";
+            thinkingDiv.innerHTML = '<strong style="color: #4ECDC4; font-weight: 600;">Bot:</strong> <em style="color: #94a3b8;">Thinking<span id="thinking-dots">...</span></em>';
             chatLog.appendChild(thinkingDiv);
 
             // Animate thinking dots
@@ -603,8 +603,8 @@
 
                 // Add bot response with nice styling
                 chatLog.innerHTML += `
-                    <div style="margin-bottom: 8px; padding: 8px; background: #e8f5e8; border-radius: 10px; border-left: 4px solid #4caf50;">
-                        <strong style="color: #388e3c;">Bot:</strong> ${data.response}
+                    <div style="margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(78, 205, 196, 0.2) 0%, rgba(64, 224, 208, 0.2) 100%); border-radius: 12px; border-left: 4px solid #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); box-shadow: 0 2px 8px rgba(78, 205, 196, 0.1);">
+                        <strong style="color: #4ECDC4; font-weight: 600;">Bot:</strong> <span style="color: #e2e8f0;">${data.response}</span>
                     </div>
                 `;
 
@@ -619,9 +619,9 @@
 
                 // Show error message
                 chatLog.innerHTML += `
-                    <div style="margin-bottom: 8px; padding: 8px; background: #ffebee; border-radius: 10px; border-left: 4px solid #f44336;">
-                        <strong style="color: #d32f2f;">Bot:</strong> 
-                        <span style="color: #d32f2f;">Error: ${error.message}</span>
+                    <div style="margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(244, 67, 54, 0.2) 0%, rgba(229, 57, 53, 0.2) 100%); border-radius: 12px; border-left: 4px solid #f44336; border: 1px solid rgba(244, 67, 54, 0.3); box-shadow: 0 2px 8px rgba(244, 67, 54, 0.1);">
+                        <strong style="color: #ff6b6b; font-weight: 600;">Bot:</strong> 
+                        <span style="color: #ffcdd2;">Error: ${error.message}</span>
                     </div>
                 `;
             }
@@ -645,9 +645,9 @@
             if (input && button && log) {
                 // Clear the log and show ready message
                 log.innerHTML = `
-                    <div style="color: #666; font-style: italic; padding: 8px; text-align: center; background: #f0f0f0; border-radius: 8px; margin: 10px 0;">
+                    <div style="color: #94a3b8; font-style: italic; padding: 12px; text-align: center; background: linear-gradient(135deg, rgba(100, 181, 246, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%); border-radius: 10px; margin: 10px 0; border: 1px solid rgba(100, 181, 246, 0.2);">
                         🤖 AI Assistant ready! Type a message to start chatting.
-                        <br><small style="color: #999; margin-top: 5px; display: block;">💡 Click the header to minimize/maximize</small>
+                        <br><small style="color: #64b5f6; margin-top: 5px; display: block; font-weight: 500;">💡 Click the header to minimize/maximize</small>
                     </div>
                 `;
 
