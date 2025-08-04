@@ -61,6 +61,10 @@ class SatelliteViewer {
             maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
         });
 
+        // Set near/far parameters for better satellite rendering
+        this.viewer.scene.camera.frustum.near = 1.0;
+        this.viewer.scene.camera.frustum.far = 5906376272000.0;
+
         // Performance optimizations
         this.viewer.scene.globe.enableLighting = true;
         this.viewer.scene.globe.maximumScreenSpaceError = 2;
@@ -411,10 +415,10 @@ class SatelliteViewer {
                 name: satellite.name,
                 position: position,
                 point: {
-                    pixelSize: 8,
+                    pixelSize: 4,
                     color: Cesium.Color.fromCssColorString(satellite.color || '#64b5f6'),
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 1,
+                    outlineWidth: 0.5,
                     heightReference: Cesium.HeightReference.NONE,
                     show: true,
                     // Enable depth testing so satellites behind Earth are hidden
@@ -482,6 +486,9 @@ class SatelliteViewer {
         // Enhanced visual selection
         this.updateSatelliteSelection();
 
+        // Always fly to selected satellite with smooth animation
+        this.focusOnSatellite(noradId);
+
         // Load detailed information
         await this.loadSatelliteDetails(noradId);
 
@@ -505,11 +512,6 @@ class SatelliteViewer {
         // Load pass predictions
         if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
             await this.loadPassPredictions(noradId);
-        }
-
-        // Enhanced tracking
-        if (this.trackingMode) {
-            this.focusOnSatellite(noradId);
         }
     }
 
@@ -568,9 +570,9 @@ class SatelliteViewer {
         this.satelliteEntities.forEach((entity, noradId) => {
             const isSelected = noradId === this.selectedSatellite;
 
-            // Enhanced selection appearance
-            entity.point.pixelSize = isSelected ? 16 : 12;
-            entity.point.outlineWidth = isSelected ? 3 : 2;
+            // Enhanced selection appearance with smaller sizes
+            entity.point.pixelSize = isSelected ? 8 : 4;
+            entity.point.outlineWidth = isSelected ? 1 : 0.5;
             entity.label.show = isSelected;
 
             if (isSelected) {
@@ -670,9 +672,6 @@ class SatelliteViewer {
                 </div>
             </div>
             <div class="d-flex justify-content-start mt-3">
-                        <button class="btn btn-success btn-sm me-2" onclick="viewer.toggleSatelliteTracking('${satellite.norad_id}')">
-                            <i class="fas fa-crosshairs"></i> Track
-                        </button>
                         ${this.isISS(satellite) ? `
                             <button class="btn btn-primary btn-sm" onclick="showISSVideo()">
                                 <i class="fas fa-video"></i> Live Video
@@ -1059,21 +1058,23 @@ class SatelliteViewer {
         const satellite = this.satellites.get(noradId);
         if (!satellite) return;
 
-        // Move camera to satellite location
-            const center = Cesium.Cartesian3.fromDegrees(
-                parseFloat(satellite.longitude),
-                parseFloat(satellite.latitude),
-                this.viewer.camera.positionCartographic.height
-            );
+        // Smooth flyTo animation to satellite location
+        const destination = Cesium.Cartesian3.fromDegrees(
+            parseFloat(satellite.longitude),
+            parseFloat(satellite.latitude),
+            2000000 // 2000km altitude for good viewing distance
+        );
 
-            this.viewer.camera.setView({
-                destination: center,
-                orientation: {
-                    heading: 0.0,
-                    pitch: -Cesium.Math.PI_OVER_TWO,
-                    roll: 0.0
-                }
-            });
+        this.viewer.camera.flyTo({
+            destination: destination,
+            orientation: {
+                heading: 0.0,
+                pitch: -Cesium.Math.PI_OVER_TWO,
+                roll: 0.0
+            },
+            duration: 2.0,
+            easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT
+        });
     }
 
     filterByCategory(category) {
