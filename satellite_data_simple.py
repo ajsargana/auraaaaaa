@@ -268,7 +268,7 @@ class SatelliteDataManager:
         self.satellites.clear()
         return self.load_tle_data()
 
-    def get_satellite_by_id(self, norad_id):
+    def get_satellite_by_id(self, norad_id, user_location=None):
         """Get specific satellite by NORAD ID"""
         if norad_id in self.satellites:
             self.update_positions()  # Update positions before returning data
@@ -278,6 +278,18 @@ class SatelliteDataManager:
 
             # Calculate real orbital elements
             orbital_elements = self._calculate_orbital_elements(satellite)
+
+            # Extract launch date from TLE data
+            tle_lines = satellite.model._line1  # Get TLE line 1
+            launch_info = self._extract_launch_date(tle_lines)
+
+            # Calculate signal strength using provided user location or default
+            if user_location is None:
+                user_location = {'lat': 0, 'lon': 0, 'alt': 0}
+            signal_info = self._calculate_signal_strength(sat_data, user_location)
+
+            # Determine agency based on satellite name and NORAD ID
+            agency = self._determine_agency(sat_data['name'], sat_data['norad_id'])
 
             return {
                 'norad_id': sat_data['norad_id'],
@@ -303,17 +315,81 @@ class SatelliteDataManager:
                     'latitude': sat_data['latitude'],
                     'longitude': sat_data['longitude'],
                     'country': 'Unknown',  # Placeholder
-                    'visibility': 'Visible' if sat_data['altitude'] < 1000 else 'Not Visible'
+                    'visibility': 'Visible' if signal_info['visible'] else 'Below Horizon'
+                },
+                'signal': {
+                    'strength_dbm': signal_info['strength_dbm'],
+                    'quality': signal_info['quality'],
+                    'distance_km': signal_info['distance_km'],
+                    'elevation_angle': signal_info['elevation_angle'],
+                    'visible': signal_info['visible']
                 },
                 'technical': {
                     'norad_id': sat_data['norad_id'],
-                    'launch_date': 'Unknown',  # Placeholder
+                    'launch_date': launch_info['formatted_date'],
+                    'precise_epoch': launch_info['precise_datetime'],
+                    'epoch_year': launch_info['epoch_year'],
+                    'epoch_day': launch_info['epoch_day'],
                     'type': sat_data['category'].replace('_', ' ').title(),
-                    'agency': 'Unknown',  # Placeholder
+                    'agency': agency,
                     'status': 'Active'
                 }
             }
         return None
+
+    def _determine_agency(self, satellite_name, norad_id):
+        """Determine satellite agency based on name patterns and NORAD ID ranges"""
+        name_upper = satellite_name.upper()
+        
+        # ISS and major space stations
+        if 'ISS' in name_upper or 'ZARYA' in name_upper or norad_id == 25544:
+            return 'NASA/Roscosmos/ESA/JAXA'
+        
+        # Chinese satellites
+        if any(keyword in name_upper for keyword in ['TIANHE', 'SHENZHOU', 'TIANGONG', 'FENGYUN', 'BEIDOU']):
+            return 'CNSA (China)'
+        
+        # US Military/Government
+        if any(keyword in name_upper for keyword in ['GPS', 'NAVSTAR', 'NOSS', 'DSP', 'DMSP']):
+            return 'US Space Force'
+        
+        # US Civil/NASA
+        if any(keyword in name_upper for keyword in ['NOAA', 'GOES', 'TERRA', 'AQUA', 'LANDSAT', 'HUBBLE']):
+            return 'NASA/NOAA'
+        
+        # European satellites
+        if any(keyword in name_upper for keyword in ['SENTINEL', 'GALILEO', 'METEOSAT', 'ENVISAT']):
+            return 'ESA (Europe)'
+        
+        # Russian satellites
+        if any(keyword in name_upper for keyword in ['GLONASS', 'COSMOS', 'METEOR']):
+            return 'Roscosmos (Russia)'
+        
+        # Commercial satellites
+        if 'STARLINK' in name_upper:
+            return 'SpaceX'
+        if 'ONEWEB' in name_upper:
+            return 'OneWeb'
+        if 'IRIDIUM' in name_upper:
+            return 'Iridium Communications'
+        
+        # Indian satellites
+        if any(keyword in name_upper for keyword in ['RESOURCESAT', 'CARTOSAT', 'INSAT']):
+            return 'ISRO (India)'
+        
+        # Japanese satellites
+        if any(keyword in name_upper for keyword in ['ALOS', 'HIMAWARI', 'JCSAT']):
+            return 'JAXA (Japan)'
+        
+        # Based on NORAD ID ranges (approximate)
+        if 25544 <= norad_id <= 25999:
+            return 'International'
+        elif 40000 <= norad_id <= 49999:
+            return 'Commercial'
+        elif norad_id >= 50000:
+            return 'Recent Launch'
+        
+        return 'Unknown'
 
     def _calculate_orbital_elements(self, satellite):
         """Calculate real orbital elements from satellite object"""
@@ -328,7 +404,7 @@ class SatelliteDataManager:
             eccentricity = model.ecco  # Eccentricity
 
             # Calculate semi-major axis from mean motion
-            mean_motion = model.no_kozai  # Mean motion in radians/minute
+            mean_motion = model.no_kozai  # Mean motion in radiances/minute
             n = mean_motion * (24 * 60) / (2 * math.pi)  # Convert to revolutions per day
 
             # Earth's gravitational parameter (km^3/s^2)
@@ -370,6 +446,151 @@ class SatelliteDataManager:
                 'perigee': 400.0,
                 'apogee': 400.0,
                 'semi_major_axis': 6771.0
+            }
+
+    def _calculate_signal_strength(self, satellite_position, user_location):
+        """Calculate signal strength based on distance and line of sight"""
+        try:
+            import math
+            
+            # Convert satellite position to Cartesian coordinates
+            sat_lat = math.radians(satellite_position['latitude'])
+            sat_lon = math.radians(satellite_position['longitude'])
+            sat_alt = satellite_position['altitude'] * 1000  # Convert to meters
+            
+            # Convert user location to Cartesian coordinates
+            user_lat = math.radians(user_location['lat'])
+            user_lon = math.radians(user_location['lon'])
+            user_alt = user_location.get('alt', 0)
+            
+            # Earth radius in meters
+            earth_radius = 6371000
+            
+            # Calculate satellite position in ECEF coordinates
+            sat_r = earth_radius + sat_alt
+            sat_x = sat_r * math.cos(sat_lat) * math.cos(sat_lon)
+            sat_y = sat_r * math.cos(sat_lat) * math.sin(sat_lon)
+            sat_z = sat_r * math.sin(sat_lat)
+            
+            # Calculate user position in ECEF coordinates
+            user_r = earth_radius + user_alt
+            user_x = user_r * math.cos(user_lat) * math.cos(user_lon)
+            user_y = user_r * math.cos(user_lat) * math.sin(user_lon)
+            user_z = user_r * math.sin(user_lat)
+            
+            # Calculate distance between satellite and user
+            distance = math.sqrt((sat_x - user_x)**2 + (sat_y - user_y)**2 + (sat_z - user_z)**2)
+            
+            # Calculate elevation angle
+            # Vector from user to satellite
+            dx = sat_x - user_x
+            dy = sat_y - user_y
+            dz = sat_z - user_z
+            
+            # Local horizon plane normal vector (pointing up from user)
+            up_x = user_x / user_r
+            up_y = user_y / user_r
+            up_z = user_z / user_r
+            
+            # Elevation angle calculation
+            dot_product = dx * up_x + dy * up_y + dz * up_z
+            elevation_angle = math.degrees(math.asin(dot_product / distance))
+            
+            # Signal strength calculation based on distance and elevation
+            # Base signal strength (dBm) - typical satellite signal
+            base_signal = -100  # dBm
+            
+            # Distance loss (free space path loss for typical satellite frequencies ~1.5 GHz)
+            frequency_mhz = 1500  # MHz
+            distance_km = distance / 1000
+            path_loss = 20 * math.log10(distance_km) + 20 * math.log10(frequency_mhz) + 32.44
+            
+            # Elevation angle bonus (better signal at higher elevations)
+            elevation_bonus = max(0, elevation_angle) * 0.2  # 0.2 dB per degree above horizon
+            
+            # Atmospheric loss (simplified)
+            atmospheric_loss = max(0, 5 - elevation_bonus * 0.1) if elevation_angle > 0 else 10
+            
+            # Calculate final signal strength
+            signal_strength = base_signal - path_loss + elevation_bonus - atmospheric_loss
+            
+            # Ensure signal is realistic (satellite signals typically range from -70 to -150 dBm)
+            signal_strength = max(-150, min(-70, signal_strength))
+            
+            # Signal quality based on strength
+            if signal_strength > -90:
+                signal_quality = "Excellent"
+            elif signal_strength > -105:
+                signal_quality = "Good"
+            elif signal_strength > -120:
+                signal_quality = "Fair"
+            elif signal_strength > -135:
+                signal_quality = "Poor"
+            else:
+                signal_quality = "No Signal"
+            
+            return {
+                'strength_dbm': round(signal_strength, 1),
+                'quality': signal_quality,
+                'distance_km': round(distance_km, 1),
+                'elevation_angle': round(max(0, elevation_angle), 1),
+                'visible': elevation_angle > 0
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error calculating signal strength: {e}")
+            return {
+                'strength_dbm': -120.0,
+                'quality': 'Unknown',
+                'distance_km': 0.0,
+                'elevation_angle': 0.0,
+                'visible': False
+            }
+
+    def _extract_launch_date(self, tle_line1):
+        """Extract and convert launch date from TLE data"""
+        try:
+            # Extract epoch year and day from TLE line 1 (positions 18-32)
+            epoch_year_str = tle_line1[18:20]
+            epoch_day_str = tle_line1[20:32]
+            
+            # Convert 2-digit year to 4-digit year
+            epoch_year = int(epoch_year_str)
+            if epoch_year < 57:  # Assume years 00-56 are 2000-2056, 57-99 are 1957-1999
+                epoch_year += 2000
+            else:
+                epoch_year += 1900
+            
+            # Convert day of year to actual date
+            epoch_day = float(epoch_day_str)
+            day_of_year = int(epoch_day)
+            fraction_of_day = epoch_day - day_of_year
+            
+            # Calculate the actual date
+            from datetime import datetime, timedelta
+            base_date = datetime(epoch_year, 1, 1)
+            actual_date = base_date + timedelta(days=day_of_year - 1, seconds=fraction_of_day * 86400)
+            
+            # Format the date nicely
+            formatted_date = actual_date.strftime("%B %d, %Y")
+            
+            # For very precise time
+            precise_time = actual_date.strftime("%Y-%m-%d %H:%M:%S UTC")
+            
+            return {
+                'formatted_date': formatted_date,
+                'precise_datetime': precise_time,
+                'epoch_year': epoch_year,
+                'epoch_day': round(epoch_day, 3)
+            }
+            
+        except Exception as e:
+            logger.warning(f"Error extracting launch date from TLE: {e}")
+            return {
+                'formatted_date': 'Unknown',
+                'precise_datetime': 'Unknown',
+                'epoch_year': 0,
+                'epoch_day': 0.0
             }
 
     def _determine_orbit_type(self, altitude):
