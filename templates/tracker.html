@@ -346,7 +346,16 @@
             <!-- 3D Globe -->
             <div class="col-md-9">
                 <div id="cesiumContainer" class="cesium-container">
-                    <!-- Cesium globe will be rendered here -->
+                    <!-- Loading message while Cesium loads -->
+                    <div id="cesiumLoading" style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #0c0c0c 100%); color: white; text-align: center;">
+                        <div>
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <h5>Loading 3D Earth View</h5>
+                            <p class="text-muted">Initializing Cesium globe and satellite visualization...</p>
+                        </div>
+                    </div>
                 </div>
 
 

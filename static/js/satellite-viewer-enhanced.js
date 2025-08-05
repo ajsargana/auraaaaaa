@@ -118,10 +118,35 @@ class SatelliteViewer {
                 loadingOverlay.style.display = 'none';
             }
 
+            // Remove Cesium loading message
+            const cesiumLoading = document.getElementById('cesiumLoading');
+            if (cesiumLoading) {
+                cesiumLoading.style.display = 'none';
+            }
+
             console.log('Cesium initialization complete');
 
         } catch (error) {
             console.error('Error creating Cesium viewer:', error);
+            
+            // Show detailed error in the container
+            const container = document.getElementById('cesiumContainer');
+            if (container) {
+                container.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #0c0c0c 100%); color: white; text-align: center; padding: 20px;">
+                        <div>
+                            <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 20px;"></i>
+                            <h4>Cesium Loading Error</h4>
+                            <p style="color: #94a3b8; margin-bottom: 20px;">Error: ${error.message}</p>
+                            <p style="color: #6c757d; font-size: 0.9rem;">Check browser console for details</p>
+                            <button class="btn btn-primary mt-3" onclick="location.reload()">
+                                <i class="fas fa-sync-alt"></i> Retry
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
             throw new Error('Failed to initialize Cesium viewer: ' + error.message);
         }
     }
