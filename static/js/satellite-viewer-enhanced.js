@@ -668,7 +668,9 @@ class SatelliteViewer {
 
     async loadSatelliteDetails(noradId) {
         try {
-            const response = await fetch(`/api/satellite/${noradId}`);
+            // Include user location for signal strength calculation
+            const url = `/api/satellite/${noradId}?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}`;
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -690,10 +692,42 @@ class SatelliteViewer {
     renderSatelliteDetails(satellite) {
         const container = document.getElementById('satelliteDetails');
 
+        // Get signal strength color based on percentage
+        const getSignalColor = (percentage) => {
+            if (percentage >= 70) return 'text-success';
+            if (percentage >= 40) return 'text-warning';
+            return 'text-danger';
+        };
+
+        const signalColor = getSignalColor(satellite.signal?.strength_percentage || 0);
+
         container.innerHTML = `
             <div class="satellite-header mb-3">
                 <strong class="text-info">${satellite.name}</strong>
             </div>
+
+            <!-- Signal Information -->
+            ${satellite.signal ? `
+            <div class="satellite-section mb-3">
+                <h6 class="text-primary mb-2">
+                    <i class="fas fa-wifi me-2"></i>Signal Strength
+                </h6>
+                <div class="row g-2">
+                    <div class="col-6"><small class="text-muted">Strength:</small></div>
+                    <div class="col-6"><small class="${signalColor}">${satellite.signal.strength_percentage.toFixed(1)}% (${satellite.signal.strength_dbm} dBm)</small></div>
+                    <div class="col-6"><small class="text-muted">Distance:</small></div>
+                    <div class="col-6"><small class="text-info">${satellite.signal.distance_km.toFixed(1)} km</small></div>
+                    <div class="col-6"><small class="text-muted">Elevation:</small></div>
+                    <div class="col-6"><small class="text-success">${satellite.signal.elevation_deg.toFixed(1)}°</small></div>
+                    <div class="col-6"><small class="text-muted">Azimuth:</small></div>
+                    <div class="col-6"><small class="text-warning">${satellite.signal.azimuth_deg.toFixed(1)}°</small></div>
+                    <div class="col-6"><small class="text-muted">Frequency:</small></div>
+                    <div class="col-6"><small class="text-cyan">${satellite.signal.frequency_mhz.toFixed(1)} MHz</small></div>
+                    <div class="col-6"><small class="text-muted">Path Loss:</small></div>
+                    <div class="col-6"><small class="text-secondary">${satellite.signal.path_loss_db.toFixed(1)} dB</small></div>
+                </div>
+            </div>
+            ` : ''}
 
             <!-- Orbit Information -->
             <div class="satellite-section mb-3">
