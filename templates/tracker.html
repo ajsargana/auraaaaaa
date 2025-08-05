@@ -10,7 +10,7 @@
     <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
 
     <!-- Cesium CSS -->
-    <link href="https://cesium.com/downloads/cesiumjs/releases/1.107/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
 
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -346,16 +346,7 @@
             <!-- 3D Globe -->
             <div class="col-md-9">
                 <div id="cesiumContainer" class="cesium-container">
-                    <!-- Loading message while Cesium loads -->
-                    <div id="cesiumLoading" style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #0c0c0c 100%); color: white; text-align: center;">
-                        <div>
-                            <div class="spinner-border text-primary mb-3" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <h5>Loading 3D Earth View</h5>
-                            <p class="text-muted">Initializing Cesium globe and satellite visualization...</p>
-                        </div>
-                    </div>
+                    <!-- Cesium globe will be rendered here -->
                 </div>
 
 
@@ -690,7 +681,7 @@
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cesium.com/downloads/cesiumjs/releases/1.107/Build/Cesium/Cesium.js"></script>
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Cesium.js"></script>
     <script src="{{ url_for('static', filename='js/satellite-viewer-enhanced.js') }}"></script>
 </body>
 </html>

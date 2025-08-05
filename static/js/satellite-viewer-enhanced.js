@@ -54,25 +54,29 @@ class SatelliteViewer {
 
         console.log('Initializing Cesium...');
         
-        // Use default Cesium Ion token - updated token
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhODJkODUwOS1jZGJkLTQ1MWUtYjgzZS00YjY2YjZkMDM4NzgiLCJpZCI6MjMwNjEsImlhdCI6MTcwMTEzNzI2NX0.yLKMhnoZFdEYNyU4m9LflmNmT3wKiNYlSt8_6e_vCZc';
+        // Use default Cesium Ion token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1ZjJiOS1mOGYyLTQ1M2MtOGM2MS1kYzA2YjIxOGI4ZjciLCJpZCI6MjAzNzIsImlhdCI6MTY5NDU0Mzk5OX0.SW1LQITUzCb5gFmLNAa8aeJ7bXhDI1_3pj6_8yUAKPk';
 
         try {
             this.viewer = new Cesium.Viewer('cesiumContainer', {
-                // Use default terrain and imagery for reliability
-                baseLayerPicker: false,
-                geocoder: false,
-                homeButton: true,
-                sceneModePicker: false,
-                navigationHelpButton: false,
-                animation: false,
-                timeline: false,
-                fullscreenButton: true,
-                vrButton: false,
-                creditContainer: document.createElement('div'),
-                // Enhanced performance settings
-                requestRenderMode: false, // Continuous rendering for smooth animation
-                maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
+            // Performance optimizations
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
+                url: 'https://a.tile.openstreetmap.org/'
+            }),
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: true,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: true,
+            vrButton: false,
+            creditContainer: document.createElement('div'),
+            // Enhanced performance settings
+            requestRenderMode: false, // Continuous rendering for smooth animation
+            maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
             });
 
             console.log('Cesium viewer created successfully');
@@ -118,35 +122,10 @@ class SatelliteViewer {
                 loadingOverlay.style.display = 'none';
             }
 
-            // Remove Cesium loading message
-            const cesiumLoading = document.getElementById('cesiumLoading');
-            if (cesiumLoading) {
-                cesiumLoading.style.display = 'none';
-            }
-
             console.log('Cesium initialization complete');
 
         } catch (error) {
             console.error('Error creating Cesium viewer:', error);
-            
-            // Show detailed error in the container
-            const container = document.getElementById('cesiumContainer');
-            if (container) {
-                container.innerHTML = `
-                    <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #0c0c0c 100%); color: white; text-align: center; padding: 20px;">
-                        <div>
-                            <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 20px;"></i>
-                            <h4>Cesium Loading Error</h4>
-                            <p style="color: #94a3b8; margin-bottom: 20px;">Error: ${error.message}</p>
-                            <p style="color: #6c757d; font-size: 0.9rem;">Check browser console for details</p>
-                            <button class="btn btn-primary mt-3" onclick="location.reload()">
-                                <i class="fas fa-sync-alt"></i> Retry
-                            </button>
-                        </div>
-                    </div>
-                `;
-            }
-            
             throw new Error('Failed to initialize Cesium viewer: ' + error.message);
         }
     }
