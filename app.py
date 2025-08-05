@@ -301,6 +301,77 @@ def get_iss_live_video():
             'error': str(e)
         }), 500
 
+@app.route('/api/cloud-cover')
+def get_cloud_cover():
+    """Get current cloud cover data sources"""
+    try:
+        # Real-time cloud cover sources
+        cloud_sources = {
+            'goes_east': {
+                'name': 'GOES-16 East',
+                'url': 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/',
+                'coverage': 'Americas',
+                'update_frequency': '15 minutes',
+                'resolution': 'High'
+            },
+            'goes_west': {
+                'name': 'GOES-17 West', 
+                'url': 'https://cdn.star.nesdis.noaa.gov/GOES17/ABI/FD/GEOCOLOR/',
+                'coverage': 'Pacific',
+                'update_frequency': '15 minutes',
+                'resolution': 'High'
+            },
+            'himawari': {
+                'name': 'Himawari-8',
+                'url': 'https://himawari8.nict.go.jp/img/D531106/',
+                'coverage': 'Asia-Pacific',
+                'update_frequency': '10 minutes',
+                'resolution': 'High'
+            },
+            'meteosat': {
+                'name': 'Meteosat-11',
+                'url': 'https://eumetview.eumetsat.int/static-images/',
+                'coverage': 'Europe-Africa',
+                'update_frequency': '15 minutes',
+                'resolution': 'High'
+            },
+            'modis_aqua': {
+                'name': 'MODIS Aqua',
+                'url': 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Aqua_CorrectedReflectance_TrueColor/',
+                'coverage': 'Global',
+                'update_frequency': '2 times daily',
+                'resolution': 'Medium'
+            },
+            'modis_terra': {
+                'name': 'MODIS Terra',
+                'url': 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/',
+                'coverage': 'Global', 
+                'update_frequency': '2 times daily',
+                'resolution': 'Medium'
+            }
+        }
+        
+        # Get current timestamp for latest imagery
+        current_time = datetime.now(timezone.utc)
+        
+        return jsonify({
+            'success': True,
+            'cloud_sources': cloud_sources,
+            'current_time': current_time.isoformat(),
+            'recommended_source': 'goes_east',  # Best for most users
+            'update_info': {
+                'last_updated': current_time.isoformat(),
+                'next_update': (current_time.replace(minute=(current_time.minute // 15 + 1) * 15, second=0, microsecond=0)).isoformat()
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting cloud cover data: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/api/status')
 def get_status():
     """Get application status"""
@@ -318,7 +389,8 @@ def get_status():
                     'smooth_movement': True,
                     'real_time_updates': True,
                     'offline_mode': False,
-                    'iss_live_video': True
+                    'iss_live_video': True,
+                    'cloud_cover': True
                 }
             }
         })
