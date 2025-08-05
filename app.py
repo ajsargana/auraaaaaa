@@ -224,7 +224,7 @@ def get_satellite_passes(norad_id):
         lon = float(request.args.get('lon', 0))
         alt = float(request.args.get('alt', 0))
         
-        passes = satellite_manager.get_satellite_passes(norad_id, lat, lon, alt)
+        passes = satellite_manager.get_satellite_passes(norad_id, lat, lon, int(alt))
         
         return jsonify({
             'success': True,
@@ -404,7 +404,7 @@ def after_request(response):
     print("\n=== CHECKING YOUR EXISTING FLASK APP ===")
 print("📍 Your existing routes:")
 for rule in app.url_map.iter_rules():
-    print(f"  ✅ {rule.rule} -> {rule.endpoint} ({', '.join(rule.methods)})")
+    print(f"  ✅ {rule.rule} -> {rule.endpoint} ({', '.join(rule.methods or set())})")
 print("=========================================\n")
 
 if __name__ == '__main__':
