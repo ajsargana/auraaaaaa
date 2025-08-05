@@ -54,29 +54,25 @@ class SatelliteViewer {
 
         console.log('Initializing Cesium...');
         
-        // Use default Cesium Ion token
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1ZjJiOS1mOGYyLTQ1M2MtOGM2MS1kYzA2YjIxOGI4ZjciLCJpZCI6MjAzNzIsImlhdCI6MTY5NDU0Mzk5OX0.SW1LQITUzCb5gFmLNAa8aeJ7bXhDI1_3pj6_8yUAKPk';
+        // Use default Cesium Ion token - updated token
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhODJkODUwOS1jZGJkLTQ1MWUtYjgzZS00YjY2YjZkMDM4NzgiLCJpZCI6MjMwNjEsImlhdCI6MTcwMTEzNzI2NX0.yLKMhnoZFdEYNyU4m9LflmNmT3wKiNYlSt8_6e_vCZc';
 
         try {
             this.viewer = new Cesium.Viewer('cesiumContainer', {
-            // Performance optimizations
-            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-                url: 'https://a.tile.openstreetmap.org/'
-            }),
-            baseLayerPicker: true,
-            geocoder: false,
-            homeButton: true,
-            sceneModePicker: false,
-            navigationHelpButton: false,
-            animation: false,
-            timeline: false,
-            fullscreenButton: true,
-            vrButton: false,
-            creditContainer: document.createElement('div'),
-            // Enhanced performance settings
-            requestRenderMode: false, // Continuous rendering for smooth animation
-            maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
+                // Use default terrain and imagery for reliability
+                baseLayerPicker: false,
+                geocoder: false,
+                homeButton: true,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                animation: false,
+                timeline: false,
+                fullscreenButton: true,
+                vrButton: false,
+                creditContainer: document.createElement('div'),
+                // Enhanced performance settings
+                requestRenderMode: false, // Continuous rendering for smooth animation
+                maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
             });
 
             console.log('Cesium viewer created successfully');
