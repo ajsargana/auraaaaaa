@@ -68,12 +68,7 @@ def get_satellites():
 def get_satellite_details(norad_id):
     """Get detailed information for a specific satellite"""
     try:
-        # Get user location parameters for signal strength calculation
-        lat = float(request.args.get('lat', 0))
-        lon = float(request.args.get('lon', 0))
-        alt = float(request.args.get('alt', 0))
-        
-        satellite = satellite_manager.get_satellite_by_id(norad_id, user_location={'lat': lat, 'lon': lon, 'alt': alt})
+        satellite = satellite_manager.get_satellite_by_id(norad_id)
         
         if not satellite:
             return jsonify({

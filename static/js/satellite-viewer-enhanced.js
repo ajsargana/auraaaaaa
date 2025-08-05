@@ -668,14 +668,7 @@ class SatelliteViewer {
 
     async loadSatelliteDetails(noradId) {
         try {
-            // Include user location in the request for accurate signal strength calculation
-            const params = new URLSearchParams({
-                lat: this.userLocation.lat,
-                lon: this.userLocation.lon,
-                alt: this.userLocation.alt || 0
-            });
-            
-            const response = await fetch(`/api/satellite/${noradId}?${params}`);
+            const response = await fetch(`/api/satellite/${noradId}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -697,36 +690,9 @@ class SatelliteViewer {
     renderSatelliteDetails(satellite) {
         const container = document.getElementById('satelliteDetails');
 
-        // Determine signal strength color
-        const getSignalColor = (strength) => {
-            if (strength > -90) return 'text-success';
-            if (strength > -105) return 'text-warning';
-            if (strength > -120) return 'text-info';
-            return 'text-danger';
-        };
-
-        const signalColor = getSignalColor(satellite.signal?.strength_dbm || -150);
-
         container.innerHTML = `
             <div class="satellite-header mb-3">
                 <strong class="text-info">${satellite.name}</strong>
-            </div>
-
-            <!-- Signal Information -->
-            <div class="satellite-section mb-3">
-                <h6 class="text-info mb-2">
-                    <i class="fas fa-signal me-2"></i>Signal
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Strength:</small></div>
-                    <div class="col-6"><small class="${signalColor}">${satellite.signal?.strength_dbm || 'N/A'} dBm</small></div>
-                    <div class="col-6"><small class="text-muted">Quality:</small></div>
-                    <div class="col-6"><small class="${signalColor}">${satellite.signal?.quality || 'Unknown'}</small></div>
-                    <div class="col-6"><small class="text-muted">Distance:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.signal?.distance_km || 'N/A'} km</small></div>
-                    <div class="col-6"><small class="text-muted">Elevation:</small></div>
-                    <div class="col-6"><small class="text-warning">${satellite.signal?.elevation_angle || 'N/A'}°</small></div>
-                </div>
             </div>
 
             <!-- Orbit Information -->
@@ -774,9 +740,7 @@ class SatelliteViewer {
                     <div class="col-6"><small class="text-muted">NORAD ID:</small></div>
                     <div class="col-6"><small class="text-white">${satellite.technical.norad_id}</small></div>
                     <div class="col-6"><small class="text-muted">Launch Date:</small></div>
-                    <div class="col-6"><small class="text-primary" title="${satellite.technical.precise_epoch || 'Unknown'}">${satellite.technical.launch_date}</small></div>
-                    <div class="col-6"><small class="text-muted">Epoch:</small></div>
-                    <div class="col-6"><small class="text-info">${satellite.technical.epoch_year || 'N/A'}.${satellite.technical.epoch_day || 'N/A'}</small></div>
+                    <div class="col-6"><small class="text-primary">${satellite.technical.launch_date}</small></div>
                     <div class="col-6"><small class="text-muted">Type:</small></div>
                     <div class="col-6"><small class="text-info">${satellite.technical.type}</small></div>
                     <div class="col-6"><small class="text-muted">Agency:</small></div>
