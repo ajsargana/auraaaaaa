@@ -1197,7 +1197,7 @@ class SatelliteViewer {
                     });
                 }
             }
-        }, 5000; // Update camera position every 5 seconds for smooth tracking
+        }, 5000); // Update camera position every 5 seconds for smooth tracking
     }
 
     filterByCategory(category) {
