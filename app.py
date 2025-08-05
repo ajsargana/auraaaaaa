@@ -409,11 +409,11 @@ print("=========================================\n")
 
 if __name__ == '__main__':
     print("🛰️  3D Satellite Tracker - Starting...")
-    print(f"📡 Offline mode: {'ON' if tracker.offline_mode else 'OFF'}")
-    print(f"🌍 Satellites loaded: {len(tracker.satellites)}")
-    print("🚀 Server starting on http://localhost:5000")
+    satellites = satellite_manager.get_satellite_data()
+    print(f"🌍 Satellites loaded: {len(satellites)}")
+    print("🚀 Server starting on http://0.0.0.0:5000")
 
-    app.run(host='127.0.0.1', port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
 # Add this debug code to your Flask app
 
 

@@ -18,6 +18,8 @@ class SatelliteViewer {
         this.realTimeUpdateInterval = null;
         this.satelliteTrackingInterval = null;
         this.preferences = {};
+        this.clickTimeout = null;
+        this.userLocationMarker = null;
 
         // Performance optimizations for smooth movement  
         this.updateRate = 30000; // 30 seconds for better performance
@@ -205,18 +207,38 @@ class SatelliteViewer {
                         alt: position.coords.altitude || 0
                     };
 
+                    // Add user location marker on globe
+                    this.addUserLocationMarker();
+
                     // Update preferences
                     this.preferences.location = this.userLocation;
                     this.saveUserPreferences();
 
-                    document.getElementById('latitude').value = this.userLocation.lat;
-                    document.getElementById('longitude').value = this.userLocation.lon;
-                    document.getElementById('altitude').value = this.userLocation.alt;
+                    // Update form fields if they exist
+                    const latField = document.getElementById('latitude');
+                    const lonField = document.getElementById('longitude');
+                    const altField = document.getElementById('altitude');
+                    
+                    if (latField) latField.value = this.userLocation.lat;
+                    if (lonField) lonField.value = this.userLocation.lon;
+                    if (altField) altField.value = this.userLocation.alt;
+
+                    console.log('User location set:', this.userLocation);
                 },
                 (error) => {
                     console.warn('Geolocation failed:', error);
+                    // Set default location to prevent errors
+                    this.userLocation = { lat: 0, lon: 0, alt: 0 };
+                },
+                {
+                    enableHighAccuracy: false,
+                    timeout: 10000,
+                    maximumAge: 600000 // 10 minutes
                 }
             );
+        } else {
+            console.warn('Geolocation not supported');
+            this.userLocation = { lat: 0, lon: 0, alt: 0 };
         }
     }
 
@@ -470,13 +492,30 @@ class SatelliteViewer {
 
         if (Cesium.defined(pickedObject) && pickedObject.id.satelliteData) {
             const satellite = pickedObject.id.satelliteData;
-            this.selectSatellite(satellite.norad_id);
+            
+            // Clear any existing click timeout
+            if (this.clickTimeout) {
+                clearTimeout(this.clickTimeout);
+                this.clickTimeout = null;
+                
+                // This is a double click - enable continuous tracking
+                this.selectSatellite(satellite.norad_id, true);
+                return;
+            }
+            
+            // This might be a single click - wait to see if double click follows
+            this.clickTimeout = setTimeout(() => {
+                this.clickTimeout = null;
+                // Single click - focus but don't track continuously
+                this.selectSatellite(satellite.norad_id, false);
+            }, 300);
+            
         } else {
             this.deselectSatellite();
         }
     }
 
-    async selectSatellite(noradId) {
+    async selectSatellite(noradId, enableTracking = false) {
         // Clear previous selection visualizations
         if (this.selectedSatellite && this.selectedSatellite !== noradId) {
             this.clearSatelliteVisualizations(this.selectedSatellite);
@@ -487,8 +526,13 @@ class SatelliteViewer {
         // Enhanced visual selection
         this.updateSatelliteSelection();
 
-        // Always fly to selected satellite with smooth animation and start tracking
-        this.trackSatellite(noradId);
+        // Focus on satellite
+        this.focusOnSatellite(noradId);
+
+        // Only start continuous tracking if it's a double click or tracking is enabled
+        if (enableTracking) {
+            this.trackSatellite(noradId);
+        }
 
         // Load detailed information
         await this.loadSatelliteDetails(noradId);
@@ -508,8 +552,9 @@ class SatelliteViewer {
             this.renderNadirLine(noradId);
         }
 
-        // Load pass predictions
-        if (this.userLocation.lat !== 0 || this.userLocation.lon !== 0) {
+        // Only show pass predictions for LEO satellites (not HEO/GEO)
+        const satellite = this.satellites.get(noradId);
+        if (satellite && satellite.altitude < 10000 && (this.userLocation.lat !== 0 || this.userLocation.lon !== 0)) {
             await this.loadPassPredictions(noradId);
         }
     }
@@ -1462,16 +1507,71 @@ class SatelliteViewer {
         }
     }
 
-    resetView() {
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(0, 30, 12000000),
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
+    addUserLocationMarker() {
+        // Remove existing user location marker
+        if (this.userLocationMarker) {
+            this.viewer.entities.remove(this.userLocationMarker);
+        }
+
+        // Add blue dot for user location like Google Maps
+        this.userLocationMarker = this.viewer.entities.add({
+            id: 'user_location',
+            name: 'Your Location',
+            position: Cesium.Cartesian3.fromDegrees(
+                this.userLocation.lon,
+                this.userLocation.lat,
+                this.userLocation.alt
+            ),
+            point: {
+                pixelSize: 15,
+                color: Cesium.Color.DODGERBLUE,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 3,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY
             },
-            duration: 2.0
+            label: {
+                text: 'You are here',
+                font: '12pt Arial',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -40),
+                show: true,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
         });
+    }
+
+    resetView() {
+        // If user location is available, go there; otherwise go to default view
+        if (this.userLocation && (this.userLocation.lat !== 0 || this.userLocation.lon !== 0)) {
+            this.viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(
+                    this.userLocation.lon,
+                    this.userLocation.lat,
+                    5000000 // 5000km altitude for good view
+                ),
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
+                },
+                duration: 2.0
+            });
+        } else {
+            // Default view
+            this.viewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(0, 30, 12000000),
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
+                },
+                duration: 2.0
+            });
+        }
     }
 
     async refreshData() {
