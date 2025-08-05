@@ -1077,7 +1077,7 @@ class SatelliteViewer {
             destination: destination,
             orientation: {
                 heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_FOUR, // Look down at an angle to see satellite
+                pitch: -Cesium.Math.PI_OVER_TWO, // Look down at an angle to see satellite
                 roll: 0.0
             },
             duration: 2.0,
@@ -1118,13 +1118,13 @@ class SatelliteViewer {
                         destination: offset,
                         orientation: {
                             heading: 0.0,
-                            pitch: -Cesium.Math.PI_OVER_FOUR, // Look down at an angle
+                            pitch: -Cesium.Math.PI_OVER_TWO, // Look down at an angle
                             roll: 0.0
                         }
                     });
                 }
             }
-        }, 5000); // Update camera position every 5 seconds for smooth tracking
+        }, 5000; // Update camera position every 5 seconds for smooth tracking
     }
 
     filterByCategory(category) {
