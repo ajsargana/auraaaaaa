@@ -25,8 +25,9 @@ class SatelliteViewer {
 
         // Performance optimizations for smooth movement  
         this.updateRate = 30000; // 30 seconds for better performance
-        this.maxVisibleSatellites = 300; // Optimized limit for smooth rendering
-        this.lodDistance = 10000000; // Level of detail distance 
+        this.maxVisibleSatellites = 250; // Reduced for faster initial load
+        this.lodDistance = 10000000; // Level of detail distance
+        this.initialLoadBatchSize = 50; // Load satellites in batches initially 
 
         this.init();
     }
@@ -34,16 +35,31 @@ class SatelliteViewer {
     async init() {
         try {
             console.log('Initializing SatelliteViewer...');
+            this.showLoadingIndicator('Initializing 3D viewer...');
+            
             await this.initializeCesium();
+            this.showLoadingIndicator('Setting up controls...');
+            
             this.setupEventListeners();
+            this.showLoadingIndicator('Loading preferences...');
+            
             await this.loadUserPreferences();
+            this.showLoadingIndicator('Loading categories...');
+            
             await this.loadCategories();
+            this.showLoadingIndicator('Loading satellites...');
+            
             await this.loadSatellites();
+            this.showLoadingIndicator('Starting updates...');
+            
             this.startAutoUpdate();
             this.setupGeolocation();
+            
+            this.hideLoadingIndicator();
             console.log('SatelliteViewer initialization complete');
         } catch (error) {
             console.error('Error initializing SatelliteViewer:', error);
+            this.hideLoadingIndicator();
             this.showError('Failed to initialize satellite viewer: ' + error.message);
         }
     }
@@ -1561,73 +1577,90 @@ class SatelliteViewer {
     async enableCloudCover() {
         try {
             console.log('Enabling real-time cloud cover...');
+            this.showLoadingIndicator('Loading cloud data...');
 
             // Remove any existing cloud layers first
             this.disableCloudCover();
 
-            // Use OpenWeatherMap cloud layer - reliable and works well
-            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
-                new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
-                    credit: 'OpenWeatherMap Clouds',
-                    maximumLevel: 18,
-                    minimumLevel: 0,
-                    hasAlphaChannel: true,
-                    tilingScheme: new Cesium.WebMercatorTilingScheme(),
-                    tileWidth: 256,
-                    tileHeight: 256
-                })
-            );
-
-            // Set optimal properties for cloud visibility
-            this.cloudLayer.alpha = 0.6;
-            this.cloudLayer.brightness = 1.2;
-            this.cloudLayer.contrast = 1.1;
-            this.cloudLayer.hue = 0.0;
-            this.cloudLayer.saturation = 1.0;
-            this.cloudLayer.gamma = 1.0;
-
-            console.log('OpenWeatherMap cloud cover enabled successfully');
-
-            // Add precipitation layer for enhanced weather visualization
-            try {
-                this.precipitationLayer = this.viewer.imageryLayers.addImageryProvider(
-                    new Cesium.UrlTemplateImageryProvider({
-                        url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
-                        credit: 'OpenWeatherMap Precipitation',
-                        maximumLevel: 16,
+            // Try multiple cloud sources for better reliability
+            const cloudSources = [
+                {
+                    name: 'OpenWeatherMap',
+                    provider: () => new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
+                        credit: 'OpenWeatherMap Clouds',
+                        maximumLevel: 12, // Reduced for faster loading
                         minimumLevel: 0,
                         hasAlphaChannel: true,
+                        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+                        tileWidth: 256,
+                        tileHeight: 256
+                    })
+                },
+                {
+                    name: 'Windy',
+                    provider: () => new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.windy.com/v9.3/satellite-infrared/{z}/{x}/{y}.jpg',
+                        credit: 'Windy Satellite',
+                        maximumLevel: 10,
+                        minimumLevel: 0,
                         tilingScheme: new Cesium.WebMercatorTilingScheme()
                     })
-                );
-                
-                this.precipitationLayer.alpha = 0.4;
-                this.precipitationLayer.brightness = 1.0;
-                console.log('Precipitation layer added');
-            } catch (precipError) {
-                console.warn('Could not load precipitation data:', precipError);
+                }
+            ];
+
+            // Try each source until one works
+            let cloudLoaded = false;
+            for (const source of cloudSources) {
+                try {
+                    console.log(`Trying ${source.name} cloud data...`);
+                    this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(source.provider());
+                    
+                    // Set optimal properties for cloud visibility
+                    this.cloudLayer.alpha = 0.7;
+                    this.cloudLayer.brightness = 1.3;
+                    this.cloudLayer.contrast = 1.2;
+                    this.cloudLayer.hue = 0.0;
+                    this.cloudLayer.saturation = 1.1;
+                    this.cloudLayer.gamma = 1.0;
+
+                    console.log(`${source.name} cloud cover enabled successfully`);
+                    cloudLoaded = true;
+                    break;
+                } catch (sourceError) {
+                    console.warn(`${source.name} failed:`, sourceError);
+                    if (this.cloudLayer) {
+                        this.viewer.imageryLayers.remove(this.cloudLayer);
+                        this.cloudLayer = null;
+                    }
+                }
+            }
+
+            if (!cloudLoaded) {
+                throw new Error('All cloud sources failed');
             }
 
             // Enhanced atmospheric effects for realism
             this.viewer.scene.skyAtmosphere.show = true;
             this.viewer.scene.fog.enabled = true;
-            this.viewer.scene.fog.density = 0.0002;
-            this.viewer.scene.fog.screenSpaceErrorFactor = 2.0;
+            this.viewer.scene.fog.density = 0.0003;
+            this.viewer.scene.fog.screenSpaceErrorFactor = 2.5;
 
-            // Update clouds every 10 minutes for fresh data
+            // Update clouds every 15 minutes for fresh data
             this.cloudUpdateInterval = setInterval(() => {
                 this.updateCloudData();
-            }, 600000); // 10 minutes
+            }, 900000); // 15 minutes
 
-            // Force scene update
+            // Force scene update and hide loading
             this.viewer.scene.requestRender();
+            this.hideLoadingIndicator();
             
             console.log('Real-time cloud cover system activated');
 
         } catch (error) {
-            console.warn('Primary cloud service failed, trying NASA GIBS:', error);
-            this.enableNASACloudCover();
+            console.warn('Cloud services failed, trying fallback:', error);
+            this.hideLoadingIndicator();
+            this.enableFallbackCloudVisualization();
         }
     }
 
@@ -1673,6 +1706,38 @@ class SatelliteViewer {
 
         } catch (error) {
             console.error('Failed to enable NASA cloud effects:', error);
+            this.enableBasicAtmosphericEffects();
+        }
+    }
+
+    enableFallbackCloudVisualization() {
+        console.log('Enabling fallback cloud visualization...');
+        
+        try {
+            // Use a simple, fast cloud texture overlay
+            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.SingleTileImageryProvider({
+                    url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+                    rectangle: Cesium.Rectangle.fromDegrees(-180, -90, 180, 90)
+                })
+            );
+            
+            // Enhanced atmospheric effects to simulate cloud cover
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.skyAtmosphere.brightnessShift = 0.2;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0005;
+            this.viewer.scene.fog.minimumBrightness = 0.05;
+            
+            // Add more prominent haze effect to simulate cloud coverage
+            this.viewer.scene.globe.atmosphereHueShift = 0.15;
+            this.viewer.scene.globe.atmosphereSaturationShift = 0.2;
+            this.viewer.scene.globe.atmosphereBrightnessShift = 0.1;
+            
+            console.log('Fallback atmospheric cloud simulation enabled');
+            
+        } catch (fallbackError) {
+            console.warn('Fallback failed, using basic effects:', fallbackError);
             this.enableBasicAtmosphericEffects();
         }
     }
@@ -1992,6 +2057,50 @@ class SatelliteViewer {
         const lastUpdateTime = new Date(timestamp);
         document.getElementById('lastUpdate').textContent = 
             `Updated: ${lastUpdateTime.toLocaleTimeString()}`;
+    }
+
+    showLoadingIndicator(message = 'Loading...') {
+        let indicator = document.getElementById('loadingIndicator');
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.id = 'loadingIndicator';
+            indicator.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: rgba(0, 0, 0, 0.9);
+                color: white;
+                padding: 20px 40px;
+                border-radius: 10px;
+                z-index: 10000;
+                text-align: center;
+                font-family: Arial, sans-serif;
+                border: 2px solid #64b5f6;
+            `;
+            document.body.appendChild(indicator);
+        }
+        indicator.innerHTML = `
+            <div style="margin-bottom: 10px;">
+                <div style="border: 3px solid #f3f3f3; border-top: 3px solid #64b5f6; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
+            </div>
+            <div>${message}</div>
+        `;
+        
+        // Add CSS animation
+        if (!document.getElementById('loadingStyles')) {
+            const style = document.createElement('style');
+            style.id = 'loadingStyles';
+            style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+        }
+    }
+
+    hideLoadingIndicator() {
+        const indicator = document.getElementById('loadingIndicator');
+        if (indicator) {
+            indicator.remove();
+        }
     }
 
     showLoadingOverlay() {
