@@ -1562,17 +1562,91 @@ class SatelliteViewer {
         try {
             console.log('Enabling real-time cloud cover...');
 
-            // Get current date in YYYY-MM-DD format for NASA GIBS imagery
-            const today = new Date();
-            const dateString = today.getFullYear() + '-' + 
-                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(today.getDate()).padStart(2, '0');
+            // Remove any existing cloud layers first
+            this.disableCloudCover();
 
-            // Use NASA GIBS MODIS Terra True Color imagery with clouds
+            // Use OpenWeatherMap cloud layer - reliable and works well
             this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
                 new Cesium.UrlTemplateImageryProvider({
-                    url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateString}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
-                    credit: 'NASA GIBS MODIS Terra',
+                    url: 'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
+                    credit: 'OpenWeatherMap Clouds',
+                    maximumLevel: 18,
+                    minimumLevel: 0,
+                    hasAlphaChannel: true,
+                    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+                    tileWidth: 256,
+                    tileHeight: 256
+                })
+            );
+
+            // Set optimal properties for cloud visibility
+            this.cloudLayer.alpha = 0.6;
+            this.cloudLayer.brightness = 1.2;
+            this.cloudLayer.contrast = 1.1;
+            this.cloudLayer.hue = 0.0;
+            this.cloudLayer.saturation = 1.0;
+            this.cloudLayer.gamma = 1.0;
+
+            console.log('OpenWeatherMap cloud cover enabled successfully');
+
+            // Add precipitation layer for enhanced weather visualization
+            try {
+                this.precipitationLayer = this.viewer.imageryLayers.addImageryProvider(
+                    new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
+                        credit: 'OpenWeatherMap Precipitation',
+                        maximumLevel: 16,
+                        minimumLevel: 0,
+                        hasAlphaChannel: true,
+                        tilingScheme: new Cesium.WebMercatorTilingScheme()
+                    })
+                );
+                
+                this.precipitationLayer.alpha = 0.4;
+                this.precipitationLayer.brightness = 1.0;
+                console.log('Precipitation layer added');
+            } catch (precipError) {
+                console.warn('Could not load precipitation data:', precipError);
+            }
+
+            // Enhanced atmospheric effects for realism
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0002;
+            this.viewer.scene.fog.screenSpaceErrorFactor = 2.0;
+
+            // Update clouds every 10 minutes for fresh data
+            this.cloudUpdateInterval = setInterval(() => {
+                this.updateCloudData();
+            }, 600000); // 10 minutes
+
+            // Force scene update
+            this.viewer.scene.requestRender();
+            
+            console.log('Real-time cloud cover system activated');
+
+        } catch (error) {
+            console.warn('Primary cloud service failed, trying NASA GIBS:', error);
+            this.enableNASACloudCover();
+        }
+    }
+
+    enableNASACloudCover() {
+        try {
+            console.log('Enabling NASA GIBS cloud visualization...');
+
+            // Get yesterday's date (NASA GIBS usually has 1-day delay)
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const dateString = yesterday.getFullYear() + '-' + 
+                String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(yesterday.getDate()).padStart(2, '0');
+
+            // Use NASA GIBS MODIS Aqua True Color imagery
+            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.UrlTemplateImageryProvider({
+                    url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Aqua_CorrectedReflectance_TrueColor/default/${dateString}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+                    credit: 'NASA GIBS MODIS Aqua',
                     maximumLevel: 9,
                     minimumLevel: 0,
                     tilingScheme: new Cesium.WebMercatorTilingScheme(),
@@ -1582,135 +1656,130 @@ class SatelliteViewer {
                 })
             );
 
-            // Set transparency and visual properties for realistic cloud overlay
-            this.cloudLayer.alpha = 0.7;
+            // Optimal settings for NASA imagery
+            this.cloudLayer.alpha = 0.8;
             this.cloudLayer.brightness = 1.1;
-            this.cloudLayer.contrast = 1.2;
+            this.cloudLayer.contrast = 1.3;
             this.cloudLayer.gamma = 0.9;
-            this.cloudLayer.saturation = 1.1;
+            this.cloudLayer.saturation = 1.2;
 
-            console.log('NASA MODIS cloud cover enabled successfully');
+            // Enhanced atmospheric effects
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0001;
+            this.viewer.scene.fog.screenSpaceErrorFactor = 1.8;
 
-            // Optional: Add a second layer for more recent cloud data
-            try {
-                // Add GOES-16 imagery for more recent cloud coverage (Americas)
-                this.goesLayer = this.viewer.imageryLayers.addImageryProvider(
-                    new Cesium.UrlTemplateImageryProvider({
-                        url: 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg',
-                        credit: 'NOAA GOES-16',
-                        maximumLevel: 5,
-                        minimumLevel: 0
-                    })
-                );
-                
-                this.goesLayer.alpha = 0.5;
-                this.goesLayer.brightness = 1.0;
-                console.log('GOES-16 supplementary cloud layer added');
-            } catch (goesError) {
-                console.warn('Could not load GOES-16 data:', goesError);
-            }
-
-            // Update clouds every hour for fresh imagery
-            this.cloudUpdateInterval = setInterval(() => {
-                this.updateCloudData();
-            }, 3600000); // 1 hour
+            console.log('NASA GIBS cloud cover enabled successfully');
 
         } catch (error) {
-            console.warn('Could not load NASA cloud data, trying fallback:', error);
-            this.enableFallbackClouds();
+            console.error('Failed to enable NASA cloud effects:', error);
+            this.enableBasicAtmosphericEffects();
         }
     }
 
-    enableFallbackClouds() {
-        try {
-            console.log('Enabling fallback cloud visualization...');
+    enableBasicAtmosphericEffects() {
+        console.log('Enabling basic atmospheric effects...');
+        
+        // Last resort: enhance atmospheric rendering
+        this.viewer.scene.skyAtmosphere.show = true;
+        this.viewer.scene.skyAtmosphere.brightnessShift = 0.1;
+        this.viewer.scene.fog.enabled = true;
+        this.viewer.scene.fog.density = 0.0003;
+        this.viewer.scene.fog.minimumBrightness = 0.03;
+        
+        // Add subtle haze effect
+        this.viewer.scene.globe.atmosphereHueShift = 0.1;
+        this.viewer.scene.globe.atmosphereSaturationShift = 0.1;
+        this.viewer.scene.globe.atmosphereBrightnessShift = 0.05;
+        
+        console.log('Basic atmospheric enhancement enabled');
+    }
 
-            // Use a reliable free weather map service as fallback
+    updateCloudData() {
+        console.log('Updating real-time cloud data...');
+        
+        if (!this.cloudCoverEnabled) {
+            console.log('Cloud cover disabled, skipping update');
+            return;
+        }
+
+        try {
+            // Store current settings
+            const currentAlpha = this.cloudLayer?.alpha || 0.6;
+            const currentBrightness = this.cloudLayer?.brightness || 1.2;
+            const currentContrast = this.cloudLayer?.contrast || 1.1;
+
+            // Remove old cloud layers
+            if (this.cloudLayer) {
+                this.viewer.imageryLayers.remove(this.cloudLayer);
+                this.cloudLayer = null;
+            }
+            if (this.precipitationLayer) {
+                this.viewer.imageryLayers.remove(this.precipitationLayer);
+                this.precipitationLayer = null;
+            }
+
+            // Add fresh cloud layer with timestamp to avoid caching
+            const timestamp = Date.now();
             this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
                 new Cesium.UrlTemplateImageryProvider({
-                    url: 'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=demo', // Demo key for testing
-                    credit: 'OpenWeatherMap Clouds',
-                    maximumLevel: 8,
+                    url: `https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22&t=${timestamp}`,
+                    credit: 'OpenWeatherMap Clouds (Updated)',
+                    maximumLevel: 18,
                     minimumLevel: 0,
                     hasAlphaChannel: true,
                     tilingScheme: new Cesium.WebMercatorTilingScheme()
                 })
             );
 
-            // Set transparency for cloud overlay
-            this.cloudLayer.alpha = 0.6;
-            this.cloudLayer.brightness = 1.3;
-            this.cloudLayer.contrast = 1.1;
+            // Restore settings
+            this.cloudLayer.alpha = currentAlpha;
+            this.cloudLayer.brightness = currentBrightness;
+            this.cloudLayer.contrast = currentContrast;
 
-            // Enhance atmospheric effects
-            this.viewer.scene.skyAtmosphere.show = true;
-            this.viewer.scene.fog.enabled = true;
-            this.viewer.scene.fog.density = 0.0001;
-            this.viewer.scene.fog.screenSpaceErrorFactor = 1.5;
-
-            console.log('Fallback cloud effects enabled');
-
-        } catch (error) {
-            console.error('Failed to enable fallback cloud effects:', error);
-            
-            // Last resort: just enhance atmospheric effects
-            this.viewer.scene.skyAtmosphere.show = true;
-            this.viewer.scene.fog.enabled = true;
-            this.viewer.scene.fog.density = 0.0003;
-            console.log('Basic atmospheric enhancement enabled');
-        }
-    }
-
-    updateCloudData() {
-        console.log('Updating real-time cloud data...');
-        
-        try {
-            // Remove old cloud layer
-            if (this.cloudLayer) {
-                this.viewer.imageryLayers.remove(this.cloudLayer);
-            }
-            if (this.goesLayer) {
-                this.viewer.imageryLayers.remove(this.goesLayer);
-            }
-
-            // Get current date for fresh imagery
-            const today = new Date();
-            const dateString = today.getFullYear() + '-' + 
-                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
-                String(today.getDate()).padStart(2, '0');
-
-            // Re-add cloud layer with updated date
-            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+            // Add updated precipitation layer
+            this.precipitationLayer = this.viewer.imageryLayers.addImageryProvider(
                 new Cesium.UrlTemplateImageryProvider({
-                    url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Terra_CorrectedReflectance_TrueColor/default/${dateString}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
-                    credit: 'NASA GIBS MODIS Terra (Updated)',
-                    maximumLevel: 9,
+                    url: `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22&t=${timestamp}`,
+                    credit: 'OpenWeatherMap Precipitation (Updated)',
+                    maximumLevel: 16,
                     minimumLevel: 0,
-                    tilingScheme: new Cesium.WebMercatorTilingScheme(),
-                    tileWidth: 256,
-                    tileHeight: 256,
-                    hasAlphaChannel: false
+                    hasAlphaChannel: true,
+                    tilingScheme: new Cesium.WebMercatorTilingScheme()
                 })
             );
 
-            this.cloudLayer.alpha = 0.7;
-            this.cloudLayer.brightness = 1.1;
-            this.cloudLayer.contrast = 1.2;
+            this.precipitationLayer.alpha = 0.4;
+            this.precipitationLayer.brightness = 1.0;
 
-            console.log('Cloud data updated successfully');
+            // Force scene refresh
+            this.viewer.scene.requestRender();
+            
+            console.log('Cloud data updated successfully with fresh imagery');
 
         } catch (error) {
             console.warn('Failed to update cloud data:', error);
+            // Try to re-enable cloud cover if update fails
+            setTimeout(() => {
+                if (this.cloudCoverEnabled) {
+                    this.enableCloudCover();
+                }
+            }, 5000);
         }
     }
 
     disableCloudCover() {
         console.log('Disabling cloud cover...');
 
-        // Remove all cloud layers
+        // Remove all cloud-related layers
         if (this.cloudLayer) {
             this.viewer.imageryLayers.remove(this.cloudLayer);
             this.cloudLayer = null;
+        }
+
+        if (this.precipitationLayer) {
+            this.viewer.imageryLayers.remove(this.precipitationLayer);
+            this.precipitationLayer = null;
         }
 
         if (this.goesLayer) {
@@ -1731,9 +1800,19 @@ class SatelliteViewer {
         // Reset atmospheric effects to normal
         this.viewer.scene.fog.enabled = false;
         this.viewer.scene.fog.density = 0.0;
+        this.viewer.scene.fog.minimumBrightness = 0.0;
         this.viewer.scene.skyAtmosphere.show = true; // Keep atmosphere visible
+        this.viewer.scene.skyAtmosphere.brightnessShift = 0.0;
+        
+        // Reset globe atmospheric effects
+        this.viewer.scene.globe.atmosphereHueShift = 0.0;
+        this.viewer.scene.globe.atmosphereSaturationShift = 0.0;
+        this.viewer.scene.globe.atmosphereBrightnessShift = 0.0;
 
-        console.log('Cloud cover disabled');
+        // Force scene refresh
+        this.viewer.scene.requestRender();
+
+        console.log('Cloud cover completely disabled and atmospheric effects reset');
     }
 
     toggleTracking() {
