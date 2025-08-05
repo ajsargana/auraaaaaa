@@ -30,20 +30,35 @@ class SatelliteViewer {
     }
 
     async init() {
-        this.initializeCesium();
-        this.setupEventListeners();
-        await this.loadUserPreferences();
-        await this.loadCategories();
-        await this.loadSatellites();
-        this.startAutoUpdate();
-        this.setupGeolocation();
+        try {
+            console.log('Initializing SatelliteViewer...');
+            await this.initializeCesium();
+            this.setupEventListeners();
+            await this.loadUserPreferences();
+            await this.loadCategories();
+            await this.loadSatellites();
+            this.startAutoUpdate();
+            this.setupGeolocation();
+            console.log('SatelliteViewer initialization complete');
+        } catch (error) {
+            console.error('Error initializing SatelliteViewer:', error);
+            this.showError('Failed to initialize satellite viewer: ' + error.message);
+        }
     }
 
-    initializeCesium() {
+    async initializeCesium() {
+        // Check if Cesium is loaded
+        if (typeof Cesium === 'undefined') {
+            throw new Error('Cesium library not loaded. Please check your internet connection.');
+        }
+
+        console.log('Initializing Cesium...');
+        
         // Use default Cesium Ion token
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1ZjJiOS1mOGYyLTQ1M2MtOGM2MS1kYzA2YjIxOGI4ZjciLCJpZCI6MjAzNzIsImlhdCI6MTY5NDU0Mzk5OX0.SW1LQITUzCb5gFmLNAa8aeJ7bXhDI1_3pj6_8yUAKPk';
 
-        this.viewer = new Cesium.Viewer('cesiumContainer', {
+        try {
+            this.viewer = new Cesium.Viewer('cesiumContainer', {
             // Performance optimizations
             terrainProvider: new Cesium.EllipsoidTerrainProvider(),
             imageryProvider: new Cesium.OpenStreetMapImageryProvider({
@@ -62,44 +77,57 @@ class SatelliteViewer {
             // Enhanced performance settings
             requestRenderMode: false, // Continuous rendering for smooth animation
             maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
-        });
+            });
 
-        // Set near/far parameters for better satellite rendering
-        this.viewer.scene.camera.frustum.near = 0.1;
-        this.viewer.scene.camera.frustum.far = 50000000000.0;
+            console.log('Cesium viewer created successfully');
 
-        // Performance optimizations
-        this.viewer.scene.globe.enableLighting = true;
-        this.viewer.scene.globe.maximumScreenSpaceError = 2;
-        this.viewer.scene.globe.tileCacheSize = 100;
+            // Set near/far parameters for better satellite rendering
+            this.viewer.scene.camera.frustum.near = 0.1;
+            this.viewer.scene.camera.frustum.far = 50000000000.0;
 
-        // Enhanced atmosphere and lighting
-        this.viewer.scene.skyAtmosphere.show = true;
-        this.viewer.scene.sun.show = true;
-        this.viewer.scene.moon.show = true;
-        this.viewer.scene.skyBox.show = true;
+            // Performance optimizations
+            this.viewer.scene.globe.enableLighting = true;
+            this.viewer.scene.globe.maximumScreenSpaceError = 2;
+            this.viewer.scene.globe.tileCacheSize = 100;
 
-        // Set initial camera position for better Earth view
-        this.viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000),
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
+            // Enhanced atmosphere and lighting
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.sun.show = true;
+            this.viewer.scene.moon.show = true;
+            this.viewer.scene.skyBox.show = true;
+
+            // Set initial camera position for better Earth view
+            this.viewer.camera.setView({
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000),
+                orientation: {
+                    heading: 0.0,
+                    pitch: -Cesium.Math.PI_OVER_TWO,
+                    roll: 0.0
+                }
+            });
+
+            // Enable real-time clock with controlled speed
+            this.viewer.clock.shouldAnimate = true;
+            this.viewer.clock.multiplier = 1;
+
+            // Set up optimized click handler
+            this.viewer.cesiumWidget.screenSpaceEventHandler.setInputAction(
+                this.onSatelliteClick.bind(this),
+                Cesium.ScreenSpaceEventType.LEFT_CLICK
+            );
+
+            // Remove loading overlay if it exists
+            const loadingOverlay = document.querySelector('.loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
             }
-        });
 
-        // Enable real-time clock with controlled speed
-        this.viewer.clock.shouldAnimate = true;
-        this.viewer.clock.multiplier = 1;
+            console.log('Cesium initialization complete');
 
-        // Set up optimized click handler
-        this.viewer.cesiumWidget.screenSpaceEventHandler.setInputAction(
-            this.onSatelliteClick.bind(this),
-            Cesium.ScreenSpaceEventType.LEFT_CLICK
-        );
-
-        // Loading overlay removed for smoother experience
+        } catch (error) {
+            console.error('Error creating Cesium viewer:', error);
+            throw new Error('Failed to initialize Cesium viewer: ' + error.message);
+        }
     }
 
     async loadUserPreferences() {
@@ -1811,7 +1839,41 @@ function showISSVideo() {
     }
 }
 
-// Initialize when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    window.satelliteViewer = new SatelliteViewer();
+// Initialize satellite viewer when both DOM and Cesium are ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM loaded, checking for Cesium...');
+    
+    // Wait for Cesium to be loaded
+    function initWhenReady() {
+        if (typeof Cesium !== 'undefined') {
+            console.log('Cesium loaded, initializing satellite viewer...');
+            try {
+                window.satelliteViewer = new SatelliteViewer();
+            } catch (error) {
+                console.error('Failed to initialize satellite viewer:', error);
+                
+                // Show error message in the cesium container
+                const container = document.getElementById('cesiumContainer');
+                if (container) {
+                    container.innerHTML = `
+                        <div style="display: flex; align-items: center; justify-content: center; height: 100%; background: linear-gradient(135deg, #1a1a2e 0%, #0c0c0c 100%); color: white; text-align: center;">
+                            <div>
+                                <i class="fas fa-exclamation-triangle" style="font-size: 48px; color: #ff6b6b; margin-bottom: 20px;"></i>
+                                <h4>Failed to Load Satellite Viewer</h4>
+                                <p style="color: #94a3b8; margin-bottom: 20px;">${error.message}</p>
+                                <button class="btn btn-primary" onclick="location.reload()">
+                                    <i class="fas fa-sync-alt"></i> Reload Page
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        } else {
+            console.log('Cesium not yet loaded, waiting...');
+            setTimeout(initWhenReady, 100);
+        }
+    }
+    
+    initWhenReady();
 });

@@ -98,6 +98,10 @@ Preferred communication style: Simple, everyday language.
 ## Changelog
 
 Recent Updates:
+- August 5, 2025: Fixed Cesium loading issues with proper initialization and error handling
+- August 5, 2025: Added comprehensive console logging for debugging Cesium initialization
+- August 5, 2025: Enhanced error messages when Cesium fails to load with user-friendly display
+- August 5, 2025: Fixed initialization order to wait for Cesium library before starting viewer
 - July 31, 2025: Removed all offline data files except cache folder (user request)
 - July 31, 2025: Removed live TLE fetching and integrated with static tle_data.txt
 - July 31, 2025: Ensured smooth rendering and tracks with optimized satellite loading
