@@ -428,18 +428,19 @@ class SatelliteDataManager:
 
             # Get current satellite position
             t = self.ts.now()
-            geocentric = satellite.at(t)
             
             # Create observer location
             observer = wgs84.latlon(observer_lat, observer_lon, elevation_m=observer_alt)
             
-            # Calculate topocentric position (relative to observer)
-            topocentric = (satellite - observer).at(t)
+            # Calculate difference (satellite relative to observer)
+            difference = satellite - observer
+            topocentric = difference.at(t)
             
-            # Get distance, elevation, and azimuth
+            # Get distance, elevation, and azimuth using proper skyfield methods
             distance_km = topocentric.distance().km
-            elevation_deg = topocentric.elevation.degrees
-            azimuth_deg = topocentric.azimuth.degrees
+            alt, az, distance = topocentric.altaz()
+            elevation_deg = alt.degrees
+            azimuth_deg = az.degrees
             
             # Base signal strength calculation
             # Assume satellite transmits at ~10W EIRP (typical for small satellites)
@@ -497,26 +498,100 @@ class SatelliteDataManager:
             }
 
     def _get_satellite_frequency(self, satellite_name):
-        """Get typical operating frequency for different satellite types"""
+        """Get real operating frequencies for known satellites"""
         name_upper = satellite_name.upper()
         
-        # Frequency database for different satellite types
+        # Real satellite frequency database (MHz)
+        
+        # International Space Station
         if 'ISS' in name_upper or 'ZARYA' in name_upper:
-            return 145.8e6  # 145.8 MHz (VHF)
-        elif 'STARLINK' in name_upper:
-            return 12e9  # 12 GHz (Ku-band)
+            return 145.8e6  # 145.8 MHz (VHF amateur radio)
+            
+        # GPS Constellation (Real L-band frequencies)
         elif 'GPS' in name_upper or 'NAVSTAR' in name_upper:
-            return 1575.42e6  # L1 frequency
-        elif 'NOAA' in name_upper:
+            return 1575.42e6  # L1 frequency (civilian GPS)
+            
+        # GLONASS (Russian GPS)
+        elif 'GLONASS' in name_upper or 'COSMOS' in name_upper:
+            return 1602e6  # L1 frequency
+            
+        # Galileo (European GPS)
+        elif 'GALILEO' in name_upper:
+            return 1575.42e6  # E1 frequency
+            
+        # BeiDou (Chinese GPS)
+        elif 'BEIDOU' in name_upper or 'COMPASS' in name_upper:
+            return 1561.098e6  # B1 frequency
+            
+        # NOAA Weather Satellites (Real APT frequencies)
+        elif 'NOAA 15' in name_upper:
             return 137.62e6  # 137.62 MHz
+        elif 'NOAA 18' in name_upper:
+            return 137.9125e6  # 137.9125 MHz  
+        elif 'NOAA 19' in name_upper:
+            return 137.1e6  # 137.1 MHz
+        elif 'NOAA' in name_upper:
+            return 137.5e6  # Default NOAA frequency
+            
+        # GOES Weather Satellites
+        elif 'GOES-16' in name_upper or 'GOES-17' in name_upper:
+            return 1686.6e6  # HRIT frequency
         elif 'GOES' in name_upper:
             return 1694.1e6  # L-band
+            
+        # Starlink Constellation (Real Ku-band)
+        elif 'STARLINK' in name_upper:
+            return 12.2e9  # 12.2 GHz (Ku-band downlink)
+            
+        # OneWeb Constellation
+        elif 'ONEWEB' in name_upper:
+            return 14e9  # 14 GHz (Ku-band)
+            
+        # Iridium Constellation
+        elif 'IRIDIUM' in name_upper:
+            return 1626.5e6  # L-band (1626.5 MHz)
+            
+        # Hubble Space Telescope
         elif 'HUBBLE' in name_upper:
-            return 2287.5e6  # S-band
-        elif 'AMATEUR' in name_upper or 'AMSAT' in name_upper:
-            return 435e6  # 435 MHz (70cm amateur band)
+            return 2287.5e6  # S-band (2287.5 MHz)
+            
+        # Amateur Radio Satellites (Real frequencies)
+        elif 'AO-' in name_upper or 'AMSAT' in name_upper:
+            return 435.2e6  # 435.2 MHz (70cm band)
+        elif 'SO-' in name_upper:  # SO series
+            return 436.775e6  # 436.775 MHz
+        elif 'FO-' in name_upper:  # FO series  
+            return 435.8e6  # 435.8 MHz
+            
+        # Earth Observation Satellites
+        elif 'LANDSAT' in name_upper:
+            return 2106.4e6  # S-band (2106.4 MHz)
+        elif 'SENTINEL' in name_upper:
+            return 8025e6  # X-band (8.025 GHz)
+        elif 'SPOT' in name_upper:
+            return 8160e6  # X-band (8.16 GHz)
+        elif 'WORLDVIEW' in name_upper:
+            return 8212.5e6  # X-band (8.2125 GHz)
+            
+        # Chinese Space Station
+        elif 'CSS' in name_upper or 'TIANHE' in name_upper:
+            return 145.825e6  # 145.825 MHz (amateur radio)
+            
+        # Cubesats and Small Satellites
+        elif any(x in name_upper for x in ['CUBESAT', 'DOVE', 'PLANET']):
+            return 437.5e6  # 437.5 MHz (UHF)
+            
+        # Communication Satellites (Commercial)
+        elif any(x in name_upper for x in ['INTELSAT', 'EUTELSAT', 'ASTRA']):
+            return 11.7e9  # 11.7 GHz (Ku-band)
+            
+        # Military/Intelligence Satellites
+        elif any(x in name_upper for x in ['NROL', 'USA', 'LACROSSE']):
+            return 2270e6  # S-band (classified, estimated)
+            
+        # Default fallback (UHF amateur band)
         else:
-            return 435e6  # Default to UHF amateur band
+            return 435e6  # 435 MHz
 
     def _get_launch_date(self, satellite_name, norad_id):
         """Get precise launch date for known satellites"""
@@ -832,7 +907,8 @@ class SatelliteDataManager:
 
                 for t in times:
                     topocentric = f(t)
-                    elevation = topocentric.elevation.degrees
+                    alt, az, distance = topocentric.altaz()
+                    elevation = alt.degrees
 
                     if previous_elevation is not None:
                         # Rising above horizon
@@ -853,6 +929,10 @@ class SatelliteDataManager:
                                 rise_topo = f(pass_start)
                                 set_topo = f(t)
                                 max_topo = f(max_time)
+                                
+                                # Get azimuth properly
+                                rise_alt, rise_az, rise_dist = rise_topo.altaz()
+                                set_alt, set_az, set_dist = set_topo.altaz()
 
                                 duration = (t.utc_datetime() - pass_start.utc_datetime()).total_seconds() / 60
 
@@ -861,8 +941,8 @@ class SatelliteDataManager:
                                     'set_time': t.utc_iso(),
                                     'culmination_time': max_time.utc_iso(),
                                     'max_elevation': round(max_elevation, 1),
-                                    'rise_azimuth': round(rise_topo.azimuth.degrees, 1),
-                                    'set_azimuth': round(set_topo.azimuth.degrees, 1),
+                                    'rise_azimuth': round(rise_az.degrees, 1),
+                                    'set_azimuth': round(set_az.degrees, 1),
                                     'duration_minutes': round(duration, 1)
                                 }
                                 passes.append(pass_info)
