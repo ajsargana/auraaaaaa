@@ -1,0 +1,446 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA / iOS App Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <title>NASA Picture of the Day - SkyScope</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .apod-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .apod-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 181, 246, 0.3);
+        }
+        
+        .apod-title {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #64b5f6, #42a5f5, #1e88e5);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+        
+        .apod-date {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+        
+        .apod-title-main {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 15px;
+            text-align: center;
+            line-height: 1.3;
+        }
+        
+        .cache-status {
+            font-size: 0.85rem;
+            color: #64b5f6;
+            opacity: 0.8;
+            margin-bottom: 0;
+        }
+        
+        .apod-content {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(100, 181, 246, 0.2);
+        }
+        
+        .apod-image-container {
+            position: relative;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .apod-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 10px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        
+        .apod-image:hover {
+            transform: scale(1.02);
+        }
+        
+        .apod-video {
+            width: 100%;
+            height: 500px;
+            border-radius: 10px;
+            border: none;
+        }
+        
+        .download-section {
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .download-btn {
+            background: linear-gradient(45deg, #1e88e5, #42a5f5);
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 50px;
+            color: white;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(30, 136, 229, 0.3);
+        }
+        
+        .download-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(30, 136, 229, 0.4);
+            color: white;
+        }
+        
+        .download-btn.secondary {
+            background: linear-gradient(45deg, #6366f1, #8b5cf6);
+            box-shadow: 0 10px 30px rgba(99, 102, 241, 0.3);
+        }
+        
+        .download-btn.secondary:hover {
+            box-shadow: 0 15px 40px rgba(99, 102, 241, 0.4);
+        }
+        
+        .apod-explanation {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            color: #e2e8f0;
+            margin-bottom: 20px;
+        }
+        
+        .apod-copyright {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            font-style: italic;
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 300px;
+            font-size: 1.2rem;
+            color: #64b5f6;
+        }
+        
+        .error-message {
+            text-align: center;
+            color: #ef4444;
+            font-size: 1.1rem;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(30, 136, 229, 0.9);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .back-button:hover {
+            background: rgba(30, 136, 229, 1);
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        @media (max-width: 768px) {
+            .apod-title {
+                font-size: 2rem;
+            }
+            
+            .apod-container {
+                padding: 15px;
+            }
+            
+            .apod-content {
+                padding: 20px;
+            }
+            
+            .apod-video {
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/tracker" class="back-button">
+        <i class="fas fa-arrow-left me-2"></i>Back to Tracker
+    </a>
+    
+    <div class="apod-container">
+        <div class="apod-header">
+            <h1 class="apod-title">
+                <i class="fas fa-rocket me-3"></i>
+                NASA Picture of the Day
+            </h1>
+            <p class="apod-date" id="apodDate">Loading...</p>
+            <h2 class="apod-title-main" id="apodTitle" style="display: none;">Loading...</h2>
+            <div class="cache-status" id="cacheStatus" style="display: none;">
+                <small><i class="fas fa-database me-1"></i><span id="cacheText"></span></small>
+            </div>
+        </div>
+        
+        <div id="loadingSpinner" class="loading-spinner">
+            <div>
+                <i class="fas fa-spinner fa-spin fa-2x me-3"></i>
+                Loading NASA's Picture of the Day...
+            </div>
+        </div>
+        
+        <div id="apodContent" class="apod-content" style="display: none;">
+            <div id="apodImageContainer" class="apod-image-container">
+                <!-- Image or video will be inserted here -->
+            </div>
+            
+            <div class="download-section" id="downloadSection">
+                <!-- Download buttons will be inserted here -->
+            </div>
+            
+            <div class="apod-explanation" id="apodExplanation">
+                <!-- Explanation will be inserted here -->
+            </div>
+            
+            <div class="apod-copyright" id="apodCopyright">
+                <!-- Copyright info will be inserted here -->
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span id="errorText"></span>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                console.log('Loading NASA APOD...');
+                
+                const response = await fetch('/api/nasa/apod');
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayAPOD(data);
+                } else {
+                    showError(data.error || 'Failed to load NASA Picture of the Day');
+                }
+                
+            } catch (error) {
+                console.error('Error loading APOD:', error);
+                showError('Network error while loading NASA Picture of the Day');
+            }
+        });
+        
+        function displayAPOD(data) {
+            // Hide loading spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+            
+            // Show content
+            document.getElementById('apodContent').style.display = 'block';
+            
+            // Set date
+            document.getElementById('apodDate').textContent = formatDate(data.date);
+            
+            // Set title
+            const titleElement = document.getElementById('apodTitle');
+            titleElement.textContent = data.title || 'NASA Picture of the Day';
+            titleElement.style.display = 'block';
+            
+            // Show cache status if data was cached
+            if (data.cached_at) {
+                const cacheStatus = document.getElementById('cacheStatus');
+                const cacheText = document.getElementById('cacheText');
+                const cachedTime = new Date(data.cached_at);
+                cacheText.textContent = `Loaded from cache (${cachedTime.toLocaleTimeString()})`;
+                cacheStatus.style.display = 'block';
+            }
+            
+            // Set image or video
+            const imageContainer = document.getElementById('apodImageContainer');
+            if (data.media_type === 'video') {
+                imageContainer.innerHTML = `
+                    <iframe src="${data.url}" class="apod-video" allowfullscreen></iframe>
+                `;
+            } else {
+                imageContainer.innerHTML = `
+                    <img src="${data.url}" alt="${data.title}" class="apod-image" onclick="openFullImage('${data.hdurl || data.url}')">
+                `;
+            }
+            
+            // Set download buttons
+            const downloadSection = document.getElementById('downloadSection');
+            if (data.media_type === 'image') {
+                downloadSection.innerHTML = `
+                    <button onclick="downloadImage('${data.hdurl || data.url}', '${data.title.replace(/[^a-zA-Z0-9]/g, '_')}_${data.date}.jpg')" class="download-btn">
+                        <i class="fas fa-download me-2"></i>Download HD Image
+                    </button>
+                    ${data.url !== data.hdurl ? `
+                        <button onclick="downloadImage('${data.url}', '${data.title.replace(/[^a-zA-Z0-9]/g, '_')}_${data.date}_thumb.jpg')" class="download-btn secondary">
+                            <i class="fas fa-image me-2"></i>Download Thumbnail
+                        </button>
+                    ` : ''}
+                `;
+            } else {
+                downloadSection.innerHTML = `
+                    <a href="${data.url}" target="_blank" class="download-btn">
+                        <i class="fas fa-external-link-alt me-2"></i>Watch on YouTube
+                    </a>
+                `;
+            }
+            
+            // Set explanation
+            document.getElementById('apodExplanation').textContent = data.explanation;
+            
+            // Set copyright
+            const copyrightEl = document.getElementById('apodCopyright');
+            if (data.copyright) {
+                copyrightEl.textContent = `© ${data.copyright}`;
+                copyrightEl.style.display = 'block';
+            } else {
+                copyrightEl.style.display = 'none';
+            }
+        }
+        
+        function showError(message) {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorText').textContent = message;
+        }
+        
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+        
+        function openFullImage(url) {
+            window.open(url, '_blank');
+        }
+        
+        async function downloadImage(url, filename) {
+            try {
+                // Show loading indicator
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Downloading...';
+                button.disabled = true;
+                
+                // Determine if this is HD or regular image
+                const isHD = url.includes('hdurl') || originalText.includes('HD');
+                const imageType = isHD ? 'hd' : 'regular';
+                
+                // Get current date from the page
+                const dateText = document.getElementById('apodDate').textContent;
+                const currentDate = new Date().toISOString().split('T')[0]; // fallback to today
+                
+                // Use our server endpoint to download the cached image
+                const downloadUrl = `/api/nasa/apod/download?type=${imageType}&filename=${encodeURIComponent(filename)}&date=${currentDate}`;
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = filename;
+                link.style.display = 'none';
+                
+                // Trigger download
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Reset button
+                setTimeout(() => {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Download failed:', error);
+                
+                // Reset button and show error
+                const button = event.target.closest('button');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Download Failed';
+                button.disabled = false;
+                
+                // Try opening the image in a new tab as fallback
+                setTimeout(() => {
+                    window.open(url, '_blank');
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }, 2000);
+            }
+        }
+    </script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("/static/service-worker.js").catch(function() {});
+  });
+}
+</script>
+</body>
+</html>

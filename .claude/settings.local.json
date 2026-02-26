@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PYTHON=/c/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe)",
+      "Bash($PYTHON -m pip install django ephem requests python-dotenv skyfield)",
+      "Bash(\"$PYTHON\" -c \"import django; print\\(django.__version__\\)\")",
+      "Bash(\"$PYTHON\" -m pip install django python-dotenv skyfield requests ephem)",
+      "Bash(\"/c/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe\" -m pip install django python-dotenv skyfield requests ephem)",
+      "Bash(\"/c/Users/Admin/AppData/Local/Programs/Python/Python312/python.exe\" manage.py migrate)",
+      "Bash(/d/SattTrack_converted/.venv/Scripts/python.exe:*)",
+      "Bash(python:*)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process where \"name=''python.exe''\" get ProcessId,CommandLine)",
+      "Bash(npx expo install:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(pip show:*)",
+      "Bash(ipconfig:*)",
+      "Bash(netsh advfirewall firewall show rule:*)",
+      "Bash(netsh advfirewall firewall add rule:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(d:/SattTrack_converted/.venv/Scripts/python.exe:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

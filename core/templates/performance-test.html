@@ -1,0 +1,274 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA / iOS App Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <title>Multi-Processing Performance Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-light">
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">
+            <i class="fas fa-rocket me-2"></i>Multi-Processing Performance Test
+        </h1>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card bg-secondary">
+                    <div class="card-header">
+                        <h3><i class="fas fa-server me-2"></i>Backend Multi-Processing</h3>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-primary" id="testBackendBtn">
+                            <i class="fas fa-play me-2"></i>Test Backend Processing
+                        </button>
+                        <div class="mt-3">
+                            <div class="progress">
+                                <div class="progress-bar" id="backendProgress" style="width: 0%"></div>
+                            </div>
+                            <div id="backendStatus" class="mt-2"></div>
+                        </div>
+                        <div id="backendResults" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card bg-secondary">
+                    <div class="card-header">
+                        <h3><i class="fas fa-cogs me-2"></i>Frontend Web Workers</h3>
+                    </div>
+                    <div class="card-body">
+                        <button class="btn btn-success" id="testFrontendBtn">
+                            <i class="fas fa-play me-2"></i>Test Web Workers
+                        </button>
+                        <div class="mt-3">
+                            <div class="progress">
+                                <div class="progress-bar bg-success" id="frontendProgress" style="width: 0%"></div>
+                            </div>
+                            <div id="frontendStatus" class="mt-2"></div>
+                        </div>
+                        <div id="frontendResults" class="mt-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card bg-secondary">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-line me-2"></i>Performance Comparison</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="performanceResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let worker = null;
+        let backendStartTime = 0;
+        let frontendStartTime = 0;
+
+        document.getElementById('testBackendBtn').addEventListener('click', testBackendProcessing);
+        document.getElementById('testFrontendBtn').addEventListener('click', testFrontendWorkers);
+
+        async function testBackendProcessing() {
+            const btn = document.getElementById('testBackendBtn');
+            const progress = document.getElementById('backendProgress');
+            const status = document.getElementById('backendStatus');
+            const results = document.getElementById('backendResults');
+
+            btn.disabled = true;
+            backendStartTime = Date.now();
+            
+            try {
+                status.textContent = 'Getting satellite list...';
+                
+                // Get satellite list first
+                const satellitesResponse = await fetch('/api/satellites');
+                const satellitesData = await satellitesResponse.json();
+                
+                if (!satellitesData.success) {
+                    throw new Error('Failed to get satellites');
+                }
+
+                const satellites = satellitesData.satellites.slice(0, 500); // Test with 500 satellites
+                const satelliteIds = satellites.map(sat => sat.norad_id);
+                
+                status.textContent = `Testing with ${satellites.length} satellites...`;
+                progress.style.width = '25%';
+
+                // Test bulk processing
+                const bulkResponse = await fetch('/api/satellites/passes-bulk', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        satellite_ids: satelliteIds,
+                        lat: 40.7128,
+                        lon: -74.0060,
+                        alt: 0,
+                        time_filter_hours: 24
+                    })
+                });
+
+                progress.style.width = '75%';
+                status.textContent = 'Processing results...';
+
+                const bulkData = await bulkResponse.json();
+                const endTime = Date.now();
+                const duration = endTime - backendStartTime;
+
+                progress.style.width = '100%';
+                
+                if (bulkData.success) {
+                    status.textContent = 'Backend test complete!';
+                    results.innerHTML = `
+                        <div class="alert alert-success">
+                            <h5>Backend Multi-Processing Results:</h5>
+                            <ul class="mb-0">
+                                <li>Processed: ${bulkData.total_satellites_requested} satellites</li>
+                                <li>Satellites with passes: ${bulkData.satellites_with_passes}</li>
+                                <li>Total passes found: ${bulkData.total_passes}</li>
+                                <li>Processing time: ${duration}ms</li>
+                                <li>Method: ${bulkData.calculation_method}</li>
+                            </ul>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(bulkData.error);
+                }
+                
+            } catch (error) {
+                status.textContent = 'Backend test failed';
+                results.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error: ${error.message}
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function testFrontendWorkers() {
+            const btn = document.getElementById('testFrontendBtn');
+            const progress = document.getElementById('frontendProgress');
+            const status = document.getElementById('frontendStatus');
+            const results = document.getElementById('frontendResults');
+
+            btn.disabled = true;
+            frontendStartTime = Date.now();
+            
+            try {
+                // Initialize worker
+                if (typeof Worker !== 'undefined') {
+                    worker = new Worker('/static/js/pass-calculation-worker.js');
+                    
+                    worker.onmessage = function(event) {
+                        const { type, data } = event.data;
+                        
+                        switch (type) {
+                            case 'INITIALIZED':
+                                status.textContent = `Worker initialized with ${data.satelliteCount} satellites`;
+                                progress.style.width = '25%';
+                                break;
+                                
+                            case 'PROGRESS':
+                                status.textContent = data.message;
+                                progress.style.width = data.progress + '%';
+                                break;
+                                
+                            case 'CALCULATION_COMPLETE':
+                                const endTime = Date.now();
+                                const duration = endTime - frontendStartTime;
+                                
+                                progress.style.width = '100%';
+                                status.textContent = 'Frontend test complete!';
+                                results.innerHTML = `
+                                    <div class="alert alert-success">
+                                        <h5>Frontend Web Worker Results:</h5>
+                                        <ul class="mb-0">
+                                            <li>Processed: ${data.processedSatellites} satellites</li>
+                                            <li>Satellites with passes: ${data.results.length}</li>
+                                            <li>Total passes found: ${data.totalPasses}</li>
+                                            <li>Processing time: ${duration}ms</li>
+                                            <li>Method: Web Worker</li>
+                                        </ul>
+                                    </div>
+                                `;
+                                worker.terminate();
+                                btn.disabled = false;
+                                break;
+                                
+                            case 'ERROR':
+                                status.textContent = 'Worker error';
+                                results.innerHTML = `
+                                    <div class="alert alert-danger">
+                                        Worker Error: ${data.error}
+                                    </div>
+                                `;
+                                worker.terminate();
+                                btn.disabled = false;
+                                break;
+                        }
+                    };
+
+                    // Get satellite data
+                    const satellitesResponse = await fetch('/api/satellites');
+                    const satellitesData = await satellitesResponse.json();
+                    
+                    if (!satellitesData.success) {
+                        throw new Error('Failed to get satellites');
+                    }
+
+                    const satellites = satellitesData.satellites.slice(0, 200); // Test with 200 satellites
+                    
+                    // Initialize worker
+                    worker.postMessage({
+                        type: 'INIT',
+                        data: {
+                            satellites: satellites,
+                            userLocation: { lat: 40.7128, lon: -74.0060, alt: 0 }
+                        }
+                    });
+
+                    // Start calculation
+                    worker.postMessage({
+                        type: 'CALCULATE_PASSES',
+                        data: {
+                            timeFilter: '24',
+                            batchSize: 25
+                        }
+                    });
+
+                } else {
+                    throw new Error('Web Workers not supported');
+                }
+                
+            } catch (error) {
+                status.textContent = 'Frontend test failed';
+                results.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error: ${error.message}
+                    </div>
+                `;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+
+1. The first artificial satellite, Sputnik 1, was launched by the Soviet Union on October 4, 1957.
+2. There are over 8,000 satellites currently orbiting Earth, but only about 4,000 are still operational.
+3. GPS satellites orbit at approximately 20,200 km altitude and complete two orbits per day.
+4. The International Space Station travels at 7.66 km/s, completing an orbit every 90 minutes.
+5. Geostationary satellites orbit at exactly 35,786 km to match Earth's rotation period.
+6. Satellites must travel at least 28,000 km/h to stay in orbit and not fall back to Earth.
+7. The Hubble Space Telescope has taken over 1.5 million observations since its launch in 1990.
+8. Starlink constellation has over 8,500 active satellites providing global internet coverage as of 2024.
+9. Weather satellites can detect hurricanes before they form and save countless lives.
+10. Spy satellites can read license plates from space with resolution under 10 cm.
+11. The first communications satellite, Telstar, launched in 1962 and enabled live transatlantic TV.
+12. Satellites use solar panels that can generate up to 20 kilowatts of power.
+13. A single satellite can cost anywhere from $50 million to over $500 million to build.
+14. CubeSats are miniature satellites as small as 10x10x10 cm and weigh only 1.33 kg.
+15. Satellites use ion thrusters that can run for years on just a few kilograms of fuel.
+16. Earth observation satellites can detect forest fires within minutes of ignition.
+17. The GOES weather satellites can take a full-disk image of Earth every 15 minutes.
+18. Satellites in polar orbits can observe the entire Earth's surface as the planet rotates beneath them.
+19. The Iridium satellite constellation produces bright flares visible from Earth called Iridium flares.
+20. Reconnaissance satellites can distinguish objects as small as a basketball from space.
+21. Communication satellites handle about 300 million phone calls per day worldwide.
+22. The first successful weather satellite, TIROS-1, launched in 1960 and sent back 22,952 images.
+23. Satellites must be hardened against radiation that would destroy normal electronics.
+24. A satellite's orbital lifetime depends on its altitude - LEO satellites may last 5-25 years.
+25. Space debris travels at speeds up to 28,000 km/h, making even tiny pieces dangerous.
+26. The James Webb Space Telescope orbits the Sun at the L2 Lagrange point, 1.5 million km from Earth.
+27. GPS satellites are accurate to within 5 meters for civilian use and 1 meter for military.
+28. Satellites use reaction wheels spinning at 6,000 RPM to control their orientation.
+29. The first satellite with a camera was Explorer 6, which sent back crude images of Earth in 1959.
+30. Modern Earth observation satellites can revisit the same location daily or even multiple times per day.
+31. Satellites use atomic clocks accurate to one second in 300 million years for precise timing.
+32. The largest satellite constellation, Starlink, has launched over 7,000 satellites with 8,500+ currently active as of 2024.
+33. Satellites can detect underground water resources and mineral deposits from space.
+34. Communication satellites in geostationary orbit appear stationary in the sky from Earth.
+35. The first live TV broadcast via satellite was President Kennedy's speech in 1962.
+36. Satellites use star trackers that photograph star patterns to determine their exact orientation.
+37. Earth observation satellites can measure ocean temperature changes as small as 0.1°C.
+38. The Landsat program has been continuously imaging Earth since 1972, the longest running mission.
+39. Satellites can measure ice sheet thickness in Antarctica using radar altimetry.
+40. Modern weather forecasting would be impossible without satellite data - accuracy has improved 300%.
+41. Satellites detect illegal fishing vessels by their radar signatures even in remote oceans.
+42. The GPS system consists of at least 24 satellites for global coverage at all times.
+43. Satellites use gyroscopes that can detect rotation changes of 0.001 degrees per hour.
+44. Earth observation satellites can map global deforestation with 99% accuracy.
+45. Communication satellites enable internet access to remote areas where cables can't reach.
+46. Military satellites can intercept enemy communications and provide early missile warning.
+47. Scientific satellites have discovered thousands of exoplanets orbiting distant stars.
+48. Satellites monitor volcanic activity and can predict eruptions days in advance.
+49. The orbital velocity needed increases with altitude - geostationary satellites travel at 3 km/s.
+50. Satellites have created an entire space economy worth over $400 billion annually.

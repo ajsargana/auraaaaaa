@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "SkyScope - Satellite Tracker",
+    "slug": "skyscope",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0c0c"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.skyscope.satellitetracker",
+      "buildNumber": "1",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "SkyScope uses your location to show satellite passes visible from where you are.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "SkyScope uses your location to show satellite passes visible from where you are.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0c0c0c"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.skyscope.satellitetracker",
+      "usesCleartextTraffic": true
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0c0c0c",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200
+        }
+      ]
+    ]
+  }
+}

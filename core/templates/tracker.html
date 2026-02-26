@@ -1,0 +1,3214 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- PWA / iOS App Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>SkyScope - Live Tracking</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://bootswatch.com/5/darkly/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Cesium CSS -->
+    <link href="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Widgets/widgets.css" rel="stylesheet">
+
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom CSS -->
+    <style>
+        /* Enhanced performance-focused styles */
+        body {
+            height: 100vh;
+            overflow: hidden;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+        }
+
+        .sidebar {
+            height: 100vh;
+            overflow-y: auto;
+            background: linear-gradient(180deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%);
+            border-right: 1px solid rgba(100, 181, 246, 0.2);
+            backdrop-filter: blur(10px);
+            box-shadow: 2px 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .cesium-container {
+            height: 100vh;
+            position: relative;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #0c0c0c 100%);
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(26, 26, 46, 0.9) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            color: white;
+            backdrop-filter: blur(15px);
+        }
+
+        .controls-overlay {
+            position: fixed;
+            top: 20px;
+            left: 80px;
+
+        }
+
+        .controls-overlay .btn-group-vertical {
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+            position: fixed;
+            right: 110px;
+            top: 98px;
+        }
+
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0.8) 0%, rgba(26, 26, 46, 0.8) 100%);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            z-index: 1020;
+            border-top: 1px solid rgba(100, 181, 246, 0.2);
+        }
+
+        .satellite-info,
+        .pass-info {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(12, 12, 12, 0.9) 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(100, 181, 246, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            margin: 6px 0;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .category-item:hover {
+            background: linear-gradient(135deg, rgba(100, 181, 246, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%);
+            border-color: rgba(100, 181, 246, 0.3);
+            transform: translateX(5px);
+        }
+
+        .category-item.active {
+            border-color: #64b5f6;
+            background: linear-gradient(135deg, rgba(100, 181, 246, 0.2) 0%, rgba(66, 165, 245, 0.2) 100%);
+            box-shadow: 0 4px 15px rgba(100, 181, 246, 0.2);
+        }
+
+        .category-color {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            margin-right: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .search-result {
+            padding: 12px 16px;
+            margin: 4px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .search-result:hover {
+            background: rgba(100, 181, 246, 0.1);
+            border-left-color: #64b5f6;
+        }
+
+        .satellite-section {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px;
+            padding: 12px;
+            border-left: 3px solid rgba(100, 181, 246, 0.3);
+        }
+
+        .text-cyan {
+            color: #4ECDC4 !important;
+        }
+
+        .navbar {
+            display: flex;
+            align-items: center;
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0.9) 0%, rgba(26, 26, 46, 0.9) 100%) !important;
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid rgba(100, 181, 246, 0.2);
+            z-index: 1030;
+        }
+
+        .btn-glow {
+            box-shadow: 0 0 20px rgba(100, 181, 246, 0.3);
+            border-color: #64b5f6;
+        }
+
+        .btn-glow:hover {
+            box-shadow: 0 0 25px rgba(100, 181, 246, 0.5);
+            transform: translateY(-2px);
+        }
+
+        /* Cesium widget enhancements */
+        .cesium-widget-credits {
+            display: none !important;
+        }
+
+        .cesium-viewer-toolbar {
+            background: rgba(0, 0, 0, 0.8) !important;
+            border-radius: 12px !important;
+            margin: 15px !important;
+            backdrop-filter: blur(10px) !important;
+            border: 1px solid rgba(100, 181, 246, 0.2) !important;
+        }
+
+        @media (max-width: 768px) {
+            .cesium-viewer-toolbar {
+                display: block !important;
+                position: absolute !important;
+                top: -6px !important;
+                right: 40px !important;
+            }
+
+            .cesium-toolbar-button {
+                width: 30px !important;
+            }
+
+            .weather-toggle-container {
+                position: fixed !important;
+                bottom: 65px !important;
+                left: 14px !important;
+                z-index: 1020 !important;
+            }
+
+            #ai-bubble {
+                width: 50px !important;
+                height: 50px !important;
+                bottom: 84px !important;
+                right: -8px !important;
+                z-index: 1000 !important;
+            }
+        }
+
+        /* Replace auto-generated Cesium base-layer picker icon with layer.svg.
+           Uses ::after pseudo-element instead of background-image so that
+           Cesium's own hover/active rules (which use the `background` shorthand
+           and would reset background-image) can never remove the icon. */
+        .cesium-toolbar-button:has(.cesium-baseLayerPicker-selected) {
+            position: relative !important;
+            overflow: visible !important;
+        }
+
+        .cesium-toolbar-button:has(.cesium-baseLayerPicker-selected)::after {
+            content: '' !important;
+            position: absolute !important;
+            inset: 0 !important;
+            background: url('/static/icons/layer.svg') center / 55% no-repeat !important;
+            pointer-events: none !important;
+        }
+
+        .cesium-baseLayerPicker-selected {
+            display: none !important;
+        }
+
+        .cesium-button {
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+            border-radius: 8px !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .cesium-button:hover {
+            background: rgba(100, 181, 246, 0.2) !important;
+            border-color: #64b5f6 !important;
+        }
+
+        /* Enhanced scrollbar */
+        .sidebar::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(26, 26, 46, 0.5);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #64b5f6, #42a5f5);
+            border-radius: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #42a5f5, #1e88e5);
+        }
+
+        /* Loading animation */
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 0 20px rgba(100, 181, 246, 0.3);
+            }
+
+            50% {
+                opacity: 0.7;
+                box-shadow: 0 0 40px rgba(100, 181, 246, 0.6);
+            }
+        }
+
+        .loading-overlay .spinner-border {
+            animation: pulse-glow 2s ease-in-out infinite;
+            border-color: #64b5f6;
+            border-right-color: transparent;
+        }
+
+        /* Draggable and resizable modal styles */
+        .modal-dialog-draggable {
+            margin: 20px;
+            position: absolute;
+            cursor: move;
+        }
+
+        .modal-dialog-resizable {
+            resize: both;
+            overflow: auto;
+            min-width: 300px;
+            min-height: 200px;
+        }
+
+        .draggable-header {
+            cursor: move;
+            user-select: none;
+        }
+
+        .resize-handle {
+            cursor: nw-resize;
+            color: #64b5f6;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+
+        .resize-handle:hover {
+            opacity: 1;
+        }
+
+        /* ===== Modal Polish & Beautification ===== */
+        .modal-content {
+            background: linear-gradient(160deg, rgba(20, 20, 44, 0.98) 0%, rgba(10, 10, 26, 0.98) 100%) !important;
+            border: 1px solid rgba(100, 181, 246, 0.2) !important;
+            border-radius: 18px !important;
+            box-shadow:
+                0 24px 64px rgba(0, 0, 0, 0.75),
+                0 0 0 1px rgba(100, 181, 246, 0.07),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(24px);
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, rgba(100, 181, 246, 0.07) 0%, rgba(26, 26, 56, 0.6) 100%);
+            border-bottom: 1px solid rgba(100, 181, 246, 0.18) !important;
+            padding: 18px 22px;
+        }
+
+        .modal-title {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.25px;
+        }
+
+        .modal-body {
+            padding: 22px;
+        }
+
+        .modal-footer {
+            background: rgba(0, 0, 0, 0.18);
+            border-top: 1px solid rgba(100, 181, 246, 0.12) !important;
+            padding: 14px 22px;
+            gap: 10px;
+        }
+
+        /* Form controls inside modals */
+        .modal .form-control,
+        .modal .form-select {
+            background: rgba(255, 255, 255, 0.05) !important;
+            border: 1px solid rgba(100, 181, 246, 0.2) !important;
+            border-radius: 10px !important;
+            color: #e2e8f0 !important;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+            padding: 9px 13px;
+        }
+
+        .modal .form-control:focus,
+        .modal .form-select:focus {
+            background: rgba(100, 181, 246, 0.07) !important;
+            border-color: rgba(100, 181, 246, 0.55) !important;
+            box-shadow: 0 0 0 3px rgba(100, 181, 246, 0.12) !important;
+            color: #fff !important;
+        }
+
+        .modal .form-label {
+            color: #94a3b8;
+            font-size: 0.82rem;
+            font-weight: 500;
+            letter-spacing: 0.25px;
+            margin-bottom: 6px;
+        }
+
+        /* Modal buttons */
+        .modal .btn-primary {
+            background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 14px rgba(30, 136, 229, 0.3);
+            font-weight: 500;
+            letter-spacing: 0.25px;
+            transition: all 0.25s ease;
+        }
+
+        .modal .btn-primary:hover {
+            background: linear-gradient(135deg, #42a5f5 0%, #1e88e5 100%);
+            box-shadow: 0 6px 20px rgba(30, 136, 229, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .modal .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            color: #94a3b8;
+            font-weight: 500;
+            transition: all 0.25s ease;
+        }
+
+        .modal .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.22);
+            color: #e2e8f0;
+        }
+
+        /* Alerts inside modals */
+        .modal .alert {
+            border-radius: 10px;
+            font-size: 0.84rem;
+            border: none;
+            padding: 12px 16px;
+        }
+
+        .modal .alert-info {
+            background: rgba(100, 181, 246, 0.1);
+            border-left: 3px solid rgba(100, 181, 246, 0.6) !important;
+            color: #90caf9;
+        }
+
+        .modal .alert-warning {
+            background: rgba(255, 167, 38, 0.1);
+            border-left: 3px solid rgba(255, 167, 38, 0.6) !important;
+            color: #ffcc80;
+        }
+
+        /* Toast beautification */
+        .toast {
+            border: 1px solid rgba(100, 181, 246, 0.2);
+            border-radius: 12px !important;
+            backdrop-filter: blur(20px);
+            overflow: hidden;
+        }
+
+        .toast-header {
+            border-bottom: 1px solid rgba(100, 181, 246, 0.15) !important;
+            padding: 10px 14px;
+        }
+
+        .toast-body {
+            padding: 12px 14px;
+            font-size: 0.88rem;
+        }
+
+        /* Enhanced dropdown styles */
+        .dropdown-menu-dark {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.98) 0%, rgba(12, 12, 12, 0.98) 100%);
+            border: 1px solid rgba(100, 181, 246, 0.3);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            z-index: 9999 !important;
+            position: absolute !important;
+        }
+
+        .dropdown-menu {
+            z-index: 9999 !important;
+            position: absolute !important;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .dropdown {
+            z-index: 9999 !important;
+            position: relative !important;
+        }
+
+        .btn-group.dropdown {
+            z-index: 9999 !important;
+        }
+
+        .navbar .dropdown-menu {
+            z-index: 9999 !important;
+        }
+
+        /* Sliding satellite details panel with fade animation */
+        .satellite-details-panel {
+            position: fixed;
+            top: 120px;
+            left: -400px;
+            width: 380px;
+            height: calc(100vh - 180px);
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%);
+            border: 1px solid rgba(100, 181, 246, 0.3);
+            border-radius: 0 15px 15px 0;
+            backdrop-filter: blur(15px);
+            box-shadow: 2px 0 30px rgba(0, 0, 0, 0.7);
+            z-index: 1040;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            padding: 20px;
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+
+        .satellite-details-panel.show {
+            left: 0;
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .satellite-details-panel.fade-out {
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.6, 1);
+        }
+
+        .satellite-details-panel .close-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.5);
+            color: #ff6b6b;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .satellite-details-panel .close-panel:hover {
+            background: rgba(244, 67, 54, 0.4);
+            transform: scale(1.1);
+        }
+
+        /* Satellite search overlay */
+        .satellite-search-overlay {
+            margin-right: 31px;
+        }
+
+        .dropdown-item {
+            color: #e2e8f0 !important;
+            transition: all 0.3s ease;
+            border-radius: 6px;
+            margin: 2px 4px;
+        }
+
+        .dropdown-item:hover {
+            background: linear-gradient(135deg, rgba(100, 181, 246, 0.2) 0%, rgba(66, 165, 245, 0.2) 100%) !important;
+            color: #64b5f6 !important;
+            transform: translateX(4px);
+        }
+
+        .dropdown-item:focus {
+            background: linear-gradient(135deg, rgba(100, 181, 246, 0.3) 0%, rgba(66, 165, 245, 0.3) 100%) !important;
+            color: #64b5f6 !important;
+        }
+
+        .dropdown-divider {
+            border-color: rgba(100, 181, 246, 0.2);
+        }
+
+        /* Category item in dropdown */
+        .category-dropdown-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+        }
+
+        .category-dropdown-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        @media (max-width: 768px) {
+            .controls-overlay {
+                top: auto;
+                left: auto;
+            }
+
+            .controls-overlay .btn-group-vertical {
+                flex-direction: column;
+                gap: 5px;
+                right: 15px;
+                top: calc(var(--navbar-height) + 10px);
+            }
+
+            .satellite-details-panel {
+                width: min(290px, calc(100vw - 16px));
+                left: -310px;
+                top: 70px;
+                height: auto;
+                max-height: 70vh;
+                border-radius: 0 12px 12px 0;
+                padding: 12px;
+                font-size: 0.82rem;
+            }
+
+            .satellite-details-panel h6 {
+                font-size: 0.79rem;
+                margin-bottom: 0.3rem !important;
+            }
+
+            .satellite-details-panel .satellite-section {
+                margin-bottom: 0.5rem !important;
+            }
+
+            .satellite-details-panel .satellite-header {
+                margin-bottom: 0.5rem !important;
+            }
+
+            .satellite-details-panel .close-panel {
+                width: 26px;
+                height: 26px;
+                top: 10px;
+                right: 10px;
+            }
+
+            .satellite-search-overlay {
+                width: calc(100vw - 40px);
+                left: 20px;
+            }
+
+            .status-bar {
+                padding: 10px 15px;
+                font-size: 0.9rem;
+            }
+
+            /* ── Mobile modal layout ── */
+            .modal-dialog,
+            .modal-dialog.modal-lg,
+            .modal-dialog-draggable,
+            .modal-dialog-resizable {
+                margin: 10px auto;
+                max-width: calc(100vw - 20px);
+                width: 100%;
+                position: relative !important;
+                cursor: default !important;
+            }
+
+            .modal-content {
+                border-radius: 14px !important;
+            }
+
+            .modal-header {
+                padding: 13px 16px;
+            }
+
+            .modal-title {
+                font-size: 0.9rem;
+            }
+
+            /* Scrollable body with safe max-height */
+            .modal-body {
+                padding: 14px 16px;
+                max-height: 62vh;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .modal-footer {
+                padding: 11px 16px;
+                gap: 8px;
+            }
+
+            /* Equal-width, touch-friendly footer buttons */
+            .modal-footer .btn {
+                flex: 1 1 auto;
+                padding: 10px 12px;
+                font-size: 0.85rem;
+            }
+
+            /* Prevent iOS zoom on input focus */
+            .modal .form-control,
+            .modal .form-select {
+                font-size: 16px !important;
+                padding: 8px 12px !important;
+                border-radius: 9px !important;
+            }
+
+            .modal .form-label {
+                font-size: 0.76rem;
+                margin-bottom: 4px;
+            }
+
+            .modal .mb-3 {
+                margin-bottom: 0.65rem !important;
+            }
+
+            .modal .alert {
+                font-size: 0.8rem;
+                padding: 10px 13px;
+            }
+
+            /* Disable drag/resize chrome on mobile */
+            .draggable-header {
+                cursor: default !important;
+            }
+
+            .resize-handle {
+                display: none !important;
+            }
+
+            /* Cesium base-layer picker — constrain on tablet/mobile */
+            .cesium-baseLayerPicker-dropDown {
+                width: min(300px, calc(100vw - 24px)) !important;
+                height: auto !important;
+                max-height: 60vh !important;
+                overflow-y: auto !important;
+                right: 0 !important;
+                left: auto !important;
+                -webkit-overflow-scrolling: touch;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .modal-dialog,
+            .modal-dialog.modal-lg,
+            .modal-dialog-draggable,
+            .modal-dialog-resizable {
+                margin: 6px auto;
+                max-width: calc(100vw - 12px);
+            }
+
+            .modal-content {
+                border-radius: 12px !important;
+            }
+
+            .modal-header {
+                padding: 11px 14px;
+            }
+
+            .modal-title {
+                font-size: 0.86rem;
+            }
+
+            .modal-body {
+                padding: 12px 14px;
+                max-height: 58vh;
+            }
+
+            .modal-footer {
+                padding: 10px 14px;
+                gap: 6px;
+            }
+
+            .modal-footer .btn {
+                padding: 9px 10px;
+                font-size: 0.82rem;
+            }
+
+            /* Cesium base-layer picker — tighter on phones */
+            .cesium-baseLayerPicker-dropDown {
+                max-height: 55vh !important;
+            }
+        }
+
+        /* AI Bubble Animation */
+        @keyframes pulse-bubble {
+
+            0%,
+            100% {
+                opacity: 1;
+                box-shadow: 0 8px 32px rgba(156, 39, 176, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.1);
+            }
+
+            50% {
+                opacity: 0.7;
+                box-shadow: 0 8px 32px rgba(156, 39, 176, 0.8), 0 0 0 4px rgba(156, 39, 176, 0.3);
+            }
+        }
+
+        #ai-bubble {
+            position: fixed;
+            bottom: 71px;
+            right: 35px;
+            z-index: 1000;
+        }
+
+        #ai-bubble:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 40px rgba(156, 39, 176, 0.7), 0 0 0 3px rgba(255, 255, 255, 0.2);
+        }
+
+        .chat-interface-1 {
+            position: absolute;
+
+        }
+
+        /* Mobile responsiveness for AI bubble */
+        @media (max-width: 768px) {
+            #ai-agent-bubble {
+                bottom: 20px;
+                left: 10px;
+            }
+
+            #ai-chat-interface {
+                width: calc(100vw - 20px);
+                left: -10px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="fas fa-satellite-dish me-2"></i>
+                SkyScope
+                <small class="text-muted ms-2">Live</small>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a href="/passes" target="_blank" class="btn btn-outline-success btn-sm me-2"
+                            title="View all satellite passes">
+                            <i class="fas fa-list me-1"></i>All Passes
+                        </a>
+                        <button id="refreshBtn" class="btn btn-outline-info btn-sm" title="Refresh satellite data">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                        <button id="filterBtn" class="btn btn-outline-warning btn-sm ms-2" title="Filter satellites"
+                            data-bs-toggle="modal" data-bs-target="#filterModal">
+                            <i class="fas fa-filter"></i> Filters
+                        </button>
+
+                        <!-- Pass Filter Button -->
+                        <button class="btn btn-outline-warning btn-sm ms-2" data-bs-toggle="modal"
+                            data-bs-target="#passFilterModal">
+                            <i class="fas fa-clock"></i> Pass Filter
+                        </button>
+
+                        <!-- Mode Toggle Buttons -->
+                        <div class="btn-group ms-2" role="group" aria-label="Tracking Mode">
+                            <button type="button" class="btn btn-outline-primary btn-sm active" id="satelliteModeBtn">
+                                <i class="fas fa-satellite me-1"></i>Satellites
+                            </button>
+                        </div>
+                        <div class="btn-group ms-2" role="group" aria-label="Tracking Mode">
+                            <button type="button" class="btn btn-outline-warning btn-sm" id="airplaneModeBtn">
+                                <i class="fas fa-plane me-1"></i>Airplanes
+                            </button>
+                        </div>
+
+                        <!-- Location Button with Dropdown -->
+                        <div class="btn-group ms-2 dropdown" style="position: relative;">
+                            <button type="button" class="btn btn-outline-info btn-sm dropdown-toggle"
+                                data-bs-toggle="dropdown" aria-expanded="false" id="locationDropdown">
+                                <i class="fas fa-map-marker-alt"></i> Location
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-dark">
+                                <li><a class="dropdown-item" href="#" id="inputCoordinatesBtn"><i
+                                            class="fas fa-keyboard me-2"></i>Input Coordinates</a></li>
+                                <li><a class="dropdown-item" href="#" id="searchByNameBtn"><i
+                                            class="fas fa-search me-2"></i>Search by Name</a></li>
+                                <li><a class="dropdown-item" href="#" id="selectOnGlobeBtn"><i
+                                            class="fas fa-globe me-2"></i>Select on Globe</a></li>
+                                <li>
+                                    <hr class="dropdown-divider">
+                                </li>
+                                <li><a class="dropdown-item" href="#" id="getCurrentLocationBtn"><i
+                                            class="fas fa-location-arrow me-2"></i>Get Current Location</a></li>
+                            </ul>
+                        </div>
+
+                        <!-- Tutorial Help Button -->
+                        <button type="button" class="btn btn-outline-primary btn-sm ms-2" onclick="restartTutorial()"
+                            title="Show Tutorial">
+                            <i class="fas fa-question-circle"></i> Help
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <div class="satellite-search-overlay" style="position: relative;">
+            <input type="text" class="form-control" id="satelliteSearch" placeholder="Search..." autocomplete="off">
+        </div>
+    </nav>
+
+    <!-- Navbar height tracker: keeps --navbar-height CSS var in sync for overlay positioning -->
+    <script>
+        (function () {
+            function updateNavbarHeight() {
+                var nav = document.querySelector('nav.navbar');
+                if (nav) {
+                    var h = nav.getBoundingClientRect().height;
+                    document.documentElement.style.setProperty('--navbar-height', h + 'px');
+                }
+            }
+            // Run immediately and on resize/orientation change
+            updateNavbarHeight();
+            window.addEventListener('resize', updateNavbarHeight);
+            window.addEventListener('orientationchange', function () {
+                setTimeout(updateNavbarHeight, 100);
+            });
+
+            // Also watch for navbar collapse/expand mutations
+            var nav = document.querySelector('nav.navbar');
+            if (nav && window.MutationObserver) {
+                new MutationObserver(updateNavbarHeight).observe(nav, { subtree: true, childList: true, attributes: true });
+            }
+        })();
+    </script>
+
+    <style>
+        :root {
+            --navbar-height: 60px;
+        }
+
+        @media (max-width: 768px) {
+            .navbar-collapse {
+                background: rgba(20, 20, 35, 0.95);
+                border-radius: 8px;
+                padding: 8px;
+                margin-top: 10px;
+                border: 1px solid rgba(100, 181, 246, 0.2);
+                margin-left: 17px;
+                margin-right: 6px;
+            }
+
+            .navbar-nav {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .navbar-nav .nav-item {
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .navbar-nav .btn {
+                white-space: nowrap;
+                margin: 0 !important;
+                flex: 1 1 auto;
+            }
+
+            .navbar-nav .btn-group {
+                margin: 0 !important;
+                flex: 1 1 auto;
+            }
+
+            .navbar-nav .btn i {
+                margin-right: 4px;
+            }
+
+            .satellite-search-overlay {
+                width: 100%;
+                margin-top: 8px;
+                margin-bottom: 8px;
+                max-width: none;
+                padding: 0 10px;
+            }
+
+            .satellite-search-overlay input {
+                width: 100%;
+                border-radius: 8px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar-nav .btn span:not(.badge) {
+                display: none;
+            }
+
+            .navbar-nav .btn i {
+                margin: 0;
+            }
+
+            .navbar-toggler-icon {
+                display: inline-block;
+                width: 1em;
+                height: 1em;
+            }
+
+            .navbar-brand {
+                margin-left: 9px;
+            }
+        }
+    </style>
+
+    <!-- Main Content -->
+    <div class="container-fluid p-0">
+        <div class="row g-0">
+            <!-- Full Width Container for Cesium -->
+            <div class="col-12">
+                <div id="cesiumContainer" class="cesium-container" style="height: calc(100vh - 60px);">
+                    <!-- Cesium globe will be rendered here -->
+                </div>
+
+
+                <!-- Satellite Search Overlay -->
+
+
+                <!-- Controls Overlay -->
+                <div class="controls-overlay">
+                    <div class="btn-group-vertical" role="group">
+                        <a href="/launches" class="btn btn-outline-warning btn-sm" title="View Launches"
+                            target="_blank">
+                            <i class="fas fa-rocket"></i>
+                        </a>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="homeBtn" title="Reset View">
+                            <i class="fas fa-home"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="trackingBtn"
+                            title="Toggle Tracking">
+                            <i class="fas fa-crosshairs"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="orbitsBtn" title="Toggle Orbits">
+                            <i class="fas fa-circle-notch"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="groundTracksBtn"
+                            title="Toggle Ground Tracks">
+                            <i class="fas fa-map"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="coverageSwathBtn"
+                            title="Toggle Coverage Swath (Past+Future)">
+                            <i class="fas fa-layer-group"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="groundSwathBtn"
+                            title="Toggle Ground Swath (Current Animated)">
+                            <i class="fas fa-broadcast-tower"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline-light btn-sm" id="motionControlBtn"
+                            title="Motion Control (Past/Future Orbit)">
+                            <i class="fas fa-route"></i>
+                        </button>
+
+                    </div>
+                </div>
+
+                <!-- Sliding Satellite Details Panel -->
+                <div id="satelliteDetailsPanel" class="satellite-details-panel">
+                    <button class="close-panel" id="closePanelBtn" onclick="closeDetailsPanel()">
+                        <i class="fas fa-times"></i>
+                    </button>
+
+                    <!-- Selected Satellite Info -->
+                    <div id="satelliteInfo" style="margin-bottom: 20px;">
+                        <h6 class="text-info mb-3">
+                            <i class="fas fa-info-circle me-2"></i>Satellite Details
+                        </h6>
+                        <div id="satelliteDetails">
+                            <!-- Satellite details will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Pass Predictions -->
+                    <div id="passInfo">
+                        <h6 class="text-info mb-3">
+                            <i class="fas fa-clock me-2"></i>Next Passes
+                        </h6>
+                        <ul class="nav nav-tabs" id="passNavTabs" role="tablist">
+                            <!-- Pass tabs will be populated here -->
+                        </ul>
+                        <div class="tab-content" id="passTabContent">
+                            <!-- Pass tab content will be populated here -->
+                        </div>
+                        <div id="passPredictions">
+                            <!-- Pass predictions will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Speed Control Panel -->
+            <div id="speedControlPanel"
+                style="position: fixed; top: 120px; right: 20px; z-index: 1020; background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%); border: 1px solid rgba(100, 181, 246, 0.3); border-radius: 10px; padding: 15px; backdrop-filter: blur(15px); display: none; width: 250px;">
+                <h6 class="text-info mb-3">
+                    <i class="fas fa-tachometer-alt me-2"></i>Motion Speed Control
+                </h6>
+
+                <!-- Speed Value Display -->
+                <div class="text-center mb-3">
+                    <span id="speedValue" class="text-success" style="font-size: 1.2em; font-weight: bold;">1x</span>
+                    <small class="d-block text-muted">Current Speed</small>
+                </div>
+
+                <!-- Speed Slider -->
+                <div class="mb-3">
+                    <input type="range" class="form-range" min="-50" max="50" value="1" step="1" id="speedControlSlider"
+                        style="width: 100%;">
+                    <div class="d-flex justify-content-between mt-1">
+                        <small class="text-warning">-50x (Past)</small>
+                        <small class="text-muted">0x (Pause)</small>
+                        <small class="text-success">+50x (Future)</small>
+                    </div>
+                </div>
+
+                <!-- Speed Control Buttons -->
+                <div class="d-flex gap-2 mb-2">
+                    <button class="btn btn-outline-warning btn-sm flex-fill" id="decreaseSpeedBtn">
+                        <i class="fas fa-minus"></i> -1x
+                    </button>
+                    <button class="btn btn-outline-success btn-sm flex-fill" id="increaseSpeedBtn">
+                        <i class="fas fa-plus"></i> +1x
+                    </button>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-warning btn-sm" style="flex: 1;"
+                        onclick="satelliteViewer.motionControl.adjustSpeed(-10)">
+                        <i class="fas fa-backward-fast"></i> -10x
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" style="flex: 1;"
+                        onclick="satelliteViewer.motionControl.setMotionSpeed(0)">
+                        <i class="fas fa-pause"></i> Pause
+                    </button>
+                    <button class="btn btn-outline-success btn-sm" style="flex: 1;"
+                        onclick="satelliteViewer.motionControl.adjustSpeed(10)">
+                        <i class="fas fa-forward-fast"></i> +10x
+                    </button>
+                </div>
+
+                <div class="mt-2">
+                    <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Control range: -50x (past) to +50x (future)
+                    </small>
+                </div>
+            </div>
+
+            <!-- Orbit Time Display -->
+            <div id="orbitTimeDisplay"
+                style="position: fixed; bottom: 70px; left: 50%; transform: translateX(-50%); z-index: 1020; background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%); border: 1px solid rgba(100, 181, 246, 0.3); border-radius: 10px; padding: 12px 20px; backdrop-filter: blur(15px); display: none; min-width: 300px;">
+                <div class="text-center">
+                    <div class="d-flex align-items-center justify-content-center gap-3">
+                        <div>
+                            <i class="fas fa-calendar-alt text-info me-2"></i>
+                            <span id="orbitDate" class="text-white fw-bold">--</span>
+                        </div>
+                        <div>
+                            <i class="fas fa-clock text-warning me-2"></i>
+                            <span id="orbitTime" class="text-white fw-bold">--:--:--</span>
+                        </div>
+                        <div>
+                            <span id="timeStatus" class="badge bg-success">LIVE</span>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-1">
+                        <i class="fas fa-satellite me-1"></i>
+                        Satellite Position Time
+                    </small>
+                </div>
+            </div>
+
+            <!-- Weather Toggle Button -->
+            <div class="weather-toggle-container" style="position: fixed; bottom: 50px; left: 20px; z-index: 1020;">
+                <button type="button" class="btn btn-outline-warning btn-sm" id="weatherToggleBtn"
+                    title="Enable Weather">
+                    <i class="fas fa-cloud-sun"></i> Enable Weather
+                </button>
+            </div>
+
+
+
+            <!-- Status Bar -->
+            <div class="status-bar">
+                <span id="objectCount" class="badge bg-primary me-3">
+                    <span id="count">0</span> <span id="countLabel">satellites</span>
+                </span>
+                <span id="visibleCount" class="badge bg-success me-3" style="display: none;">
+                    <i class="fas fa-eye me-1"></i><span id="visibleSats">0</span> visible
+                </span>
+                <span id="trackingMode" class="badge bg-info me-3">
+                    <i class="fas fa-satellite me-1"></i>Satellite Mode
+                </span>
+
+                <span class="badge bg-success ms-auto" id="connectionStatus">Connected</span>
+                <small class="text-info ms-2" id="prioritySatsStatus" style="display: none;">
+                    <i class="fas fa-star"></i> Priority EO satellites loaded
+                </small>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- Coordinates Input Modal -->
+    <div class="modal fade" id="coordinatesModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-draggable">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary draggable-header">
+                    <h5 class="modal-title text-info">Input Coordinates</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="coordinatesForm">
+                        <div class="mb-3">
+                            <label for="coordLatitude" class="form-label">Latitude</label>
+                            <input type="number" class="form-control" id="coordLatitude" step="0.000001" min="-90"
+                                max="90" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="coordLongitude" class="form-label">Longitude</label>
+                            <input type="number" class="form-control" id="coordLongitude" step="0.000001" min="-180"
+                                max="180" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="coordAltitude" class="form-label">Altitude (meters)</label>
+                            <input type="number" class="form-control" id="coordAltitude" value="0" min="0">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-glow" id="saveCoordinatesBtn">Set Location</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search by Name Modal -->
+    <div class="modal fade" id="searchLocationModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-draggable">
+            <div class="modal-content bg-dark">
+                <div class="modal-header border-secondary draggable-header">
+                    <h5 class="modal-title text-info">Search Location by Name</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="locationSearchInput" class="form-label">Enter city, address, or landmark</label>
+                        <input type="text" class="form-control" id="locationSearchInput"
+                            placeholder="e.g., New York, Paris, Tokyo">
+                    </div>
+                    <div id="locationSearchResults" class="mt-3">
+                        <!-- Search results will appear here -->
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-glow" id="searchLocationBtn">Search</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Toast -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="errorToast" class="toast" role="alert">
+            <div class="toast-header bg-dark text-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong class="me-auto">Warning</strong>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body bg-dark text-white" id="errorMessage">
+                <!-- Error message will be populated here -->
+            </div>
+        </div>
+    </div>
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <!-- PWA / iOS App Meta Tags -->
+        <link rel="manifest" href="/static/manifest.json">
+        <meta name="theme-color" content="#1a1a2e">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="SkyScope">
+        <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+        <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+        <title>AI Agent Interface</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            /* Floating AI Button - Moved further down */
+            #ai-agent-bubble {
+                position: fixed;
+                bottom: 20px;
+                right: 30px;
+                z-index: 9999;
+            }
+
+            #ai-bubble {
+                width: 60px;
+                height: 60px;
+                background: rgba(147, 51, 234, 0.25);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(147, 51, 234, 0.4);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                box-shadow:
+                    0 4px 20px rgba(147, 51, 234, 0.3),
+                    0 0 30px rgba(147, 51, 234, 0.2),
+                    inset 0 0 15px rgba(255, 255, 255, 0.08);
+                position: relative;
+                overflow: hidden;
+            }
+
+            #ai-bubble::before {
+                content: '';
+                position: absolute;
+                top: -50%;
+                left: -50%;
+                width: 200%;
+                height: 200%;
+                background: linear-gradient(45deg,
+                        transparent,
+                        rgba(147, 51, 234, 0.15),
+                        transparent);
+                transform: rotate(45deg);
+                animation: shimmer 4s infinite;
+            }
+
+            @keyframes shimmer {
+                0% {
+                    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+                }
+
+                100% {
+                    transform: translateX(100%) translateY(100%) rotate(45deg);
+                }
+            }
+
+            #ai-bubble:hover {
+                transform: scale(1.1);
+                box-shadow:
+                    0 6px 25px rgba(147, 51, 234, 0.4),
+                    0 0 40px rgba(147, 51, 234, 0.3),
+                    inset 0 0 20px rgba(255, 255, 255, 0.1);
+                background: rgba(147, 51, 234, 0.35);
+            }
+
+            /* Animated AI Icon */
+            .ai-icon {
+                position: relative;
+                width: 28px;
+                height: 28px;
+                z-index: 2;
+            }
+
+            .ai-core {
+                position: absolute;
+                width: 8px;
+                height: 8px;
+                background: linear-gradient(135deg, #a855f7, #9333ea);
+                border-radius: 50%;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                box-shadow: 0 0 12px #9333ea;
+                animation: pulse 2s infinite;
+            }
+
+            .ai-ring {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                border: 2px solid transparent;
+                border-radius: 50%;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+            }
+
+            .ai-ring:nth-child(2) {
+                width: 18px;
+                height: 18px;
+                border-top-color: #a855f7;
+                border-right-color: #9333ea;
+                animation: rotate 3s linear infinite;
+            }
+
+            .ai-ring:nth-child(3) {
+                width: 26px;
+                height: 26px;
+                border-bottom-color: #7c3aed;
+                border-left-color: #a855f7;
+                animation: rotate-reverse 4s linear infinite;
+            }
+
+            @keyframes pulse {
+
+                0%,
+                100% {
+                    transform: translate(-50%, -50%) scale(1);
+                    opacity: 1;
+                }
+
+                50% {
+                    transform: translate(-50%, -50%) scale(1.2);
+                    opacity: 0.8;
+                }
+            }
+
+            @keyframes rotate {
+                from {
+                    transform: translate(-50%, -50%) rotate(0deg);
+                }
+
+                to {
+                    transform: translate(-50%, -50%) rotate(360deg);
+                }
+            }
+
+            @keyframes rotate-reverse {
+                from {
+                    transform: translate(-50%, -50%) rotate(360deg);
+                }
+
+                to {
+                    transform: translate(-50%, -50%) rotate(0deg);
+                }
+            }
+
+            /* Floating particles */
+            .particles {
+                position: absolute;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+            }
+
+            .particle {
+                position: absolute;
+                width: 3px;
+                height: 3px;
+                background: #a855f7;
+                border-radius: 50%;
+                opacity: 0;
+                animation: float-particle 4s infinite ease-in-out;
+            }
+
+            .particle:nth-child(1) {
+                top: 10%;
+                left: 10%;
+                animation-delay: 0s;
+            }
+
+            .particle:nth-child(2) {
+                top: 80%;
+                right: 10%;
+                animation-delay: 1.3s;
+            }
+
+            .particle:nth-child(3) {
+                bottom: 20%;
+                left: 15%;
+                animation-delay: 2.6s;
+            }
+
+            @keyframes float-particle {
+
+                0%,
+                100% {
+                    transform: translateY(0) scale(0);
+                    opacity: 0;
+                }
+
+                50% {
+                    transform: translateY(-15px) scale(1);
+                    opacity: 0.8;
+                }
+            }
+
+            /* Chat Interface - More transparent and better positioned */
+            #ai-chat-interface {
+                position: fixed;
+                bottom: 95px;
+                /* Positioned higher to avoid blocking buttons */
+                right: 30px;
+                width: 340px;
+                max-height: 340px;
+                /* Further reduced height */
+                height: 340px;
+                background: rgba(17, 24, 39, 0.2);
+                /* Even more transparent */
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border: 1px solid rgba(147, 51, 234, 0.1);
+                border-radius: 20px;
+                display: none;
+                flex-direction: column;
+                overflow: hidden;
+                box-shadow:
+                    0 8px 32px rgba(0, 0, 0, 0.08),
+                    0 0 40px rgba(147, 51, 234, 0.03),
+                    inset 0 0 20px rgba(147, 51, 234, 0.01);
+                animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+                pointer-events: auto;
+                /* Ensure chat is clickable */
+            }
+
+            /* Allow click-through on transparent areas */
+            #ai-chat-interface.minimized {
+                pointer-events: none;
+            }
+
+            #ai-chat-interface>* {
+                pointer-events: auto;
+            }
+
+            /* Responsive adjustments */
+            @media (max-height: 600px) {
+                #ai-chat-interface {
+                    max-height: 320px;
+                    height: 320px;
+                }
+            }
+
+            @media (max-width: 400px) {
+                #ai-chat-interface {
+                    width: 300px;
+                    right: 15px;
+                }
+            }
+
+            @keyframes slideIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(15px) scale(0.95);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
+            .chat-header {
+                padding: 14px 18px;
+                background: rgba(147, 51, 234, 0.05);
+                border-bottom: 1px solid rgba(147, 51, 234, 0.1);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-radius: 20px 20px 0 0;
+            }
+
+            .chat-header h5 {
+                color: #f3f4f6;
+                font-size: 14px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            .status-dot {
+                width: 6px;
+                height: 6px;
+                background: #10b981;
+                border-radius: 50%;
+                display: inline-block;
+                box-shadow: 0 0 6px #10b981;
+                animation: status-pulse 2s infinite;
+            }
+
+            @keyframes status-pulse {
+
+                0%,
+                100% {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+
+                50% {
+                    opacity: 0.7;
+                    transform: scale(1.2);
+                }
+            }
+
+            .close-btn {
+                background: rgba(147, 51, 234, 0.15);
+                border: 1px solid rgba(147, 51, 234, 0.25);
+                border-radius: 50%;
+                width: 28px;
+                height: 28px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                transition: all 0.3s;
+                color: #9ca3af;
+            }
+
+            .close-btn:hover {
+                background: rgba(147, 51, 234, 0.25);
+                transform: rotate(90deg);
+                color: #f3f4f6;
+            }
+
+            #chat-log {
+                flex: 1;
+                padding: 16px;
+                overflow-y: auto;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(147, 51, 234, 0.25) transparent;
+            }
+
+            #chat-log::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            #chat-log::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            #chat-log::-webkit-scrollbar-thumb {
+                background: rgba(147, 51, 234, 0.35);
+                border-radius: 2px;
+            }
+
+            #chat-log::-webkit-scrollbar-thumb:hover {
+                background: rgba(147, 51, 234, 0.45);
+            }
+
+            .welcome-message {
+                background: rgba(147, 51, 234, 0.08);
+                border: 1px solid rgba(147, 51, 234, 0.18);
+                border-radius: 14px;
+                padding: 16px;
+                color: #f3f4f6;
+                text-align: center;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            .welcome-message .emoji {
+                font-size: 28px;
+                display: block;
+                margin-bottom: 10px;
+                filter: grayscale(0%);
+            }
+
+            .welcome-message strong {
+                font-size: 14px;
+                display: block;
+                margin-bottom: 6px;
+                color: #f9fafb;
+            }
+
+            .welcome-message p {
+                font-size: 12px;
+                opacity: 0.9;
+                line-height: 1.5;
+                color: #e5e7eb;
+            }
+
+            .welcome-message small {
+                display: block;
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid rgba(147, 51, 234, 0.12);
+                font-size: 10px;
+                opacity: 0.75;
+                color: #9ca3af;
+            }
+
+            /* Chat Tabs Styling */
+            .chat-tabs {
+                display: flex;
+                gap: 2px;
+                flex: 1;
+            }
+
+            .chat-tab {
+                background: rgba(147, 51, 234, 0.1);
+                border: 1px solid rgba(147, 51, 234, 0.2);
+                border-radius: 8px 8px 0 0;
+                padding: 6px 12px;
+                color: #9ca3af;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                flex: 1;
+                justify-content: center;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            .chat-tab:hover {
+                background: rgba(147, 51, 234, 0.15);
+                color: #e5e7eb;
+            }
+
+            .chat-tab.active {
+                background: rgba(147, 51, 234, 0.25);
+                border-color: rgba(147, 51, 234, 0.4);
+                color: #f3f4f6;
+                box-shadow: 0 2px 8px rgba(147, 51, 234, 0.2);
+            }
+
+            .chat-log-container {
+                flex: 1;
+                padding: 16px;
+                overflow-y: auto;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(147, 51, 234, 0.25) transparent;
+                display: none;
+            }
+
+            .chat-log-container.active {
+                display: block;
+            }
+
+            .chat-log-container::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            .chat-log-container::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            .chat-log-container::-webkit-scrollbar-thumb {
+                background: rgba(147, 51, 234, 0.35);
+                border-radius: 2px;
+            }
+
+            .chat-log-container::-webkit-scrollbar-thumb:hover {
+                background: rgba(147, 51, 234, 0.45);
+            }
+
+            .input-section {
+                padding: 10px 12px;
+                background: rgba(31, 41, 55, 0.1);
+                border-top: 1px solid rgba(147, 51, 234, 0.08);
+                border-radius: 0 0 20px 20px;
+            }
+
+            .input-container {
+                display: flex;
+                gap: 8px;
+            }
+
+            #chat-input {
+                flex: 1;
+                background: rgba(17, 24, 39, 0.15);
+                border: 1px solid rgba(147, 51, 234, 0.1);
+                border-radius: 16px;
+                padding: 7px 12px;
+                color: #f3f4f6;
+                font-size: 12px;
+                transition: all 0.3s;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            #chat-input::placeholder {
+                color: #9ca3af;
+            }
+
+            #chat-input:focus {
+                outline: none;
+                background: rgba(17, 24, 39, 0.25);
+                border-color: rgba(147, 51, 234, 0.2);
+                box-shadow: 0 0 12px rgba(147, 51, 234, 0.08);
+            }
+
+            #send-button {
+                background: linear-gradient(135deg, rgba(147, 51, 234, 0.6), rgba(124, 58, 237, 0.6));
+                border: none;
+                border-radius: 16px;
+                padding: 7px 14px;
+                color: white;
+                font-size: 11px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                box-shadow: 0 2px 8px rgba(147, 51, 234, 0.2);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            #send-button:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(147, 51, 234, 0.3);
+                background: linear-gradient(135deg, rgba(147, 51, 234, 0.7), rgba(124, 58, 237, 0.7));
+            }
+
+            #send-button:active {
+                transform: translateY(0);
+            }
+
+            /* Message styles */
+            .message-user {
+                background: rgba(147, 51, 234, 0.12);
+                border: 1px solid rgba(147, 51, 234, 0.25);
+                border-radius: 14px;
+                padding: 9px 12px;
+                margin-top: 10px;
+                color: #f3f4f6;
+                animation: slideUp 0.3s ease;
+                margin-left: 25px;
+                font-size: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            .message-ai {
+                background: rgba(31, 41, 55, 0.45);
+                border: 1px solid rgba(75, 85, 99, 0.35);
+                border-radius: 14px;
+                padding: 9px 12px;
+                margin-top: 10px;
+                color: #f3f4f6;
+                animation: slideUp 0.3s ease;
+                margin-right: 25px;
+                font-size: 12px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            }
+
+            @keyframes slideUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(5px);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            @keyframes blink {
+
+                0%,
+                100% {
+                    opacity: 1;
+                }
+
+                50% {
+                    opacity: 0.3;
+                }
+            }
+
+            /* Floating animation for idle state */
+            @keyframes gentle-float {
+
+                0%,
+                100% {
+                    transform: translateY(0);
+                }
+
+                50% {
+                    transform: translateY(-3px);
+                }
+            }
+
+            #ai-bubble.floating {
+                animation: gentle-float 3s ease-in-out infinite;
+            }
+
+            /* Glass morphism effect for better transparency */
+            .glass-effect {
+                background: rgba(255, 255, 255, 0.02);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
+            }
+        </style>
+    </head>
+
+    <body>
+        <!-- AI Agent Floating Bubble -->
+        <div id="ai-agent-bubble">
+            <!-- Floating Bubble -->
+            <div id="ai-bubble" class="floating">
+                <div class="particles">
+                    <span class="particle"></span>
+                    <span class="particle"></span>
+                    <span class="particle"></span>
+                </div>
+                <div class="ai-icon">
+                    <div class="ai-core"></div>
+                    <div class="ai-ring"></div>
+                    <div class="ai-ring"></div>
+                </div>
+            </div>
+
+            <!-- Chat Interface (Hidden by default) -->
+            <div id="ai-chat-interface">
+                <!-- Chat Header with Tabs -->
+                <div class="chat-header">
+                    <div class="chat-tabs">
+                        <button class="chat-tab active" id="agent-tab" onclick="switchChatTab('agent')">
+                            <i class="fas fa-robot"></i>
+                            AI Agent
+                        </button>
+                        <button class="chat-tab" id="kepler-tab" onclick="switchChatTab('kepler')">
+                            <i class="fas fa-satellite"></i>
+                            Kepler
+                        </button>
+                    </div>
+                    <button class="close-btn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Agent Chat Messages -->
+                <div id="agent-chat-log" class="chat-log-container active">
+                    <div class="welcome-message">
+                        <span class="emoji">🤖</span>
+                        <strong>AI Agent Ready</strong>
+                        <p>
+                            I can control the SkyScope interface, search satellites, and navigate the app for you.
+                        </p>
+                        <small>
+                            Try: "Show me the ISS" or "Find Starlink satellites"
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Kepler Chat Messages -->
+                <div id="kepler-chat-log" class="chat-log-container">
+                    <div class="welcome-message">
+                        <span class="emoji">🛰️</span>
+                        <strong>Kepler - Satellite Expert</strong>
+                        <p>
+                            I provide detailed information about satellites, space missions, and orbital mechanics.
+                        </p>
+                        <small>
+                            Ask: "Tell me about the Hubble telescope" or "How do GPS satellites work?"
+                        </small>
+                    </div>
+                </div>
+
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="input-container">
+                        <input type="text" id="chat-input" placeholder="Ask me to control the interface..."
+                            onkeypress="handleKeyPress(event)">
+                        <button class="btn btn-secondary" id="speech-btn" onclick="toggleSpeechRecognition()"
+                            title="Speech to Text">
+                            <i class="fas fa-microphone" id="speech-icon"></i>
+                        </button>
+                        <button id="send-button" onclick="sendMessage()">
+                            <i class="fas fa-paper-plane"></i>
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            // Speech Recognition
+            let recognition = null;
+            let isSpeechRecognitionActive = false;
+            let speechStartValue = ''; // Track initial input value
+
+            function toggleSpeechRecognition() {
+                if (!('webkitSpeechRecognition' in window)) {
+                    alert('Your browser does not support speech recognition. Try Chrome.');
+                    return;
+                }
+
+                const micButton = document.getElementById('speech-btn');
+                const micIcon = document.getElementById('speech-icon');
+                const chatInput = document.getElementById('chat-input');
+
+                if (!isSpeechRecognitionActive) {
+                    // Store initial input value
+                    speechStartValue = chatInput.value;
+
+                    // Initialize recognition
+                    recognition = new webkitSpeechRecognition();
+                    recognition.continuous = true; // Enable continuous recognition
+                    recognition.lang = 'en-US';
+                    recognition.interimResults = true; // Show interim results
+                    recognition.maxAlternatives = 1;
+
+                    // Event handler for results
+                    recognition.onresult = function (event) {
+                        let interimTranscript = '';
+                        let finalTranscript = '';
+
+                        // Process all results from the last final result onwards
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            const transcript = event.results[i][0].transcript;
+                            if (event.results[i].isFinal) {
+                                finalTranscript += transcript + ' ';
+                            } else {
+                                interimTranscript += transcript;
+                            }
+                        }
+
+                        // Update input with initial value + all final transcripts
+                        if (finalTranscript) {
+                            speechStartValue += finalTranscript;
+                            chatInput.value = speechStartValue;
+                        } else if (interimTranscript) {
+                            // Show interim results without saving them
+                            chatInput.value = speechStartValue + interimTranscript;
+                        }
+
+                        chatInput.focus();
+                    };
+
+                    // Event handler for error
+                    recognition.onerror = function (event) {
+                        console.error('Speech recognition error:', event.error);
+                        if (event.error !== 'no-speech') {
+                            alert('Speech recognition error: ' + event.error);
+                        }
+                        stopSpeechRecognition();
+                    };
+
+                    // Event handler for end of speech
+                    recognition.onend = function () {
+                        console.log('Speech recognition ended.');
+                        if (isSpeechRecognitionActive) {
+                            // Auto-restart if still active (continuous mode)
+                            try {
+                                recognition.start();
+                            } catch (e) {
+                                console.error('Error restarting recognition:', e);
+                                stopSpeechRecognition();
+                            }
+                        }
+                    };
+
+                    // Start recognition
+                    recognition.start();
+                    isSpeechRecognitionActive = true;
+                    micIcon.classList.add('fa-beat'); // Add animation
+                    micButton.classList.add('btn-danger'); // Change button style
+                    micButton.title = "Stop Speech";
+                    console.log('Speech recognition started.');
+
+                } else {
+                    // Stop recognition
+                    stopSpeechRecognition();
+                }
+            }
+
+            function stopSpeechRecognition() {
+                if (recognition) {
+                    recognition.stop();
+                }
+                isSpeechRecognitionActive = false;
+                const micIcon = document.getElementById('speech-icon');
+                const micButton = document.getElementById('speech-btn');
+                micIcon.classList.remove('fa-beat');
+                micButton.classList.remove('btn-danger');
+                micButton.classList.add('btn-secondary');
+                micButton.title = "Speech to Text";
+                console.log('Speech recognition stopped.');
+            }
+
+            // Toggle AI Chat Interface
+            function toggleAIChat() {
+                const chatInterface = document.getElementById('ai-chat-interface');
+                const bubble = document.getElementById('ai-bubble');
+
+                if (chatInterface.style.display === 'none' || chatInterface.style.display === '') {
+                    // Open chat - hide bubble, show interface
+                    chatInterface.style.display = 'flex';
+                    bubble.style.display = 'none';
+                    // Focus on input when opening
+                    setTimeout(() => {
+                        const input = document.getElementById('chat-input');
+                        if (input) input.focus();
+                    }, 100);
+                } else {
+                    // Close chat - show bubble, hide interface
+                    chatInterface.style.display = 'none';
+                    bubble.style.display = 'flex';
+                    bubble.classList.add('floating');
+                }
+            }
+
+            // Handle Enter key press in chat input
+            function handleKeyPress(event) {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                }
+            }
+
+            // Global variable to track current active chat tab
+            let currentChatTab = 'agent';
+
+            // Function to switch between chat tabs
+            function switchChatTab(tabName) {
+                console.log("Switching to tab:", tabName);
+
+                // Update global variable
+                currentChatTab = tabName;
+
+                // Update tab buttons
+                document.querySelectorAll('.chat-tab').forEach(tab => {
+                    tab.classList.remove('active');
+                });
+                document.getElementById(tabName + '-tab').classList.add('active');
+
+                // Update chat log containers
+                document.querySelectorAll('.chat-log-container').forEach(container => {
+                    container.classList.remove('active');
+                });
+                document.getElementById(tabName + '-chat-log').classList.add('active');
+
+                // Update input placeholder
+                const input = document.getElementById('chat-input');
+                if (tabName === 'agent') {
+                    input.placeholder = "Ask me to control the interface...";
+                } else {
+                    input.placeholder = "Ask me about satellites and missions...";
+                }
+
+                // Focus input
+                input.focus();
+            }
+
+            // Enhanced agent chat function with UI control and dual AI personalities
+            async function sendMessage() {
+                console.log("AI: sendMessage called for tab:", currentChatTab);
+
+                const input = document.getElementById("chat-input");
+                const chatLog = document.getElementById(currentChatTab + "-chat-log");
+                const button = document.getElementById("send-button");
+
+                const message = input.value.trim();
+                console.log("AI: Message:", message);
+
+                if (!message) {
+                    console.log("AI: Empty message, returning");
+                    return;
+                }
+
+                // Determine AI personality and colors based on active tab
+                let aiName, aiIcon, aiColor, aiGradient;
+                if (currentChatTab === 'agent') {
+                    aiName = "🤖 Agent";
+                    aiIcon = "🤖";
+                    aiColor = "#9c27b0";
+                    aiGradient = "linear-gradient(135deg, rgba(156, 39, 176, 0.2) 0%, rgba(123, 31, 162, 0.2) 100%)";
+                } else {
+                    aiName = "🛰️ Kepler";
+                    aiIcon = "🛰️";
+                    aiColor = "#2196f3";
+                    aiGradient = "linear-gradient(135deg, rgba(33, 150, 243, 0.2) 0%, rgba(30, 136, 229, 0.2) 100%)";
+                }
+
+                // Add user message to chat
+                chatLog.innerHTML += `
+                    <div style="margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(100, 181, 246, 0.2) 0%, rgba(66, 165, 245, 0.2) 100%); border-radius: 12px; border-left: 4px solid #64b5f6; border: 1px solid rgba(100, 181, 246, 0.3); box-shadow: 0 2px 8px rgba(100, 181, 246, 0.1);">
+                        <strong style="color: #64b5f6; font-weight: 600;">You:</strong> <span style="color: #e2e8f0;">${message}</span>
+                    </div>
+                `;
+
+                input.value = "";
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+                // Add thinking animation
+                const thinkingDiv = document.createElement('div');
+                thinkingDiv.style.cssText = `margin-bottom: 12px; padding: 12px 16px; background: ${aiGradient}; border-radius: 12px; border-left: 4px solid ${aiColor}; border: 1px solid ${aiColor}33; box-shadow: 0 2px 8px ${aiColor}1a;`;
+                thinkingDiv.innerHTML = `<strong style="color: ${aiColor}; font-weight: 600;">${aiName}:</strong> <em style="color: #94a3b8;">Processing<span id="thinking-dots">...</span></em>`;
+                chatLog.appendChild(thinkingDiv);
+
+                let dotCount = 0;
+                const thinkingInterval = setInterval(() => {
+                    const dotsElement = document.getElementById('thinking-dots');
+                    if (dotsElement) {
+                        dotCount = (dotCount + 1) % 4;
+                        dotsElement.textContent = '.'.repeat(dotCount);
+                    }
+                }, 500);
+
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+                try {
+                    // Gather browser geolocation if available (used by SAR pipeline)
+                    let browserLat = null, browserLon = null;
+                    if (window._userLat !== undefined && window._userLon !== undefined) {
+                        browserLat = window._userLat;
+                        browserLon = window._userLon;
+                    } else if (window.satelliteViewer && window.satelliteViewer.userLocation) {
+                        browserLat = window.satelliteViewer.userLocation.lat;
+                        browserLon = window.satelliteViewer.userLocation.lon;
+                    }
+
+                    const chatPayload = {
+                        message: message,
+                        chatType: currentChatTab,
+                    };
+                    if (browserLat !== null) { chatPayload.lat = browserLat; chatPayload.lon = browserLon; }
+
+                    const response = await fetch("/api/chat", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(chatPayload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+                    console.log("AI: Response data:", data);
+
+                    clearInterval(thinkingInterval);
+                    if (chatLog.contains(thinkingDiv)) {
+                        chatLog.removeChild(thinkingDiv);
+                    }
+
+                    // ── EO / SAR pass result (special rendering) ───────────
+                    if (data.isEOPassQuery || data.isSARQuery) {
+                        try {
+                            const eoData = JSON.parse(data.response);
+                            // SAR sensor type → use existing SAR card renderer
+                            const sensorType = (eoData.filters && eoData.filters.sensor_type) || '';
+                            if (data.isSARQuery && sensorType === 'SAR') {
+                                renderSARPassResults(chatLog, eoData, aiColor, aiGradient, aiName);
+                            } else {
+                                renderEOPassResults(chatLog, eoData, aiColor, aiGradient, aiName);
+                            }
+                        } catch (parseErr) {
+                            console.error("EO/SAR parse error:", parseErr);
+                            chatLog.innerHTML += `
+                                <div style="margin-bottom:12px;padding:12px 16px;background:${aiGradient};border-radius:12px;border-left:4px solid ${aiColor};border:1px solid ${aiColor}33;">
+                                    <strong style="color:${aiColor};">${aiName}:</strong>
+                                    <span style="color:#e2e8f0;">${data.response}</span>
+                                </div>`;
+                        }
+                        // Skip normal AI flow
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+                        chatLog.scrollTop = chatLog.scrollHeight;
+                        return;
+                    }
+
+                    // ── Normal AI response ──────────────────────────────────
+                    let aiResponse = data.response;
+                    let aiAction = null;
+
+                    try {
+                        // Try to parse as JSON action (only for Agent)
+                        if (currentChatTab === 'agent') {
+                            aiAction = JSON.parse(aiResponse);
+                            console.log("AGENT: Parsed action:", aiAction);
+                        }
+                    } catch (e) {
+                        // Not JSON, treat as regular response
+                        console.log("AI: Regular response (not JSON)");
+                    }
+
+                    // Execute agent actions (only for Agent tab)
+                    if (currentChatTab === 'agent' && aiAction && aiAction.action) {
+                        await executeAgentAction(aiAction);
+
+                        // Show agent response
+                        const displayMessage = aiAction.message || "Action completed!";
+                        chatLog.innerHTML += `
+                            <div style="margin-bottom: 12px; padding: 12px 16px; background: ${aiGradient}; border-radius: 12px; border-left: 4px solid ${aiColor}; border: 1px solid ${aiColor}33; box-shadow: 0 2px 8px ${aiColor}1a;">
+                                <strong style="color: ${aiColor}; font-weight: 600;">${aiName}:</strong> <span style="color: #e2e8f0;">${displayMessage}</span>
+                            </div>
+                        `;
+                    } else {
+                        // Regular response
+                        chatLog.innerHTML += `
+                            <div style="margin-bottom: 12px; padding: 12px 16px; background: ${aiGradient}; border-radius: 12px; border-left: 4px solid ${aiColor}; border: 1px solid ${aiColor}33; box-shadow: 0 2px 8px ${aiColor}1a;">
+                                <strong style="color: ${aiColor}; font-weight: 600;">${aiName}:</strong> <span style="color: #e2e8f0;">${aiResponse}</span>
+                            </div>
+                        `;
+                    }
+
+                } catch (error) {
+                    console.error("AI: Error:", error);
+
+                    clearInterval(thinkingInterval);
+                    if (chatLog.contains(thinkingDiv)) {
+                        chatLog.removeChild(thinkingDiv);
+                    }
+
+                    chatLog.innerHTML += `
+                        <div style="margin-bottom: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(244, 67, 54, 0.2) 0%, rgba(229, 57, 53, 0.2) 100%); border-radius: 12px; border-left: 4px solid #f44336; border: 1px solid rgba(244, 67, 54, 0.3); box-shadow: 0 2px 8px rgba(244, 67, 54, 0.1);">
+                            <strong style="color: #ff6b6b; font-weight: 600;">${aiName}:</strong>
+                            <span style="color: #ffcdd2;">I encountered an issue: ${error.message}</span>
+                        </div>
+                    `;
+                }
+
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+                chatLog.scrollTop = chatLog.scrollHeight;
+            }
+
+            // Execute agent actions on the UI
+            async function executeAgentAction(action) {
+                console.log("AGENT: Executing action:", action);
+
+                switch (action.action) {
+                    case 'select_satellite':
+                        if (window.satelliteViewer && action.satellite_name) {
+                            await selectSatelliteByName(action.satellite_name);
+                        }
+                        break;
+
+                    case 'search_web':
+                        console.log("AGENT: Web search completed for:", action.query);
+                        // Search results already included in message
+                        break;
+
+                    case 'focus_camera':
+                        if (window.satelliteViewer && action.lat !== undefined && action.lon !== undefined) {
+                            window.satelliteViewer.viewer.camera.flyTo({
+                                destination: Cesium.Cartesian3.fromDegrees(action.lon, action.lat, 10000000),
+                                duration: 2.0
+                            });
+                        }
+                        break;
+
+                    case 'show_info':
+                        // Info already shown in chat message
+                        break;
+
+                    default:
+                        console.log("AGENT: Unknown action:", action.action);
+                }
+            }
+
+            // ──────────────────────────────────────────────────────────────────
+            // SAR Pass Results Renderer
+            // Renders the structured SAR pass pipeline response as rich cards
+            // inside the chat log.
+            // ──────────────────────────────────────────────────────────────────
+            function renderSARPassResults(chatLog, sarData, aiColor, aiGradient, aiName) {
+                const passes   = sarData.passes   || [];
+                const location = sarData.location;
+                const found    = sarData.total_found  || 0;
+                const checked  = sarData.satellites_checked || 0;
+                const hours    = sarData.time_hours   || 48;
+                const filters  = sarData.filters      || {};
+                const intentSummary = sarData.intent_summary || "";
+
+                // ── Header card ──────────────────────────────────────────────
+                const locName  = location ? location.name : "Unknown Location";
+                const locCoord = location ? `(${location.lat.toFixed(3)}°, ${location.lon.toFixed(3)}°)` : "";
+                const bandTag  = filters.band   ? `<span style="background:#1e3a5f;color:#64b5f6;padding:2px 7px;border-radius:10px;font-size:11px;margin-left:6px;">${filters.band}-band</span>` : "";
+                const agencyTag= filters.agency ? `<span style="background:#1e3a5f;color:#a78bfa;padding:2px 7px;border-radius:10px;font-size:11px;margin-left:6px;">${filters.agency}</span>` : "";
+
+                let headerHtml = `
+                <div style="margin-bottom:14px;padding:14px 16px;background:linear-gradient(135deg,rgba(0,180,216,0.15),rgba(0,119,182,0.15));border-radius:14px;border-left:4px solid #00b4d8;border:1px solid rgba(0,180,216,0.35);box-shadow:0 3px 12px rgba(0,180,216,0.12);">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                        <span style="font-size:18px;">📡</span>
+                        <strong style="color:#00b4d8;font-size:14px;">SAR Satellite Pass Prediction</strong>
+                        ${bandTag}${agencyTag}
+                    </div>
+                    <div style="color:#94a3b8;font-size:12px;line-height:1.6;">
+                        📍 <strong style="color:#e2e8f0;">${locName}</strong> ${locCoord}<br>
+                        ⏱ Next <strong style="color:#e2e8f0;">${hours.toFixed(0)} hours</strong> &nbsp;|&nbsp;
+                        🛰️ Checked <strong style="color:#e2e8f0;">${checked}</strong> SAR satellites &nbsp;|&nbsp;
+                        ✅ Found <strong style="color:#00b4d8;">${found}</strong> passes
+                    </div>`;
+
+                if (sarData.error === "location_unknown") {
+                    headerHtml += `<div style="margin-top:8px;padding:8px 10px;background:rgba(255,160,0,0.15);border-radius:8px;color:#ffa726;font-size:12px;">
+                        ⚠️ Location not recognised. Please specify a city name, coordinates, or say <em>"my location"</em> and allow GPS access.</div>`;
+                } else if (passes.length === 0 && !sarData.error) {
+                    headerHtml += `<div style="margin-top:8px;padding:8px 10px;background:rgba(255,100,100,0.1);border-radius:8px;color:#ff8a80;font-size:12px;">
+                        No SAR satellite passes found in the next ${hours.toFixed(0)} hours. Try increasing the time window.</div>`;
+                }
+
+                headerHtml += `</div>`;
+                chatLog.innerHTML += headerHtml;
+
+                if (passes.length === 0) return;
+
+                // ── Pass cards ───────────────────────────────────────────────
+                const bandColors = { C: "#00b4d8", X: "#e63946", L: "#06d6a0", S: "#a78bfa", "?": "#aaa" };
+
+                passes.forEach((p, idx) => {
+                    const sar     = p.sar_info || {};
+                    const band    = sar.band    || "?";
+                    const bColor  = bandColors[band] || "#aaa";
+                    const score   = p.score    || 0;
+                    const scoreW  = Math.round(score);
+                    const scoreBar = `
+                        <div style="height:4px;background:#1e293b;border-radius:2px;margin-top:4px;">
+                            <div style="height:4px;width:${scoreW}%;background:linear-gradient(90deg,#00b4d8,#0096c7);border-radius:2px;"></div>
+                        </div>`;
+
+                    const mode    = sar.modes && sar.default_mode ? (sar.modes[sar.default_mode] || {}) : {};
+                    const swath   = mode.swath_km   || "—";
+                    const res     = mode.resolution_m || "—";
+                    const lookA   = (mode.look_angle_deg || [0,0]);
+                    const lookStr = Array.isArray(lookA) ? `${lookA[0]}°–${lookA[1]}°` : `${lookA}°`;
+
+                    const satColor = p.color || bColor;
+                    const dur      = p.duration_min ? `${p.duration_min} min` : "—";
+                    const rankMedal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `#${idx+1}`;
+
+                    const trackBtn = `
+                        <button onclick="sarFlyToSatellite('${p.satellite_name}', ${p.norad_id})"
+                            style="margin-top:8px;padding:5px 12px;background:rgba(0,180,216,0.2);border:1px solid #00b4d8;border-radius:8px;color:#00b4d8;font-size:11px;cursor:pointer;">
+                            🌍 Track on Globe
+                        </button>`;
+
+                    chatLog.innerHTML += `
+                    <div style="margin-bottom:10px;padding:12px 14px;background:linear-gradient(135deg,rgba(${hexToRgb(satColor)},0.08),rgba(${hexToRgb(satColor)},0.04));border-radius:12px;border-left:3px solid ${satColor};border:1px solid rgba(${hexToRgb(satColor)},0.25);box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                            <div>
+                                <div style="font-weight:700;color:${satColor};font-size:13px;">${rankMedal} ${p.satellite_name || "SAR Satellite"}</div>
+                                <div style="color:#64748b;font-size:11px;margin-top:1px;">${sar.agency || ""} · ${sar.constellation || ""} · <span style="color:${bColor};">${band}-band ${sar.frequency_ghz ? sar.frequency_ghz+"GHz" : ""}</span></div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-size:11px;color:#94a3b8;">Score</div>
+                                <div style="font-size:17px;font-weight:700;color:${score >= 70 ? '#00b4d8' : score >= 45 ? '#e9c46a' : '#94a3b8'};">${score}</div>
+                                ${scoreBar}
+                            </div>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:10px;">
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Rise Time</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${p.rise_time_human || p.rise_time || "—"}</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Max Elevation</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${p.max_elevation != null ? p.max_elevation.toFixed(1)+"°" : "—"}</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Duration</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${dur}</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Swath</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${swath} km</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Resolution</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${res} m</div>
+                            </div>
+                            <div style="background:rgba(255,255,255,0.04);border-radius:8px;padding:7px 10px;">
+                                <div style="font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;">Look Angle</div>
+                                <div style="font-size:12px;color:#e2e8f0;font-weight:600;margin-top:2px;">${p.look_angle != null ? p.look_angle.toFixed(1)+"°" : lookStr}</div>
+                            </div>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+                            <div style="font-size:11px;color:#64748b;">
+                                📐 Rise az. ${p.rise_azimuth != null ? p.rise_azimuth+"°" : "—"} → Set az. ${p.set_azimuth != null ? p.set_azimuth+"°" : "—"}
+                                &nbsp;|&nbsp; Mode: <span style="color:#94a3b8;">${sar.default_mode || "StripMap"}</span>
+                            </div>
+                            ${trackBtn}
+                        </div>
+                    </div>`;
+                });
+
+                // ── Tip footer ───────────────────────────────────────────────
+                chatLog.innerHTML += `
+                <div style="margin-bottom:14px;padding:10px 14px;background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.07);font-size:11px;color:#64748b;">
+                    💡 <strong style="color:#94a3b8;">Tips:</strong>
+                    Filter by band: <em>"C-band SAR over Tokyo"</em> &nbsp;|&nbsp;
+                    Custom window: <em>"SAR passes in next 12 hours"</em> &nbsp;|&nbsp;
+                    Agency: <em>"ESA SAR over Cairo"</em>
+                </div>`;
+            }
+
+            // Hex color → "r,g,b" string for CSS rgba()
+            function hexToRgb(hex) {
+                const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : "0,180,216";
+            }
+
+            // Fly to SAR satellite on the Cesium globe
+            function sarFlyToSatellite(satName, noradId) {
+                if (window.satelliteViewer) {
+                    selectSatelliteByName(satName, false).catch(() => {});
+                }
+            }
+
+            // ──────────────────────────────────────────────────────────────────
+            // Universal EO Pass Results Renderer
+            // ─ Shows a short AI reply in the chat log
+            // ─ Populates and opens #eoPassModal with clickable satellite rows
+            //   that use the existing selectSatellite / focusOnSatellite system
+            // ──────────────────────────────────────────────────────────────────
+            const EO_SENSOR_THEMES = {
+                SAR:           { color: '#00b4d8', icon: '📡', label: 'SAR / Radar' },
+                optical:       { color: '#52b788', icon: '📷', label: 'Optical' },
+                thermal:       { color: '#f4a261', icon: '🌡️', label: 'Thermal IR' },
+                multispectral: { color: '#9b5de5', icon: '🌈', label: 'Multispectral' },
+                hyperspectral: { color: '#c77dff', icon: '🔬', label: 'Hyperspectral' },
+                lidar:         { color: '#48cae4', icon: '💡', label: 'LiDAR' },
+                weather:       { color: '#4ecdc4', icon: '🌤️', label: 'Weather Sensor' },
+                _default:      { color: '#94a3b8', icon: '🛰️', label: 'EO Satellite' },
+            };
+
+            const USE_CASE_TIPS = {
+                flood:         'SAR is best for flood extent mapping; optical shows water color & turbidity.',
+                fire:          'Thermal IR detects active fire hotspots; SAR penetrates smoke for damage.',
+                agriculture:   'Multispectral NDVI tracks crop health; optical shows field boundaries.',
+                deforestation: 'SAR detects clearing under cloud; multispectral tracks canopy change.',
+                air_quality:   'Sentinel-5P TROPOMI maps NO₂, SO₂ and aerosol optically.',
+                disaster:      'SAR assesses damage through clouds; optical captures before/after.',
+                ice:           'SAR tracks sea-ice drift; thermal detects melt ponds.',
+                ocean:         'SAR detects oil spills & ship wakes; thermal maps sea surface temp.',
+                elevation:     'LiDAR/altimetry (ICESat-2, GEDI) gives centimetre-precision DEMs.',
+                crop:          'Red-edge multispectral (Sentinel-2, RapidEye) detects chlorophyll stress.',
+            };
+
+            function renderEOPassResults(chatLog, eoData, aiColor, aiGradient, aiName) {
+                const passes   = eoData.passes   || [];
+                const location = eoData.location;
+                const found    = eoData.total_found  || 0;
+                const checked  = eoData.satellites_checked || 0;
+                const hours    = eoData.time_hours   || 48;
+                const filters  = eoData.filters      || {};
+
+                // Derive sensor theme
+                const primarySensor = filters.sensor_type || (passes.length > 0 ? passes[0].sensor_type : '_default');
+                const theme = EO_SENSOR_THEMES[primarySensor] || EO_SENSOR_THEMES._default;
+                const sensorLabel = filters.sensor_types && filters.sensor_types.length > 1
+                    ? filters.sensor_types.map(s => (EO_SENSOR_THEMES[s]||EO_SENSOR_THEMES._default).icon+' '+s).join(' + ')
+                    : (primarySensor !== '_default' ? `${theme.icon} ${theme.label}` : 'All EO');
+
+                // ── 1. Short AI text reply in chat ───────────────────────────
+                const rawReply = eoData.text_reply || '';
+                // Convert **bold** markdown to <strong>
+                const fmtReply = rawReply.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e2e8f0;">$1</strong>');
+                const viewBtn = found > 0
+                    ? `<button onclick="_openEOPassModal()" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 14px;background:linear-gradient(90deg,rgba(${hexToRgb(theme.color)},0.25),rgba(${hexToRgb(theme.color)},0.15));border:1px solid ${theme.color};border-radius:10px;color:${theme.color};font-size:12px;font-weight:600;cursor:pointer;">
+                            ${theme.icon} View ${found} Pass${found !== 1 ? 'es' : ''}
+                        </button>`
+                    : '';
+
+                chatLog.innerHTML += `
+                <div style="margin-bottom:14px;padding:12px 16px;background:${aiGradient};border-radius:12px;border-left:4px solid ${aiColor};border:1px solid ${aiColor}33;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                        <span style="font-size:16px;">${theme.icon}</span>
+                        <strong style="color:${aiColor};font-size:13px;">${aiName}</strong>
+                        <span style="font-size:10px;color:#64748b;background:rgba(${hexToRgb(theme.color)},0.15);padding:2px 7px;border-radius:8px;">${sensorLabel}</span>
+                    </div>
+                    <div style="color:#cbd5e1;font-size:13px;line-height:1.65;">${fmtReply || ('Found <strong style="color:'+theme.color+';">'+found+'</strong> '+sensorLabel+' passes over '+(location?location.name:'the location')+' in the next '+Math.round(hours)+' hours, checking '+checked+' satellites with swath verification.')}</div>
+                    ${viewBtn}
+                </div>`;
+
+                // ── 2. Populate modal and open it ────────────────────────────
+                _populateEOPassModal(eoData, theme, sensorLabel);
+                if (found > 0) {
+                    setTimeout(() => {
+                        const modalEl = document.getElementById('eoPassModal');
+                        if (modalEl) {
+                            const modal = new bootstrap.Modal(modalEl, {backdrop: true});
+                            modal.show();
+                        }
+                    }, 300);
+                }
+            }
+
+            // ── Populate #eoPassModal with ranked pass rows ─────────────────
+            function _populateEOPassModal(eoData, theme, sensorLabel) {
+                const passes   = eoData.passes   || [];
+                const location = eoData.location;
+                const found    = eoData.total_found  || 0;
+                const checked  = eoData.satellites_checked || 0;
+                const hours    = eoData.time_hours   || 48;
+                const locName  = location ? location.name : 'Unknown';
+                const locCoord = location
+                    ? `${parseFloat(location.lat).toFixed(2)}°, ${parseFloat(location.lon).toFixed(2)}°`
+                    : '';
+
+                // Update modal header
+                document.getElementById('eoPassModalIcon').textContent  = theme.icon;
+                document.getElementById('eoPassModalTitle').textContent = `${sensorLabel} Passes`;
+                document.getElementById('eoPassModalSub').textContent   = `${locName} · next ${Math.round(hours)} h`;
+                document.getElementById('eoPassModalSummary').innerHTML =
+                    `<span>📍 ${locName}</span><span>${locCoord}</span>` +
+                    `<span>🛰️ ${checked} checked</span><span style="color:${theme.color};">✅ ${found} in-swath passes</span>`;
+                document.getElementById('eoPassModalCount').textContent =
+                    found > 0 ? `Showing ${passes.length} of ${found} passes — tap to track` : 'No passes found';
+
+                const body = document.getElementById('eoPassModalBody');
+
+                if (passes.length === 0) {
+                    body.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#64748b;font-size:13px;">
+                        <div style="font-size:32px;margin-bottom:12px;">📡</div>
+                        No ${sensorLabel} passes found in the next ${Math.round(hours)} hours that fall within the sensor's swath coverage area.<br><br>
+                        <em>Try a wider time window or a wider-swath sensor (e.g. Thermal, Weather).</em>
+                    </div>`;
+                    return;
+                }
+
+                // Build rows
+                let html = '';
+                passes.forEach((p, idx) => {
+                    const sensor    = p.sensor_type || '_default';
+                    const cardTheme = EO_SENSOR_THEMES[sensor] || EO_SENSOR_THEMES._default;
+                    const satColor  = p.color || cardTheme.color;
+                    const score     = p.score || 0;
+                    const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`;
+
+                    const riseStr = p.rise_time
+                        ? new Date(p.rise_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+                        : '—';
+                    const dateStr = p.rise_time
+                        ? new Date(p.rise_time).toLocaleDateString([], {month:'short', day:'numeric'})
+                        : '';
+
+                    // Daylight badge for optical
+                    const dlBadge = (sensor === 'optical' || sensor === 'multispectral')
+                        ? `<span style="padding:1px 6px;border-radius:8px;font-size:10px;background:${p.is_daylight?'rgba(251,191,36,0.15)':'rgba(100,116,139,0.18)'};color:${p.is_daylight?'#fbbf24':'#94a3b8'};">${p.is_daylight?'☀️':'🌙'}</span>`
+                        : '';
+
+                    const swathStr = p.swath_km ? `${p.swath_km} km swath` : '';
+                    const elStr    = p.max_elevation != null ? `${p.max_elevation.toFixed(1)}° max` : '';
+                    const durStr   = p.duration_minutes ? `${p.duration_minutes} min` : '';
+
+                    const scoreBar = `<div style="height:3px;width:${Math.round(score)}%;background:${satColor};border-radius:2px;margin-top:3px;max-width:100%;"></div>`;
+
+                    // Safe satellite name for onclick attribute
+                    const safeName = (p.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+                    html += `
+                    <div onclick="eoSelectSatellite(${p.norad_id}, '${safeName}')"
+                         style="display:flex;align-items:center;gap:12px;padding:11px 12px;margin-bottom:6px;
+                                background:linear-gradient(90deg,rgba(${hexToRgb(satColor)},0.09),rgba(${hexToRgb(satColor)},0.04));
+                                border-radius:10px;border-left:3px solid ${satColor};border:1px solid rgba(${hexToRgb(satColor)},0.2);
+                                cursor:pointer;transition:all 0.15s;-webkit-tap-highlight-color:transparent;"
+                         onmouseenter="this.style.background='rgba(${hexToRgb(satColor)},0.14)'"
+                         onmouseleave="this.style.background='linear-gradient(90deg,rgba(${hexToRgb(satColor)},0.09),rgba(${hexToRgb(satColor)},0.04))'">
+
+                        <!-- Rank + icon -->
+                        <div style="min-width:32px;text-align:center;">
+                            <div style="font-size:15px;">${rankMedal}</div>
+                            <div style="font-size:11px;">${cardTheme.icon}</div>
+                        </div>
+
+                        <!-- Main info -->
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-weight:700;color:${satColor};font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ${p.name || 'EO Satellite'} ${dlBadge}
+                            </div>
+                            <div style="font-size:11px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                ${cardTheme.label}${p.agency ? ' · ' + p.agency : ''}${swathStr ? ' · ' + swathStr : ''}
+                            </div>
+                            ${scoreBar}
+                        </div>
+
+                        <!-- Time + stats -->
+                        <div style="text-align:right;min-width:72px;flex-shrink:0;">
+                            <div style="font-size:13px;font-weight:700;color:#e2e8f0;">${riseStr}</div>
+                            <div style="font-size:10px;color:#64748b;">${dateStr}</div>
+                            <div style="font-size:11px;color:#94a3b8;margin-top:2px;">${elStr}${durStr ? ' · ' + durStr : ''}</div>
+                        </div>
+
+                        <!-- Globe arrow -->
+                        <div style="color:#475569;font-size:14px;flex-shrink:0;">›</div>
+                    </div>`;
+                });
+
+                // Use-case tip at bottom
+                const tipText = USE_CASE_TIPS[eoData.filters && eoData.filters.use_case] || '';
+                if (tipText) {
+                    html += `<div style="margin-top:8px;padding:10px 12px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid rgba(255,255,255,0.06);font-size:11px;color:#64748b;">
+                        💡 ${tipText}</div>`;
+                }
+
+                body.innerHTML = html;
+            }
+
+            // Open modal manually (from "View Passes" button)
+            function _openEOPassModal() {
+                const modalEl = document.getElementById('eoPassModal');
+                if (!modalEl) return;
+                const existing = bootstrap.Modal.getInstance(modalEl);
+                if (existing) { existing.show(); return; }
+                new bootstrap.Modal(modalEl, {backdrop: true}).show();
+            }
+
+            // ── Satellite selection handler (binds to existing selectSatellite system)
+            function eoSelectSatellite(noradId, name) {
+                // Close the modal first
+                const modalEl = document.getElementById('eoPassModal');
+                if (modalEl) {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                }
+                // Use exact same pattern as selectSatelliteByName does
+                if (window.satelliteViewer) {
+                    window.satelliteViewer.selectSatellite(noradId, true)
+                        .then(() => {
+                            setTimeout(() => {
+                                window.satelliteViewer.focusOnSatellite(noradId);
+                            }, 500);
+                        })
+                        .catch(() => {
+                            // Fallback: try by name
+                            selectSatelliteByName(name, false).catch(() => {});
+                        });
+                } else {
+                    selectSatelliteByName(name, false).catch(() => {});
+                }
+            }
+
+            // Helper function to select satellite by name with constellation support
+            async function selectSatelliteByName(satelliteName, showConstellation = false) {
+                console.log("AGENT: Searching for satellite:", satelliteName);
+
+                if (window.satelliteViewer && window.satelliteViewer.satellites) {
+                    // Search through satellites with improved matching
+                    let foundSatellite = null;
+                    let allMatches = [];
+                    let bestMatch = null;
+                    let bestScore = 0;
+
+                    for (let [noradId, satellite] of window.satelliteViewer.satellites) {
+                        const satName = satellite.name.toUpperCase();
+                        const searchName = satelliteName.toUpperCase();
+
+                        let score = 0;
+
+                        // Exact match gets highest priority
+                        if (satName === searchName) {
+                            foundSatellite = { noradId, satellite, score: 100 };
+                            break;
+                        }
+
+                        // Perfect substring match
+                        if (satName.includes(searchName)) {
+                            score = 80;
+                        }
+                        // Starts with search term
+                        else if (satName.startsWith(searchName)) {
+                            score = 70;
+                        }
+                        // Contains search term
+                        else if (searchName.includes(satName)) {
+                            score = 60;
+                        }
+                        // Partial word matches
+                        else {
+                            const searchWords = searchName.split(/[\s-]+/);
+                            const satWords = satName.split(/[\s-]+/);
+
+                            let wordMatches = 0;
+                            for (let searchWord of searchWords) {
+                                for (let satWord of satWords) {
+                                    if (satWord.includes(searchWord) || searchWord.includes(satWord)) {
+                                        wordMatches++;
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (wordMatches > 0) {
+                                score = 30 + (wordMatches * 10);
+                            }
+                        }
+
+                        if (score > 0) {
+                            allMatches.push({ noradId, satellite, score });
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestMatch = { noradId, satellite, score };
+                            }
+                        }
+                    }
+
+                    // Use exact match or best partial match
+                    const target = foundSatellite || bestMatch;
+
+                    if (target) {
+                        console.log("AGENT: Found satellite:", target.satellite.name, "ID:", target.noradId);
+
+                        // If there are multiple matches, log them for constellation info
+                        if (allMatches.length > 1) {
+                            console.log("AGENT: Found", allMatches.length, "total matches");
+                            allMatches.sort((a, b) => b.score - a.score);
+                            console.log("AGENT: Top matches:", allMatches.slice(0, 5).map(m => m.satellite.name));
+                        }
+
+                        // Clear any active search filters first
+                        if (window.satelliteViewer.activeFilters.search) {
+                            window.satelliteViewer.activeFilters.search = null;
+                            window.satelliteViewer.applyCurrentFilters();
+                        }
+
+                        // Select the satellite with focus
+                        await window.satelliteViewer.selectSatellite(target.noradId, true);
+
+                        // Ensure the satellite is visible and focused
+                        setTimeout(() => {
+                            window.satelliteViewer.focusOnSatellite(target.noradId);
+                        }, 500);
+
+                        return true;
+                    }
+
+                    console.log("AGENT: Satellite not found:", satelliteName);
+                    return false;
+                } else {
+                    console.log("AGENT: SatelliteViewer not available or no satellites loaded");
+                    return false;
+                }
+            }
+
+            // Setup when DOM is ready
+            document.addEventListener("DOMContentLoaded", function () {
+                console.log("CHATBOX: DOM loaded, setting up...");
+
+                const input = document.getElementById("chat-input");
+                const button = document.getElementById("send-button");
+                const log = document.getElementById("chat-log");
+
+                if (input && button && log) {
+                    // Clear the log and show ready message
+                    log.innerHTML = `
+                        <div style="color: #94a3b8; font-style: italic; padding: 6px; text-align: center; background: linear-gradient(135deg, rgba(100, 181, 246, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%); border-radius: 10px; margin: 10px 0; border: 1px solid rgba(100, 181, 246, 0.2);">
+                           How can I help you?
+                        </div>
+                    `;
+
+                    // Add event listeners
+                    button.onclick = sendMessage;
+
+                    input.addEventListener("keypress", function (e) {
+                        if (e.key === "Enter") {
+                            sendMessage();
+                        }
+                    });
+
+                    // Focus input when chatbox is expanded
+                    input.addEventListener("focus", function () {
+                        if (!isExpanded) {
+                            toggleChatbox();
+                        }
+                    });
+
+                    console.log("CHATBOX: Setup complete!");
+                } else {
+                    console.error("CHATBOX: Could not find required elements");
+                }
+            });
+
+            // Initialize AI chat when DOM is ready
+            document.addEventListener("DOMContentLoaded", function () {
+                console.log("AI CHAT: Initializing tabbed interface...");
+
+                const input = document.getElementById("chat-input");
+                const bubble = document.getElementById("ai-bubble");
+                const chatInterface = document.getElementById("ai-chat-interface");
+                const closeBtn = document.querySelector('.close-btn');
+
+                if (input && bubble && chatInterface) {
+                    // Ensure chat is hidden initially
+                    chatInterface.style.display = 'none';
+                    bubble.classList.add('floating');
+
+                    // Initialize with Agent tab active
+                    currentChatTab = 'agent';
+                    switchChatTab('agent');
+
+                    // Add click event to bubble
+                    bubble.addEventListener('click', toggleAIChat);
+
+                    // Add click event to close button
+                    if (closeBtn) {
+                        closeBtn.addEventListener('click', toggleAIChat);
+                    }
+
+                    // Add enter key support
+                    input.addEventListener("keypress", function (e) {
+                        if (e.key === "Enter") {
+                            sendMessage();
+                        }
+                    });
+
+                    console.log("AI CHAT: Tabbed interface initialized successfully");
+                } else {
+                    console.error("AI CHAT: Missing elements", {
+                        input: !!input,
+                        bubble: !!bubble,
+                        chatInterface: !!chatInterface,
+                        closeBtn: !!closeBtn
+                    });
+                }
+            });
+        </script>
+        <script>
+            if ("serviceWorker" in navigator) {
+                window.addEventListener("load", function () {
+                    navigator.serviceWorker.register("/static/service-worker.js").catch(function () { });
+                });
+            }
+        </script>
+
+        <!-- Filter Modal -->
+        <div class="modal fade" id="filterModal" tabindex="-1" aria-labelledby="filterModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-draggable modal-dialog-resizable">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-secondary draggable-header">
+                        <h5 class="modal-title" id="filterModalLabel">
+                            <i class="fas fa-filter me-2"></i>Satellite Filters
+                        </h5>
+                        <div class="ms-auto d-flex align-items-center">
+                            <div class="resize-handle me-2" title="Resize">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+                            <!-- Country Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-flag me-2"></i>Country/Region</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="countryFilter">
+                                    <option value="">All Countries</option>
+                                    <option value="usa">United States</option>
+                                    <option value="russia">Russia</option>
+                                    <option value="china">China</option>
+                                    <option value="europe">Europe (ESA)</option>
+                                    <option value="japan">Japan</option>
+                                    <option value="india">India</option>
+                                    <option value="canada">Canada</option>
+                                    <option value="international">International</option>
+                                </select>
+                            </div>
+
+                            <!-- Agency Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-building me-2"></i>Agency/Operator</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="agencyFilter">
+                                    <option value="">All Agencies</option>
+                                    <option value="nasa">NASA</option>
+                                    <option value="spacex">SpaceX</option>
+                                    <option value="roscosmos">Roscosmos</option>
+                                    <option value="esa">ESA</option>
+                                    <option value="cnsa">CNSA</option>
+                                    <option value="isro">ISRO</option>
+                                    <option value="jaxa">JAXA</option>
+                                    <option value="noaa">NOAA</option>
+                                    <option value="military">Military</option>
+                                    <option value="commercial">Commercial</option>
+                                </select>
+                            </div>
+
+                            <!-- Launch Year Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-calendar me-2"></i>Launch Year</label>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <input type="number" class="form-control bg-dark text-light border-secondary"
+                                            id="launchYearFrom" placeholder="From" min="1950" max="2025" value="">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="number" class="form-control bg-dark text-light border-secondary"
+                                            id="launchYearTo" placeholder="To" min="1950" max="2025" value="">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Orbit Type Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-circle-notch me-2"></i>Orbit Type</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="orbitFilter">
+                                    <option value="">All Orbits</option>
+                                    <option value="leo">LEO (Low Earth Orbit)</option>
+                                    <option value="meo">MEO (Medium Earth Orbit)</option>
+                                    <option value="geo">GEO (Geostationary)</option>
+                                    <option value="heo">HEO (High Earth Orbit)</option>
+                                    <option value="polar">Polar Orbit</option>
+                                    <option value="sun_sync">Sun-Synchronous</option>
+                                </select>
+                            </div>
+
+                            <!-- Sensor Type Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-eye me-2"></i>Sensor Type</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="sensorFilter">
+                                    <option value="">All Sensors</option>
+                                    <option value="optical">Optical/Visual</option>
+                                    <option value="radar">Radar/SAR</option>
+                                    <option value="infrared">Infrared</option>
+                                    <option value="multispectral">Multispectral</option>
+                                    <option value="hyperspectral">Hyperspectral</option>
+                                    <option value="lidar">LiDAR</option>
+                                    <option value="radio">Radio</option>
+                                    <option value="weather">Weather Sensors</option>
+                                </select>
+                            </div>
+
+                            <!-- Status Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-power-off me-2"></i>Status</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="statusFilter">
+                                    <option value="">All Status</option>
+                                    <option value="active">Active</option>
+                                    <option value="inactive">Inactive</option>
+                                    <option value="debris">Debris</option>
+                                    <option value="decayed">Decayed</option>
+                                    <option value="unknown">Unknown</option>
+                                </select>
+                            </div>
+
+                            <!-- Altitude Range Filter -->
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label"><i class="fas fa-arrows-alt-v me-2"></i>Altitude Range
+                                    (km)</label>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <input type="number" class="form-control bg-dark text-light border-secondary"
+                                            id="altitudeMin" placeholder="Min altitude" min="0" max="50000" value="">
+                                    </div>
+                                    <div class="col-6">
+                                        <input type="number" class="form-control bg-dark text-light border-secondary"
+                                            id="altitudeMax" placeholder="Max altitude" min="0" max="50000" value="">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mission Type Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-rocket me-2"></i>Mission Type</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="missionFilter">
+                                    <option value="">All Missions</option>
+                                    <option value="earth_observation">Earth Observation</option>
+                                    <option value="communication">Communication</option>
+                                    <option value="navigation">Navigation</option>
+                                    <option value="weather">Weather</option>
+                                    <option value="scientific">Scientific</option>
+                                    <option value="military">Military</option>
+                                    <option value="technology">Technology Demo</option>
+                                    <option value="constellation">Constellation</option>
+                                </select>
+                            </div>
+
+                            <!-- Resolution Filter -->
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label"><i class="fas fa-search-plus me-2"></i>Resolution</label>
+                                <select class="form-select bg-dark text-light border-secondary" id="resolutionFilter">
+                                    <option value="">All Resolutions</option>
+                                    <option value="sub_meter">Sub-meter (&lt; 1m)</option>
+                                    <option value="high">High (1-5m)</option>
+                                    <option value="medium">Medium (5-30m)</option>
+                                    <option value="low">&gt; 30m</option>
+                                    <option value="na">Not Applicable</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Active Filters Display -->
+                        <div id="activeFilters" class="mt-3" style="display: none;">
+                            <h6 class="text-warning"><i class="fas fa-filter me-2"></i>Active Filters:</h6>
+                            <div id="activeFiltersList" class="d-flex flex-wrap gap-2">
+                                <!-- Active filter badges will be added here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" id="clearFiltersBtn">
+                            <i class="fas fa-times"></i> Clear All
+                        </button>
+                        <button type="button" class="btn btn-primary" id="applyFiltersBtn">
+                            <i class="fas fa-check"></i> Apply Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pass Filter Modal -->
+        <div class="modal fade" id="passFilterModal" tabindex="-1" aria-labelledby="passFilterModalLabel"
+            aria-hidden="true">
+            <div class="modal-dialog modal-dialog-draggable modal-dialog-resizable">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-secondary draggable-header">
+                        <h5 class="modal-title" id="passFilterModalLabel">
+                            <i class="fas fa-clock me-2"></i>Satellite Pass Time Filter
+                        </h5>
+                        <div class="ms-auto d-flex align-items-center">
+                            <div class="resize-handle me-2" title="Resize">
+                                <i class="fas fa-expand-arrows-alt"></i>
+                            </div>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                        </div>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>Find satellites with passes at specific time intervals</strong><br>
+                            Select a time window to find all satellites that will have passes during that period from
+                            your
+                            current location.
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="timeFilterSelect" class="form-label">Time Window</label>
+                            <select class="form-select bg-dark text-light border-secondary" id="timeFilterSelect">
+                                <option value="24">24 hours from now</option>
+                                <option value="48">48 hours from now</option>
+                                <option value="72">72 hours from now</option>
+                                <option value="94">94 hours from now</option>
+                                <option value="118">118 hours from now</option>
+                                <option value="142">142 hours from now</option>
+                            </select>
+                            <small class="form-text text-muted">
+                                Searches for satellites that will have visible passes within a 2-hour window around the
+                                selected time.
+                            </small>
+                        </div>
+
+                        <div class="alert alert-warning" id="locationWarning">
+                            <i class="fas fa-map-marker-alt me-2"></i>
+                            <strong>Location Required:</strong> Pass calculations require your location coordinates.
+                            Make sure to set your location using the location dropdown in the top controls.
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" id="clearPassFilterBtn">Clear Filter</button>
+                        <button type="button" class="btn btn-primary" id="applyPassFilterBtn"
+                            data-bs-dismiss="modal">Apply
+                            Pass Filter</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             EO Pass Results Modal
+             Fullscreen on mobile (modal-fullscreen-sm-down), scrollable list,
+             each entry taps into the existing selectSatellite workflow.
+             ═══════════════════════════════════════════════════════════════ -->
+        <div class="modal fade" id="eoPassModal" tabindex="-1" aria-labelledby="eoPassModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down" style="max-width:540px;">
+                <div class="modal-content" style="background:linear-gradient(160deg,rgba(15,15,35,0.98),rgba(8,8,22,0.98));border:1px solid rgba(100,181,246,0.25);border-radius:14px;color:#e2e8f0;">
+
+                    <!-- Header -->
+                    <div class="modal-header" style="border-bottom:1px solid rgba(255,255,255,0.08);padding:12px 16px;background:rgba(255,255,255,0.03);">
+                        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+                            <span id="eoPassModalIcon" style="font-size:20px;">🛰️</span>
+                            <div style="min-width:0;">
+                                <div id="eoPassModalTitle" style="font-weight:700;font-size:14px;color:#93c5fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">EO Satellite Passes</div>
+                                <div id="eoPassModalSub" style="font-size:11px;color:#64748b;margin-top:1px;"></div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" style="flex-shrink:0;"></button>
+                    </div>
+
+                    <!-- Summary strip -->
+                    <div id="eoPassModalSummary" style="padding:8px 16px;background:rgba(0,0,0,0.2);font-size:11px;color:#94a3b8;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;gap:16px;flex-wrap:wrap;"></div>
+
+                    <!-- Scrollable pass list -->
+                    <div class="modal-body" id="eoPassModalBody" style="padding:8px;overflow-y:auto;max-height:65vh;">
+                        <div style="text-align:center;padding:40px;color:#64748b;font-size:13px;">Loading passes…</div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="modal-footer" style="border-top:1px solid rgba(255,255,255,0.07);padding:10px 14px;justify-content:space-between;">
+                        <span id="eoPassModalCount" style="font-size:12px;color:#64748b;"></span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cesium JS -->
+        <script src="https://cesium.com/downloads/cesiumjs/releases/1.99/Build/Cesium/Cesium.js"></script>
+
+        <!-- Bootstrap 5 JS -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+        <!-- NASA APOD Notification System -->
+        <script src="{% static 'js/nasa-apod-notification.js' %}"></script>
+
+        <!-- Satellite viewer modules -->
+        <script src="{% static 'js/pass-filter.js' %}"></script>
+        <script src="{% static 'js/satellite-filter.js' %}"></script>
+        <script src="{% static 'js/satellite-workflow.js' %}"></script>
+        <script src="{% static 'js/motion-control.js' %}"></script>
+        <script src="{% static 'js/satellite-search.js' %}"></script>
+        <script src="{% static 'js/weather-module.js' %}"></script>
+        <script src="{% static 'js/airplane-viewer.js' %}"></script>
+        <script src="{% static 'js/satellite-position-interpolator.js' %}"></script>
+        <script src="{% static 'js/satellite-viewer-enhanced.js' %}"></script>
+
+        <!-- Interactive Tutorial -->
+        <script src="{% static 'js/interactive-tutorial.js' %}"></script>
+
+    </body>
+
+    </html>

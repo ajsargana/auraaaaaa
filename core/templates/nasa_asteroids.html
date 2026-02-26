@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA / iOS App Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <title>Near Earth Asteroids - Sky Scope</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .asteroids-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .asteroids-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(220, 38, 127, 0.3);
+        }
+
+        .asteroids-title {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #dc267f, #ff6b6b, #ee5a24);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(220, 38, 127, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ff6b6b;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .hazardous {
+            color: #ef4444 !important;
+        }
+
+        .safe {
+            color: #10b981 !important;
+        }
+
+        .asteroids-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .asteroid-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .asteroid-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(220, 38, 127, 0.2);
+            border-color: rgba(220, 38, 127, 0.4);
+        }
+
+        .asteroid-card.hazardous {
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
+        .asteroid-card.hazardous:hover {
+            box-shadow: 0 10px 30px rgba(239, 68, 68, 0.3);
+        }
+
+        .asteroid-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #e2e8f0;
+        }
+
+        .hazard-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: linear-gradient(45deg, #ef4444, #dc2626);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .asteroid-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 0.9rem;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            color: #94a3b8;
+        }
+
+        .info-value {
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .approach-date {
+            grid-column: span 2;
+            text-align: center;
+            padding: 10px;
+            background: rgba(100, 181, 246, 0.1);
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 300px;
+            font-size: 1.2rem;
+            color: #dc267f;
+        }
+
+        .error-message {
+            text-align: center;
+            color: #ef4444;
+            font-size: 1.1rem;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(220, 38, 127, 0.9);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(220, 38, 127, 1);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .cache-info {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #64b5f6;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+
+        .filter-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: rgba(220, 38, 127, 0.8);
+            border-color: rgba(220, 38, 127, 0.8);
+            color: white;
+        }
+
+        .asteroid-details-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            max-width: 800px;
+            margin: 50px auto;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 15px;
+            padding: 30px;
+            border: 1px solid rgba(220, 38, 127, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .asteroids-title {
+                font-size: 2rem;
+            }
+
+            .asteroids-container {
+                padding: 15px;
+            }
+
+            .asteroids-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/tracker" class="back-button">
+        <i class="fas fa-arrow-left me-2"></i>Back to Tracker
+    </a>
+
+    <div class="asteroids-container">
+        <div class="asteroids-header">
+            <h1 class="asteroids-title">
+                <i class="fas fa-meteor me-3"></i>
+                Near Earth Asteroids
+            </h1>
+            <p class="mb-0" id="dateRange">Loading asteroid data...</p>
+            <div class="cache-info" id="cacheInfo" style="display: none;">
+                <small><i class="fas fa-database me-1"></i><span id="cacheText"></span></small>
+            </div>
+        </div>
+
+        <div id="loadingSpinner" class="loading-spinner">
+            <div>
+                <i class="fas fa-spinner fa-spin fa-2x me-3"></i>
+                Loading Asteroid Data...
+            </div>
+        </div>
+
+        <div id="statsContainer" class="stats-container" style="display: none;">
+            <!-- Stats will be inserted here -->
+        </div>
+
+        <div class="filter-controls" id="filterControls" style="display: none;">
+            <button class="filter-btn active" data-filter="all">All Asteroids</button>
+            <button class="filter-btn" data-filter="hazardous">Potentially Hazardous</button>
+            <button class="filter-btn" data-filter="safe">Safe</button>
+            <button class="filter-btn" data-filter="large">Large (>1km)</button>
+            <button class="filter-btn" data-filter="fast">Fast Moving</button>
+        </div>
+
+        <div id="asteroidsGrid" class="asteroids-grid" style="display: none;">
+            <!-- Asteroids will be inserted here -->
+        </div>
+
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span id="errorText"></span>
+        </div>
+    </div>
+
+    <!-- Asteroid Details Modal -->
+    <div id="asteroidModal" class="asteroid-details-modal">
+        <div class="modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 id="modalTitle">Asteroid Details</h3>
+                <button class="btn btn-outline-light" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="modalContent">
+                <!-- Detailed asteroid info will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let allAsteroids = [];
+        let currentFilter = 'all';
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadAsteroidData();
+            setupFilterControls();
+        });
+
+        async function loadAsteroidData(retryCount = 0) {
+            try {
+                console.log('Loading Asteroids data...');
+
+                const response = await fetch('/api/nasa/asteroids');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+
+                if (data.success) {
+                    allAsteroids = data.asteroids;
+                    displayAsteroids(data);
+                    displayStats(data);
+
+                    // Show cache info if data was cached
+                    if (data.cached_at) {
+                        const cacheInfo = document.getElementById('cacheInfo');
+                        const cacheText = document.getElementById('cacheText');
+                        const cachedTime = new Date(data.cached_at);
+                        cacheText.textContent = `Data cached today (${cachedTime.toLocaleTimeString()})`;
+                        cacheInfo.style.display = 'block';
+                    }
+                } else {
+                    showError(data.error || 'Failed to load asteroid data');
+                }
+
+            } catch (error) {
+                console.error('Error loading asteroids:', error);
+                
+                // Retry up to 3 times with exponential backoff
+                if (retryCount < 3) {
+                    console.log(`Retrying... Attempt ${retryCount + 1}/3`);
+                    setTimeout(() => {
+                        loadAsteroidData(retryCount + 1);
+                    }, Math.pow(2, retryCount) * 1000); // 1s, 2s, 4s delays
+                } else {
+                    let errorMessage = 'Network error while loading asteroid data';
+                    if (error.message.includes('404')) {
+                        errorMessage = 'API endpoint not found. Please check if the service is available.';
+                    } else if (error.message.includes('403')) {
+                        errorMessage = 'Access denied. API key may be invalid or rate limited.';
+                    } else if (error.message.includes('timeout')) {
+                        errorMessage = 'Request timed out. NASA API may be temporarily unavailable.';
+                    }
+                    showError(errorMessage);
+                }
+            }
+        }
+
+        function displayStats(data) {
+            const hazardousCount = allAsteroids.filter(a => a.is_potentially_hazardous).length;
+            const largeCount = allAsteroids.filter(a => {
+                const maxSize = a.estimated_diameter?.kilometers?.estimated_diameter_max || 0;
+                return maxSize > 1.0;
+            }).length;
+            const fastCount = allAsteroids.filter(a => {
+                const velocity = a.close_approach_data?.velocity_kms || 0;
+                return velocity > 20;
+            }).length;
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_count}</div>
+                    <div class="stat-label">Total Asteroids</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number hazardous">${hazardousCount}</div>
+                    <div class="stat-label">Potentially Hazardous</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number safe">${data.total_count - hazardousCount}</div>
+                    <div class="stat-label">Safe</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${largeCount}</div>
+                    <div class="stat-label">Large (>1km)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${fastCount}</div>
+                    <div class="stat-label">Fast Moving</div>
+                </div>
+            `;
+
+            document.getElementById('statsContainer').innerHTML = statsHtml;
+            document.getElementById('statsContainer').style.display = 'grid';
+        }
+
+        function displayAsteroids(data) {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('dateRange').textContent = 
+                `${formatDate(data.date_range.start)} - ${formatDate(data.date_range.end)}`;
+
+            renderAsteroids(allAsteroids);
+
+            document.getElementById('asteroidsGrid').style.display = 'grid';
+            document.getElementById('filterControls').style.display = 'flex';
+        }
+
+        function renderAsteroids(asteroids) {
+            const asteroidsHtml = asteroids.map(asteroid => {
+                const isHazardous = asteroid.is_potentially_hazardous;
+                const maxSize = asteroid.estimated_diameter?.kilometers?.estimated_diameter_max || 0;
+                const velocity = asteroid.close_approach_data?.velocity_kms || 0;
+                const distance = asteroid.close_approach_data?.miss_distance_km || 0;
+
+                return `
+                    <div class="asteroid-card ${isHazardous ? 'hazardous' : ''}" 
+                         onclick="showAsteroidDetails('${asteroid.id}')" 
+                         data-asteroid-id="${asteroid.id}">
+                        ${isHazardous ? '<div class="hazard-badge">⚠️ HAZARDOUS</div>' : ''}
+
+                        <div class="asteroid-name">${asteroid.name}</div>
+
+                        <div class="asteroid-info">
+                            <div class="info-item">
+                                <span class="info-label">Size Range:</span>
+                                <span class="info-value">${asteroid.estimated_diameter.size_range}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Velocity:</span>
+                                <span class="info-value">${velocity.toFixed(2)} km/s</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Miss Distance:</span>
+                                <span class="info-value">${formatDistance(distance)}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Magnitude:</span>
+                                <span class="info-value">${asteroid.absolute_magnitude}</span>
+                            </div>
+                        </div>
+
+                        ${asteroid.close_approach_data ? `
+                            <div class="approach-date">
+                                <strong>Close Approach:</strong> ${formatDate(asteroid.close_approach_data.date)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('asteroidsGrid').innerHTML = asteroidsHtml;
+        }
+
+        function setupFilterControls() {
+            const filterButtons = document.querySelectorAll('.filter-btn');
+
+            filterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Update active button
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+
+                    // Apply filter
+                    currentFilter = button.dataset.filter;
+                    applyFilter();
+                });
+            });
+        }
+
+        function applyFilter() {
+            let filteredAsteroids = allAsteroids;
+
+            switch (currentFilter) {
+                case 'hazardous':
+                    filteredAsteroids = allAsteroids.filter(a => a.is_potentially_hazardous);
+                    break;
+                case 'safe':
+                    filteredAsteroids = allAsteroids.filter(a => !a.is_potentially_hazardous);
+                    break;
+                case 'large':
+                    filteredAsteroids = allAsteroids.filter(a => {
+                        const maxSize = a.estimated_diameter?.kilometers?.estimated_diameter_max || 0;
+                        return maxSize > 1.0;
+                    });
+                    break;
+                case 'fast':
+                    filteredAsteroids = allAsteroids.filter(a => {
+                        const velocity = a.close_approach_data?.velocity_kms || 0;
+                        return velocity > 20;
+                    });
+                    break;
+                default:
+                    filteredAsteroids = allAsteroids;
+                    break;
+            }
+
+            renderAsteroids(filteredAsteroids);
+        }
+
+        async function showAsteroidDetails(asteroidId) {
+            try {
+                console.log('Loading asteroid details for ID:', asteroidId);
+
+                document.getElementById('asteroidModal').style.display = 'block';
+                document.getElementById('modalContent').innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin fa-2x me-3"></i>Loading details...</div>';
+
+                const response = await fetch(`/api/nasa/asteroids/${encodeURIComponent(asteroidId)}`);
+                console.log('API response status:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('API response data:', data);
+
+                if (data.success) {
+                    renderAsteroidDetails(data);
+                } else {
+                    console.error('API returned error:', data.error);
+                    document.getElementById('modalContent').innerHTML = `<div class="error-message">${data.error || 'Unknown error occurred'}</div>`;
+                }
+
+            } catch (error) {
+                console.error('Error loading asteroid details:', error);
+                document.getElementById('modalContent').innerHTML = `<div class="error-message">Failed to load asteroid details: ${error.message}</div>`;
+            }
+        }
+
+        function renderAsteroidDetails(data) {
+            const orbital = data.orbital_data;
+            const approaches = data.close_approaches;
+
+            const detailsHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Basic Information</h5>
+                        <p><strong>Name:</strong> ${data.name}</p>
+                        <p><strong>ID:</strong> ${data.id}</p>
+                        <div class="detail-item">
+                                <strong>Absolute Magnitude:</strong> 
+                                <span class="detail-value">${data.absolute_magnitude && typeof data.absolute_magnitude === 'number' ? data.absolute_magnitude.toFixed(1) : 'N/A'}</span>
+                            </div>
+                        <p><strong>Potentially Hazardous:</strong> ${data.is_potentially_hazardous ? 'Yes ⚠️' : 'No ✅'}</p>
+
+                        <h5 class="mt-4">Size Estimates</h5>
+                        <p><strong>Kilometers:</strong> ${data.estimated_diameter.kilometers?.estimated_diameter_min && typeof data.estimated_diameter.kilometers.estimated_diameter_min === 'number' ? data.estimated_diameter.kilometers.estimated_diameter_min.toFixed(3) : 'N/A'} - ${data.estimated_diameter.kilometers?.estimated_diameter_max && typeof data.estimated_diameter.kilometers.estimated_diameter_max === 'number' ? data.estimated_diameter.kilometers.estimated_diameter_max.toFixed(3) : 'N/A'} km</p>
+                        <p><strong>Meters:</strong> ${data.estimated_diameter.meters?.estimated_diameter_min && typeof data.estimated_diameter.meters.estimated_diameter_min === 'number' ? data.estimated_diameter.meters.estimated_diameter_min.toFixed(0) : 'N/A'} - ${data.estimated_diameter.meters?.estimated_diameter_max && typeof data.estimated_diameter.meters.estimated_diameter_max === 'number' ? data.estimated_diameter.meters.estimated_diameter_max.toFixed(0) : 'N/A'} m</p>
+                        <p><strong>Feet:</strong> ${data.estimated_diameter.feet?.estimated_diameter_min && typeof data.estimated_diameter.feet.estimated_diameter_min === 'number' ? data.estimated_diameter.feet.estimated_diameter_min.toFixed(0) : 'N/A'} - ${data.estimated_diameter.feet?.estimated_diameter_max && typeof data.estimated_diameter.feet.estimated_diameter_max === 'number' ? data.estimated_diameter.feet.estimated_diameter_max.toFixed(0) : 'N/A'} ft</p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5>Orbital Data</h5>
+                        ${orbital && Object.keys(orbital).length > 0 && (orbital.orbital_period || orbital.eccentricity || orbital.semi_major_axis || orbital.inclination || orbital.perihelion_distance || orbital.aphelion_distance) ? `
+                            <div class="detail-item">
+                                <strong>Orbital Period:</strong> 
+                                <span class="detail-value">${orbital.orbital_period ? parseFloat(orbital.orbital_period).toFixed(2) + ' days' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Eccentricity:</strong> 
+                                <span class="detail-value">${orbital.eccentricity ? parseFloat(orbital.eccentricity).toFixed(4) : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Semi-major Axis:</strong> 
+                                <span class="detail-value">${orbital.semi_major_axis ? parseFloat(orbital.semi_major_axis).toFixed(4) + ' AU' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Inclination:</strong> 
+                                <span class="detail-value">${orbital.inclination ? parseFloat(orbital.inclination).toFixed(2) + '°' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Perihelion Distance:</strong> 
+                                <span class="detail-value">${orbital.perihelion_distance ? parseFloat(orbital.perihelion_distance).toFixed(4) + ' AU' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Aphelion Distance:</strong> 
+                                <span class="detail-value">${orbital.aphelion_distance ? parseFloat(orbital.aphelion_distance).toFixed(4) + ' AU' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Minimum Orbit Intersection:</strong> 
+                                <span class="detail-value">${orbital.minimum_orbit_intersection ? parseFloat(orbital.minimum_orbit_intersection).toFixed(6) + ' AU' : 'Not available'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <strong>Orbit Determination Date:</strong> 
+                                <span class="detail-value">${orbital.orbit_determination_date || 'Not available'}</span>
+                            </div>
+                            <p><strong>Observations Used:</strong> ${orbital.observations_used || 'Not available'}</p>
+                            <p><strong>Data Arc:</strong> ${orbital.data_arc_in_days ? orbital.data_arc_in_days + ' days' : 'Not available'}</p>
+                            <p><strong>First Observation:</strong> ${orbital.first_observation_date || 'Not available'}</p>
+                            <p><strong>Last Observation:</strong> ${orbital.last_observation_date || 'Not available'}</p>
+                        ` : `
+                            <div class="alert alert-warning" style="background: rgba(255, 193, 7, 0.1); border: 1px solid rgba(255, 193, 7, 0.3); padding: 15px; border-radius: 8px; margin: 10px 0;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Orbital data not available for this asteroid.</strong><br>
+                                <small>This asteroid may be newly discovered or have insufficient observation data for detailed orbital parameters.</small>
+                            </div>
+                        `}
+                    </div>
+                </div>
+
+                <h5 class="mt-4">Close Approaches</h5>
+                <div class="table-responsive">
+                    <table class="table table-dark table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Velocity (km/s)</th>
+                                <th>Miss Distance (km)</th>
+                                <th>Miss Distance (AU)</th>
+                                <th>Orbiting Body</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${approaches.map(approach => `
+                                <tr>
+                                    <td>${formatDate(approach.date)}</td>
+                                    <td>${approach.velocity_kms && typeof approach.velocity_kms === 'number' ? approach.velocity_kms.toFixed(2) : 'N/A'} km/s</td>
+                                    <td>${approach.miss_distance_km && typeof approach.miss_distance_km === 'number' ? approach.miss_distance_km.toLocaleString() : 'N/A'} km</td>
+                                    <td>${approach.miss_distance_au && typeof approach.miss_distance_au === 'number' ? approach.miss_distance_au.toFixed(4) : 'N/A'} AU</td>
+                                    <td>${approach.orbiting_body}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3">
+                    <a href="${data.nasa_jpl_url}" target="_blank" class="btn btn-primary">
+                        <i class="fas fa-external-link-alt me-2"></i>View on JPL
+                    </a>
+                </div>
+            `;
+
+            document.getElementById('modalTitle').textContent = data.name;
+            document.getElementById('modalContent').innerHTML = detailsHtml;
+        }
+
+        function closeModal() {
+            document.getElementById('asteroidModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('asteroidModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        function showError(message) {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorText').innerHTML = `
+                ${message}
+                <div class="mt-3">
+                    <button class="btn btn-outline-light btn-sm me-2" onclick="location.reload()">
+                        <i class="fas fa-sync-alt me-1"></i>Retry
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" onclick="window.history.back()">
+                        <i class="fas fa-arrow-left me-1"></i>Go Back
+                    </button>
+                </div>
+            `;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        }
+
+        function formatDistance(km) {
+            if (km > 1000000) {
+                return `${(km / 1000000).toFixed(2)}M km`;
+            } else if (km > 1000) {
+                return `${(km / 1000).toFixed(2)}K km`;
+            }
+            return `${km.toFixed(0)} km`;
+        }
+    </script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("/static/service-worker.js").catch(function() {});
+  });
+}
+</script>
+</body>
+</html>

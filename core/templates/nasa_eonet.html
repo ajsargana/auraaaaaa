@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- PWA / iOS App Meta Tags -->
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <title>EONET - Earth Observatory Natural Event Tracker</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Leaflet CSS for maps -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .eonet-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .eonet-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .eonet-title {
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #2ecc71, #27ae60, #16a085);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(46, 204, 113, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #2ecc71;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .filter-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: rgba(46, 204, 113, 0.8);
+            border-color: rgba(46, 204, 113, 0.8);
+            color: white;
+        }
+
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .event-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .event-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(46, 204, 113, 0.2);
+            border-color: rgba(46, 204, 113, 0.4);
+        }
+
+        .event-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #e2e8f0;
+        }
+
+        .event-category {
+            display: inline-block;
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .event-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-active {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+        }
+
+        .status-closed {
+            background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+            color: white;
+        }
+
+        .event-info {
+            font-size: 0.9rem;
+            color: #94a3b8;
+            margin-bottom: 10px;
+        }
+
+        .event-description {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            line-height: 1.4;
+            max-height: 60px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .event-date {
+            font-size: 0.8rem;
+            color: #64b5f6;
+            margin-top: 10px;
+            font-style: italic;
+        }
+
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 300px;
+            font-size: 1.2rem;
+            color: #2ecc71;
+        }
+
+        .error-message {
+            text-align: center;
+            color: #ef4444;
+            font-size: 1.1rem;
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(46, 204, 113, 0.9);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            background: rgba(46, 204, 113, 1);
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .cache-info {
+            text-align: center;
+            font-size: 0.85rem;
+            color: #64b5f6;
+            margin-bottom: 20px;
+            opacity: 0.8;
+        }
+
+        .event-details-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            max-width: 900px;
+            margin: 50px auto;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-radius: 15px;
+            padding: 30px;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .event-map {
+            width: 100%;
+            height: 300px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .eonet-title {
+                font-size: 2rem;
+            }
+
+            .eonet-container {
+                padding: 15px;
+            }
+
+            .events-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <a href="/tracker" class="back-button">
+        <i class="fas fa-arrow-left me-2"></i>Back to Tracker
+    </a>
+
+    <div class="eonet-container">
+        <div class="eonet-header">
+            <h1 class="eonet-title">
+                <i class="fas fa-globe-americas me-3"></i>
+                EONET
+            </h1>
+            <p class="mb-0">Earth Observatory Natural Event Tracker</p>
+            <div class="cache-info" id="cacheInfo" style="display: none;">
+                <small><i class="fas fa-database me-1"></i><span id="cacheText"></span></small>
+            </div>
+        </div>
+
+        <div id="loadingSpinner" class="loading-spinner">
+            <div>
+                <i class="fas fa-spinner fa-spin fa-2x me-3"></i>
+                Loading Natural Events Data...
+            </div>
+        </div>
+
+        <div id="statsContainer" class="stats-container" style="display: none;">
+            <!-- Stats will be inserted here -->
+        </div>
+
+        <div class="filter-controls" id="filterControls" style="display: none;">
+            <button class="filter-btn active" data-filter="all">All Events</button>
+            <button class="filter-btn" data-filter="active">Active Events</button>
+            <button class="filter-btn" data-filter="closed">Closed Events</button>
+            <!-- Category filters will be added dynamically -->
+        </div>
+
+        <div id="eventsGrid" class="events-grid" style="display: none;">
+            <!-- Events will be inserted here -->
+        </div>
+
+        <div id="errorMessage" class="error-message" style="display: none;">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span id="errorText"></span>
+        </div>
+    </div>
+
+    <!-- Event Details Modal -->
+    <div id="eventModal" class="event-details-modal">
+        <div class="modal-content">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h3 id="modalTitle">Event Details</h3>
+                <button class="btn btn-outline-light" onclick="closeModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="modalContent">
+                <!-- Detailed event info will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Leaflet JS for maps -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        let allEvents = [];
+        let allCategories = {};
+        let currentFilter = 'all';
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('EONET page loading started...');
+            const pageStartTime = performance.now();
+            
+            // Preload critical resources
+            const link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.href = '/api/nasa/eonet/events';
+            document.head.appendChild(link);
+            
+            await loadEONETData();
+            setupFilterControls();
+            
+            const pageLoadTime = performance.now() - pageStartTime;
+            console.log(`EONET page fully loaded in ${pageLoadTime.toFixed(2)}ms`);
+        });
+
+        async function loadEONETData(retryCount = 0) {
+            try {
+                console.log('Loading EONET data...');
+                const startTime = performance.now();
+
+                const response = await fetch('/api/nasa/eonet/events');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                const loadTime = performance.now() - startTime;
+                console.log(`EONET data loaded in ${loadTime.toFixed(2)}ms`);
+
+                if (data.success) {
+                    allEvents = data.events;
+                    allCategories = data.categories;
+                    
+                    // Use requestAnimationFrame for smooth UI updates
+                    requestAnimationFrame(() => {
+                        displayEvents(data);
+                        displayStats(data);
+                        addCategoryFilters();
+
+                        // Show cache info if data was cached
+                        if (data.cached_at) {
+                            const cacheInfo = document.getElementById('cacheInfo');
+                            const cacheText = document.getElementById('cacheText');
+                            const cachedTime = new Date(data.cached_at);
+                            cacheText.textContent = `Data cached today (${cachedTime.toLocaleTimeString()}) - Loaded in ${loadTime.toFixed(0)}ms`;
+                            cacheInfo.style.display = 'block';
+                        }
+                    });
+                } else {
+                    showError(data.error || 'Failed to load EONET data');
+                }
+
+            } catch (error) {
+                console.error('Error loading EONET data:', error);
+
+                // Retry up to 2 times with shorter delays for cached data
+                if (retryCount < 2) {
+                    console.log(`Retrying... Attempt ${retryCount + 1}/2`);
+                    setTimeout(() => {
+                        loadEONETData(retryCount + 1);
+                    }, 500 * (retryCount + 1)); // 500ms, 1s delays
+                } else {
+                    let errorMessage = 'Network error while loading EONET data';
+                    if (error.message.includes('404')) {
+                        errorMessage = 'API endpoint not found. Please check if the service is available.';
+                    } else if (error.message.includes('timeout')) {
+                        errorMessage = 'Request timed out. EONET API may be temporarily unavailable.';
+                    }
+                    showError(errorMessage);
+                }
+            }
+        }
+
+        function displayStats(data) {
+            const activeEvents = allEvents.filter(e => !e.closed).length;
+            const closedEvents = allEvents.filter(e => e.closed).length;
+            const categoriesCount = Object.keys(allCategories).length;
+            const recentEvents = allEvents.filter(e => {
+                if (!e.location || !e.location.date) return false;
+                const eventDate = new Date(e.location.date);
+                const weekAgo = new Date();
+                weekAgo.setDate(weekAgo.getDate() - 7);
+                return eventDate > weekAgo;
+            }).length;
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-number">${data.total_count}</div>
+                    <div class="stat-label">Total Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${activeEvents}</div>
+                    <div class="stat-label">Active Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${closedEvents}</div>
+                    <div class="stat-label">Closed Events</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${categoriesCount}</div>
+                    <div class="stat-label">Event Categories</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${recentEvents}</div>
+                    <div class="stat-label">Recent (7 days)</div>
+                </div>
+            `;
+
+            document.getElementById('statsContainer').innerHTML = statsHtml;
+            document.getElementById('statsContainer').style.display = 'grid';
+        }
+
+        function addCategoryFilters() {
+            const filterControls = document.getElementById('filterControls');
+
+            // Add category filters
+            Object.entries(allCategories).forEach(([id, category]) => {
+                const button = document.createElement('button');
+                button.className = 'filter-btn';
+                button.dataset.filter = `category-${id}`;
+                button.textContent = category.title;
+                filterControls.appendChild(button);
+            });
+        }
+
+        function displayEvents(data) {
+            document.getElementById('loadingSpinner').style.display = 'none';
+
+            renderEvents(allEvents);
+
+            document.getElementById('eventsGrid').style.display = 'grid';
+            document.getElementById('filterControls').style.display = 'flex';
+        }
+
+        function renderEvents(events) {
+            const eventsGrid = document.getElementById('eventsGrid');
+            const fragment = document.createDocumentFragment();
+            
+            events.forEach(event => {
+                const isActive = !event.closed;
+                const statusClass = isActive ? 'status-active' : 'status-closed';
+                const statusText = isActive ? 'ACTIVE' : 'CLOSED';
+
+                const eventCard = document.createElement('div');
+                eventCard.className = 'event-card';
+                eventCard.setAttribute('data-event-id', event.id);
+                eventCard.onclick = () => showEventDetails(event.id);
+
+                eventCard.innerHTML = `
+                    <div class="event-status ${statusClass}">${statusText}</div>
+                    <div class="event-category">${event.category_title}</div>
+                    <div class="event-title">${event.title}</div>
+                    ${event.description ? `<div class="event-description">${event.description}</div>` : ''}
+                    ${event.location && event.location.date ? `
+                        <div class="event-date">Last updated: ${formatDate(event.location.date)}</div>
+                    ` : ''}
+                    ${event.location && event.location.coordinates.length > 0 ? `
+                        <div class="event-info">
+                            <i class="fas fa-map-marker-alt me-1"></i>
+                            Location: ${formatCoordinates(event.location.coordinates, event.location.type)}
+                        </div>
+                    ` : ''}
+                `;
+                
+                fragment.appendChild(eventCard);
+            });
+
+            eventsGrid.innerHTML = '';
+            eventsGrid.appendChild(fragment);
+        }
+
+        function setupFilterControls() {
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('filter-btn')) {
+                    // Update active button
+                    document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    // Apply filter
+                    currentFilter = e.target.dataset.filter;
+                    applyFilter();
+                }
+            });
+        }
+
+        function applyFilter() {
+            let filteredEvents = allEvents;
+
+            switch (currentFilter) {
+                case 'active':
+                    filteredEvents = allEvents.filter(e => !e.closed);
+                    break;
+                case 'closed':
+                    filteredEvents = allEvents.filter(e => e.closed);
+                    break;
+                default:
+                    if (currentFilter.startsWith('category-')) {
+                        const categoryId = currentFilter.replace('category-', '');
+                        filteredEvents = allEvents.filter(e => e.category_id === categoryId);
+                    } else {
+                        filteredEvents = allEvents;
+                    }
+                    break;
+            }
+
+            renderEvents(filteredEvents);
+        }
+
+        async function showEventDetails(eventId) {
+            try {
+                console.log('Loading event details for ID:', eventId);
+
+                document.getElementById('eventModal').style.display = 'block';
+                document.getElementById('modalContent').innerHTML = '<div class="loading-spinner"><i class="fas fa-spinner fa-spin fa-2x me-3"></i>Loading details...</div>';
+
+                const response = await fetch(`/api/nasa/eonet/events/${encodeURIComponent(eventId)}`);
+                console.log('API response status:', response.status);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('API response data:', data);
+
+                if (data.success) {
+                    renderEventDetails(data);
+                } else {
+                    console.error('API returned error:', data.error);
+                    document.getElementById('modalContent').innerHTML = `<div class="error-message">${data.error || 'Unknown error occurred'}</div>`;
+                }
+
+            } catch (error) {
+                console.error('Error loading event details:', error);
+                document.getElementById('modalContent').innerHTML = `<div class="error-message">Failed to load event details: ${error.message}</div>`;
+            }
+        }
+
+        function renderEventDetails(data) {
+            const detailsHtml = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Event Information</h5>
+                        <p><strong>Title:</strong> ${data.title}</p>
+                        <p><strong>ID:</strong> ${data.id}</p>
+                        <p><strong>Status:</strong> ${data.closed ? 'Closed' : 'Active'}</p>
+
+                        <h5 class="mt-4">Categories</h5>
+                        ${data.categories.map(cat => `
+                            <span class="badge bg-success me-2">${cat.title}</span>
+                        `).join('')}
+
+                        ${data.description ? `
+                            <h5 class="mt-4">Description</h5>
+                            <p>${data.description}</p>
+                        ` : ''}
+                    </div>
+
+                    <div class="col-md-6">
+                        <h5>Sources</h5>
+                        ${data.sources.map(source => `
+                            <p><a href="${source.url}" target="_blank" class="text-light">${source.id}</a></p>
+                        `).join('')}
+
+                        ${data.link ? `
+                            <h5 class="mt-4">Official Link</h5>
+                            <p><a href="${data.link}" target="_blank" class="text-light">View on EONET</a></p>
+                        ` : ''}
+                    </div>
+                </div>
+
+                ${data.geometries && data.geometries.length > 0 ? `
+                    <h5 class="mt-4">Event Timeline & Locations</h5>
+                    <div id="eventMap" class="event-map"></div>
+
+                    <div class="table-responsive mt-3">
+                        <table class="table table-dark table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Coordinates</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.geometries.map(geom => `
+                                    <tr>
+                                        <td>${formatDate(geom.date)}</td>
+                                        <td>${geom.type}</td>
+                                        <td>${formatCoordinates(geom.coordinates, geom.type)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : ''}
+            `;
+
+            document.getElementById('modalTitle').textContent = data.title;
+            document.getElementById('modalContent').innerHTML = detailsHtml;
+
+            // Initialize map if geometries exist
+            if (data.geometries && data.geometries.length > 0) {
+                setTimeout(() => initEventMap(data.geometries), 100);
+            }
+        }
+
+        function initEventMap(geometries) {
+            // Initialize Leaflet map
+            const map = L.map('eventMap').setView([0, 0], 2);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            const markers = [];
+
+            geometries.forEach((geom, index) => {
+                if (geom.coordinates && geom.coordinates.length >= 2) {
+                    let lat, lng;
+
+                    if (geom.type === 'Point') {
+                        [lng, lat] = geom.coordinates;
+                    } else if (geom.type === 'Polygon' && geom.coordinates[0]) {
+                        // Take the first point of the polygon
+                        [lng, lat] = geom.coordinates[0][0];
+                    }
+
+                    if (lat !== undefined && lng !== undefined) {
+                        const marker = L.marker([lat, lng]).addTo(map);
+                        marker.bindPopup(`
+                            <strong>Date:</strong> ${formatDate(geom.date)}<br>
+                            <strong>Type:</strong> ${geom.type}<br>
+                            <strong>Position:</strong> ${lat.toFixed(4)}, ${lng.toFixed(4)}
+                        `);
+                        markers.push(marker);
+                    }
+                }
+            });
+
+            // Fit map to markers
+            if (markers.length > 0) {
+                const group = new L.featureGroup(markers);
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('eventModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('eventModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        function showError(message) {
+            document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+            document.getElementById('errorText').innerHTML = `
+                ${message}
+                <div class="mt-3">
+                    <button class="btn btn-outline-light btn-sm me-2" onclick="location.reload()">
+                        <i class="fas fa-sync-alt me-1"></i>Retry
+                    </button>
+                    <button class="btn btn-outline-light btn-sm" onclick="window.history.back()">
+                        <i class="fas fa-arrow-left me-1"></i>Go Back
+                    </button>
+                </div>
+            `;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function formatCoordinates(coordinates, type) {
+            if (!coordinates || coordinates.length === 0) return 'N/A';
+
+            if (type === 'Point' && coordinates.length >= 2) {
+                return `${coordinates[1].toFixed(4)}, ${coordinates[0].toFixed(4)}`;
+            } else if (type === 'Polygon' && coordinates[0] && coordinates[0][0]) {
+                return `${coordinates[0][0][1].toFixed(4)}, ${coordinates[0][0][0].toFixed(4)} (polygon)`;
+            }
+
+            return 'Complex geometry';
+        }
+    </script>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker.register("/static/service-worker.js").catch(function() {});
+  });
+}
+</script>
+</body>
+</html>
