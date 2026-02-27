@@ -1,83 +1,16 @@
-
-async function fetchWithRetry(url, options = {}, maxRetries = 3) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const response = await fetch(url, options);
-            if (response.status === 503 && attempt < maxRetries) {
-                const delay = Math.pow(2, attempt) * 500;
-                console.warn(`503 on ${url}, retry ${attempt}/${maxRetries} in ${delay}ms`);
-                await new Promise(r => setTimeout(r, delay));
-                continue;
-            }
-            return response;
-        } catch (error) {
-            if (attempt < maxRetries) {
-                const delay = Math.pow(2, attempt) * 500;
-                console.warn(`Fetch error on ${url}, retry ${attempt}/${maxRetries} in ${delay}ms`);
-                await new Promise(r => setTimeout(r, delay));
-                continue;
-            }
-            throw error;
-        }
-    }
-}
-
-// Global function for closing details panel (for compatibility with inline onclick handlers)
-function closeDetailsPanel() {
-    if (window.satelliteViewer && window.satelliteViewer.closeDetailsPanel) {
-        window.satelliteViewer.closeDetailsPanel();
-    } else {
-        // Fallback if satelliteViewer not available
-        const panel = document.getElementById('satelliteDetailsPanel');
-        if (panel) {
-            panel.classList.add('fade-out');
-            panel.classList.remove('show');
-
-            // Hide panel after animation completes
-            setTimeout(() => {
-                if (panel.classList.contains('fade-out')) {
-                    panel.style.display = 'none';
-                    panel.classList.remove('fade-out');
-                }
-            }, 300);
-        }
-    }
-}
-
-// Global function for showing details panel (for compatibility)
-function showDetailsPanel() {
-    const panel = document.getElementById('satelliteDetailsPanel');
-    if (panel) {
-        panel.style.display = 'block';
-        panel.classList.remove('fade-out');
-        // Force reflow to ensure display change takes effect
-        panel.offsetHeight;
-        panel.classList.add('show');
-    }
-}
-
-
 class SatelliteViewer {
     constructor() {
         this.viewer = null;
         this.satellites = new Map();
-        this.airplanes = new Map();
         this.satelliteEntities = new Map();
-        this.airplaneEntities = new Map();
         this.orbitEntities = new Map();
-        this.coverageSwathEntities = new Map();
-        this.groundSwathEntity = null;
-        this.groundSwathUpdateInterval = null;
         this.selectedSatellite = null;
-        this.selectedAirplane = null;
         this.userLocation = { lat: 0, lon: 0, alt: 0 };
         this.categories = {};
+        this.activeCategoryFilter = null;
         this.showOrbits = false;
-        this.showCoverageSwath = false;
-        this.showGroundSwath = false;
         this.showGroundTracks = false;
         this.trackingMode = true;
-        this.currentMode = 'satellites'; // 'satellites' or 'airplanes'
         this.updateInterval = null;
         this.groundTrackEntities = new Map();
         this.nadirEntities = new Map();
@@ -87,31 +20,14 @@ class SatelliteViewer {
         this.preferences = {};
         this.clickTimeout = null;
         this.userLocationMarker = null;
-        // Initialize satellite filter module
-        this.satelliteFilter = null; // Will be initialized after construction
+        this.cloudCoverEnabled = false;
+        this.cloudProvider = null;
 
-        // Performance optimizations for smooth movement
-        // IMPORTANT: This MUST match the backend cache interval (10s) to avoid interpolation jumps
-        this.updateRate = 1000; // 1 second for real-time smoothness
-        this.maxVisibleSatellites = 2500; // Reduced for faster initial load
+        // Performance optimizations for smooth movement  
+        this.updateRate = 30000; // 30 seconds for better performance
+        this.maxVisibleSatellites = 250; // Reduced for faster initial load
         this.lodDistance = 10000000; // Level of detail distance
-        this.initialLoadBatchSize = 50; // Load satellites in batches initially
-
-        // Initialize modules after construction
-        this.passFilter = new PassFilter(this);
-        this.satelliteFilter = new SatelliteFilter(this);
-        this.motionControl = new MotionControl(this);
-        this.satelliteSearch = new SatelliteSearch(this);
-        this.satelliteWorkflow = new SatelliteWorkflow(this); // New workflow manager
-        this.weatherModule = null; // Will be initialized after Cesium viewer is ready
-
-        // Multi-processing and web worker support
-        this.processingWorkers = [];
-        this.maxWorkers = Math.min(navigator.hardwareConcurrency || 4, 8);
-        this.workerPool = [];
-        this.isMultiProcessingEnabled = true;
-
-        console.log(`🔧 Multi-processing enabled with ${this.maxWorkers} workers`)
+        this.initialLoadBatchSize = 50; // Load satellites in batches initially 
 
         this.init();
     }
@@ -120,68 +36,65 @@ class SatelliteViewer {
         try {
             console.log('Initializing SatelliteViewer...');
             this.showLoadingIndicator('Initializing 3D viewer...');
-
+            
             await this.initializeCesium();
             this.showLoadingIndicator('Setting up controls...');
-
+            
             this.setupEventListeners();
             this.showLoadingIndicator('Loading preferences...');
-
+            
             await this.loadUserPreferences();
             this.showLoadingIndicator('Loading categories...');
-
+            
+            await this.loadCategories();
+            this.showLoadingIndicator('Loading satellites...');
+            
             await this.loadSatellites();
             this.showLoadingIndicator('Starting updates...');
-
+            
             this.startAutoUpdate();
             this.setupGeolocation();
-
-            // Ensure initial status is displayed correctly
-            this.updateStatus(this.satellites.size, new Date().toISOString());
-            this.updateConnectionStatus('Connected', 'success');
-
+            
             this.hideLoadingIndicator();
             console.log('SatelliteViewer initialization complete');
         } catch (error) {
             console.error('Error initializing SatelliteViewer:', error);
             this.hideLoadingIndicator();
             this.showError('Failed to initialize satellite viewer: ' + error.message);
-            this.updateConnectionStatus('Disconnected', 'danger');
         }
     }
 
     async initializeCesium() {
-        // Add missing CSS styles for cloud legend
-        this.addRequiredCSS();
-
-        // Wait for Cesium to be fully loaded
-        await this.waitForCesium();
+        // Check if Cesium is loaded
+        if (typeof Cesium === 'undefined') {
+            throw new Error('Cesium library not loaded. Please check your internet connection.');
+        }
 
         console.log('Initializing Cesium...');
-
+        
         // Use default Cesium Ion token
         Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1ZjJiOS1mOGYyLTQ1M2MtOGM2MS1kYzA2YjIxOGI4ZjciLCJpZCI6MjAzNzIsImlhdCI6MTY5NDU0Mzk5OX0.SW1LQITUzCb5gFmLNAa8aeJ7bXhDI1_3pj6_8yUAKPk';
 
         try {
             this.viewer = new Cesium.Viewer('cesiumContainer', {
-                // Performance optimizations
-                terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-                imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-                    url: 'https://a.tile.openstreetmap.org/'
-                }),
-                baseLayerPicker: true,
-                geocoder: false,
-                homeButton: true,
-                sceneModePicker: false,
-                navigationHelpButton: false,
-                animation: false,
-                timeline: false,
-                fullscreenButton: true,
-                vrButton: false,
-                creditContainer: document.createElement('div'),
-                // Enhanced performance settings
-                requestRenderMode: false, // Continuous rendering for smooth animation
-                maximumRenderTimeChange: 1000 / 10, // Target 10fps for smooth movement
+            // Performance optimizations
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
+                url: 'https://a.tile.openstreetmap.org/'
+            }),
+            baseLayerPicker: true,
+            geocoder: false,
+            homeButton: true,
+            sceneModePicker: false,
+            navigationHelpButton: false,
+            animation: false,
+            timeline: false,
+            fullscreenButton: true,
+            vrButton: false,
+            creditContainer: document.createElement('div'),
+            // Enhanced performance settings
+            requestRenderMode: false, // Continuous rendering for smooth animation
+            maximumRenderTimeChange: 1000/10, // Target 10fps for smooth movement
             });
 
             console.log('Cesium viewer created successfully');
@@ -201,15 +114,9 @@ class SatelliteViewer {
             this.viewer.scene.moon.show = true;
             this.viewer.scene.skyBox.show = true;
 
-            // Add cloud cover and enhanced atmosphere
-            await this.setupCloudCover();
-
-            // Manual cloud testing - don't auto-enable
-            console.log('Cloud system ready. Click the cloud button to test.');
-
             // Set initial camera position for better Earth view
             this.viewer.camera.setView({
-                destination: Cesium.Cartesian3.fromDegrees(0, 0, 150000000),
+                destination: Cesium.Cartesian3.fromDegrees(0, 0, 15000000),
                 orientation: {
                     heading: 0.0,
                     pitch: -Cesium.Math.PI_OVER_TWO,
@@ -223,7 +130,7 @@ class SatelliteViewer {
 
             // Set up optimized click handler
             this.viewer.cesiumWidget.screenSpaceEventHandler.setInputAction(
-                this.onEntityClick.bind(this),
+                this.onSatelliteClick.bind(this),
                 Cesium.ScreenSpaceEventType.LEFT_CLICK
             );
 
@@ -233,9 +140,6 @@ class SatelliteViewer {
                 loadingOverlay.style.display = 'none';
             }
 
-            // Initialize weather module after Cesium viewer is ready
-            this.weatherModule = new WeatherModule(this.viewer);
-
             console.log('Cesium initialization complete');
 
         } catch (error) {
@@ -244,146 +148,9 @@ class SatelliteViewer {
         }
     }
 
-    async waitForCesium() {
-        // Wait for Cesium to be fully loaded with timeout
-        return new Promise((resolve, reject) => {
-            let attempts = 0;
-            const maxAttempts = 50; // 5 seconds max wait time
-
-            const checkCesium = () => {
-                attempts++;
-
-                if (typeof Cesium !== 'undefined' && Cesium.Viewer) {
-                    console.log('✅ Cesium loaded successfully');
-                    resolve();
-                } else if (attempts >= maxAttempts) {
-                    reject(new Error('Cesium library failed to load after 5 seconds. Please check your internet connection or refresh the page.'));
-                } else {
-                    console.log(`⏳ Waiting for Cesium... (${attempts}/${maxAttempts})`);
-                    setTimeout(checkCesium, 100);
-                }
-            };
-
-            checkCesium();
-        });
-    }
-
-    addRequiredCSS() {
-        // Add missing CSS styles for cloud legend and other components
-        if (!document.getElementById('satelliteViewerCSS')) {
-            const style = document.createElement('style');
-            style.id = 'satelliteViewerCSS';
-            style.textContent = `
-                .cloud-legend {
-                    position: fixed;
-                    top: 80px;
-                    left: 20px;
-                    background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(12, 12, 12, 0.95) 100%);
-                    border: 1px solid rgba(100, 181, 246, 0.3);
-                    border-radius: 10px;
-                    padding: 15px;
-                    max-width: 300px;
-                    color: white;
-                    font-size: 12px;
-                    backdrop-filter: blur(10px);
-                    z-index: 1000;
-                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                }
-
-                .legend-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 10px;
-                    padding-bottom: 8px;
-                    border-bottom: 1px solid rgba(100, 181, 246, 0.2);
-                }
-
-                .legend-header h6 {
-                    margin: 0;
-                    color: #64b5f6;
-                    font-weight: 600;
-                }
-
-                .legend-content {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                }
-
-                .legend-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-
-                .legend-color {
-                    width: 16px;
-                    height: 16px;
-                    border-radius: 3px;
-                    border: 1px solid rgba(255, 255, 255, 0.2);
-                }
-
-                .legend-footer {
-                    margin-top: 10px;
-                    padding-top: 8px;
-                    border-top: 1px solid rgba(100, 181, 246, 0.2);
-                    display: flex;
-                    flex-direction: column;
-                    gap: 4px;
-                }
-
-                .legend-footer small {
-                    color: #94a3b8;
-                    font-size: 10px;
-                }
-
-                @media (max-width: 768px) {
-                    .cloud-legend {
-                        top: calc(var(--navbar-height, 60px) + 10px);
-                        left: 10px;
-                        max-width: calc(100vw - 70px);
-                    }
-                }
-            `;
-            document.head.appendChild(style);
-        }
-    }
-
-    async setupCloudCover() {
-        try {
-            console.log('Setting up enhanced atmosphere...');
-
-            // Enhanced atmosphere settings only - no geometric clouds
-            const scene = this.viewer.scene;
-            const skyAtmosphere = scene.skyAtmosphere;
-
-            // Configure atmospheric scattering for better visual effect
-            skyAtmosphere.hueShift = 0.1;
-            skyAtmosphere.saturationShift = 0.2;
-            skyAtmosphere.brightnessShift = 0.1;
-
-            // Enhanced lighting for better atmosphere visibility
-            scene.globe.enableLighting = true;
-            scene.globe.dynamicAtmosphereLighting = true;
-            scene.globe.dynamicAtmosphereLightingFromSun = true;
-
-            // Better fog and atmospheric effects
-            scene.fog.enabled = true;
-            scene.fog.density = 0.00015;
-            scene.fog.screenSpaceErrorFactor = 2.0;
-
-            console.log('Atmosphere setup complete - no geometric clouds');
-        } catch (error) {
-            console.error('Error setting up atmosphere:', error);
-        }
-    }
-
-
-
     async loadUserPreferences() {
         try {
-            const response = await fetchWithRetry('/api/user/preferences');
+            const response = await fetch('/api/user/preferences');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -399,10 +166,12 @@ class SatelliteViewer {
                 const latElement = document.getElementById('latitude');
                 const lonElement = document.getElementById('longitude');
                 const altElement = document.getElementById('altitude');
+                const updateRateElement = document.getElementById('updateRate');
 
                 if (latElement) latElement.value = this.userLocation.lat;
                 if (lonElement) lonElement.value = this.userLocation.lon;
                 if (altElement) altElement.value = this.userLocation.alt;
+                if (updateRateElement) updateRateElement.textContent = `${this.preferences.update_interval || 10}s`;
             } else {
                 // Set defaults
                 this.userLocation = { lat: 0, lon: 0, alt: 0 };
@@ -417,7 +186,7 @@ class SatelliteViewer {
 
     async saveUserPreferences() {
         try {
-            await fetchWithRetry('/api/user/preferences', {
+            await fetch('/api/user/preferences', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -430,93 +199,52 @@ class SatelliteViewer {
     }
 
     setupEventListeners() {
-        // Helper to safely add event listeners with null checks
-        const safeAddEvent = (id, event, handler) => {
-            const el = document.getElementById(id);
-            if (el) {
-                el.addEventListener(event, handler);
-            } else {
-                console.warn(`⚠️ Element #${id} not found in DOM`);
-            }
-        };
-
         // Enhanced event listeners with performance considerations
-        safeAddEvent('refreshBtn', 'click', () => this.refreshData());
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            this.refreshData();
+        });
 
-        // Set up close panel button handler
-        safeAddEvent('closePanelBtn', 'click', () => this.closeDetailsPanel());
-
-        // Location dropdown options
-        safeAddEvent('inputCoordinatesBtn', 'click', () => {
-            const modal = new bootstrap.Modal(document.getElementById('coordinatesModal'));
+        document.getElementById('locationBtn').addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('locationModal'));
             modal.show();
         });
 
-        safeAddEvent('searchByNameBtn', 'click', () => {
-            const modal = new bootstrap.Modal(document.getElementById('searchLocationModal'));
-            modal.show();
+        document.getElementById('homeBtn').addEventListener('click', () => {
+            this.resetView();
         });
 
-        safeAddEvent('selectOnGlobeBtn', 'click', () => this.enableGlobeSelection());
-        safeAddEvent('getCurrentLocationBtn', 'click', () => this.getCurrentLocation());
-
-        // Mode switching buttons
-        safeAddEvent('satelliteModeBtn', 'click', () => this.switchToSatelliteMode());
-        safeAddEvent('airplaneModeBtn', 'click', () => this.switchToAirplaneMode());
-
-        safeAddEvent('homeBtn', 'click', () => this.resetView());
-        safeAddEvent('trackingBtn', 'click', () => this.toggleTracking());
-        safeAddEvent('orbitsBtn', 'click', () => this.toggleOrbits());
-        safeAddEvent('groundTracksBtn', 'click', () => this.toggleGroundTracks());
-        safeAddEvent('coverageSwathBtn', 'click', () => this.toggleCoverageSwath());
-        safeAddEvent('groundSwathBtn', 'click', () => this.toggleGroundSwath());
-        safeAddEvent('motionControlBtn', 'click', () => this.motionControl.toggleMotionControl());
-
-        // Speed control slider
-        safeAddEvent('speedControlSlider', 'input', (e) => {
-            this.motionControl.setMotionSpeed(parseInt(e.target.value));
+        document.getElementById('trackingBtn').addEventListener('click', () => {
+            this.toggleTracking();
         });
 
-        // Speed control buttons
-        safeAddEvent('decreaseSpeedBtn', 'click', () => this.motionControl.adjustSpeed(-1));
-        safeAddEvent('increaseSpeedBtn', 'click', () => this.motionControl.adjustSpeed(1));
-
-        // Weather toggle button
-        safeAddEvent('weatherToggleBtn', 'click', () => {
-            if (this.weatherModule) {
-                this.weatherModule.toggle();
-            }
+        document.getElementById('orbitsBtn').addEventListener('click', () => {
+            this.toggleOrbits();
         });
 
-        safeAddEvent('saveCoordinatesBtn', 'click', () => this.saveCoordinates());
-
-        // Add cleanup event listeners for coordinates modal
-        const coordinatesModal = document.getElementById('coordinatesModal');
-        if (coordinatesModal) {
-            coordinatesModal.addEventListener('hidden.bs.modal', () => {
-                this.cleanupCoordinatesModal();
-            });
-        }
-
-        safeAddEvent('searchLocationBtn', 'click', () => this.searchLocationByName());
-
-        // Add cleanup event listeners for search location modal
-        const searchLocationModal = document.getElementById('searchLocationModal');
-        if (searchLocationModal) {
-            searchLocationModal.addEventListener('hidden.bs.modal', () => {
-                this.cleanupSearchLocationModal();
-            });
-        }
-
-        // Time-based pass filter functionality
-        safeAddEvent('applyPassFilterBtn', 'click', async () => {
-            await this.passFilter.applyTimeBasedPassFilter();
+        document.getElementById('groundTracksBtn').addEventListener('click', () => {
+            this.toggleGroundTracks();
         });
 
-        safeAddEvent('clearPassFilterBtn', 'click', () => {
-            this.passFilter.clearPassFilter();
+        document.getElementById('cloudCoverBtn').addEventListener('click', () => {
+            this.toggleCloudCover();
         });
 
+        document.getElementById('saveLocationBtn').addEventListener('click', () => {
+            this.saveLocation();
+        });
+
+        document.getElementById('autoLocationBtn').addEventListener('click', () => {
+            this.getCurrentLocation();
+        });
+
+        // Optimized search with debouncing
+        let searchTimeout;
+        document.getElementById('satelliteSearch').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                this.searchSatellites(e.target.value);
+            }, 300);
+        });
     }
 
     setupGeolocation() {
@@ -540,7 +268,7 @@ class SatelliteViewer {
                     const latField = document.getElementById('latitude');
                     const lonField = document.getElementById('longitude');
                     const altField = document.getElementById('altitude');
-
+                    
                     if (latField) latField.value = this.userLocation.lat;
                     if (lonField) lonField.value = this.userLocation.lon;
                     if (altField) altField.value = this.userLocation.alt;
@@ -564,220 +292,123 @@ class SatelliteViewer {
         }
     }
 
+    async loadCategories() {
+        try {
+            const response = await fetch('/api/categories');
+            const data = await response.json();
 
+            if (data.success) {
+                this.categories = data.categories;
+                this.renderCategories();
+            } else {
+                this.showError('Failed to load satellite categories');
+            }
+        } catch (error) {
+            console.error('Error loading categories:', error);
+            this.showError('Error loading satellite categories');
+        }
+    }
 
+    renderCategories() {
+        const container = document.getElementById('categoriesList');
+        container.innerHTML = '';
 
+        // Add "All" category with enhanced styling
+        const totalCount = Object.values(this.categories).reduce((sum, cat) => sum + cat.count, 0);
+        const allItem = this.createCategoryItem('all', 'All Satellites', '#64b5f6', totalCount);
+        container.appendChild(allItem);
 
+        // Add individual categories
+        Object.entries(this.categories).forEach(([key, category]) => {
+            if (category.count > 0) {
+                const item = this.createCategoryItem(key, category.name, category.color, category.count);
+                container.appendChild(item);
+            }
+        });
+    }
 
+    createCategoryItem(key, name, color, count) {
+        const item = document.createElement('div');
+        item.className = 'category-item';
+        item.dataset.category = key;
+
+        item.innerHTML = `
+            <div style="display: flex; align-items: center;">
+                <div class="category-color" style="background-color: ${color};"></div>
+                <span class="category-name text-white">${name}</span>
+            </div>
+            <span class="category-count badge bg-secondary">${count}</span>
+        `;
+
+        item.addEventListener('click', () => {
+            this.filterByCategory(key === 'all' ? null : key);
+
+            // Update active state with animation
+            document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
+            item.classList.add('active');
+        });
+
+        return item;
+    }
 
     async loadSatellites() {
         try {
-            console.log('🛰️ Fetching satellite data from API...');
-            const response = await fetchWithRetry('/api/satellites');
+            const response = await fetch('/api/satellites');
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
             const data = await response.json();
-            console.log('📡 API Response:', {
-                success: data.success,
-                satelliteCount: data.satellites?.length || 0,
-                hasData: !!data.satellites
-            });
 
             if (data.success && data.satellites && data.satellites.length > 0) {
                 // Efficient satellite data update with position interpolation
                 const isFirstLoad = this.satellites.size === 0;
 
-                // Store current search state before updating - be more thorough
-                const currentSearchQuery = this.satelliteSearch ? this.satelliteSearch.currentQuery : '';
-                const hasActiveSearch = currentSearchQuery && currentSearchQuery.length > 0;
-                const isSelectingFromSearch = this.satelliteSearch && this.satelliteSearch.isSelectingFromSearch;
-
-                console.log(`🔍 Auto-update - Search active: ${hasActiveSearch}, Query: "${currentSearchQuery}", Selecting: ${isSelectingFromSearch}`);
-
-                // Use backend timestamp for accurate position extrapolation
-                const backendTimestamp = data.timestamp ? new Date(data.timestamp).getTime() : Date.now();
-
-                // Store the backend timestamp ISO string for orbit calculations
-                this.backendTimestampISO = data.timestamp;
-
                 // Update satellite data with smooth transitions
                 const newSatellites = new Map();
                 data.satellites.forEach(sat => {
-                    // Validate satellite data
-                    if (!sat.norad_id || typeof sat.latitude !== 'number' || typeof sat.longitude !== 'number') {
-                        console.warn('Invalid satellite data:', sat);
-                        return;
-                    }
-
-                    // Use velocity from backend if available
-                    if (sat.velocity) {
-                        sat.velocity = {
-                            latitude: sat.velocity.latitude,
-                            longitude: sat.velocity.longitude,
-                            altitude: sat.velocity.altitude
+                    const existingSat = this.satellites.get(sat.norad_id);
+                    if (existingSat) {
+                        // Smooth interpolation for position updates
+                        sat.lastUpdateTime = Date.now();
+                        sat.previousPosition = {
+                            latitude: existingSat.latitude,
+                            longitude: existingSat.longitude,
+                            altitude: existingSat.altitude
                         };
-                    } else {
-                        sat.velocity = { latitude: 0, longitude: 0, altitude: 0 };
                     }
-
-                    // Use backend timestamp as the base for extrapolation
-                    // This ensures accurate position calculation from the moment data was computed
-                    sat.lastUpdateTime = backendTimestamp;
-
                     newSatellites.set(sat.norad_id, sat);
                 });
 
                 this.satellites = newSatellites;
-                console.log(`✅ Loaded ${newSatellites.size} valid satellites`);
 
-                if (this.currentMode === 'satellites') {
-                    // Always update positions for smooth motion
-                    this.updateSatellitePositions();
+                // Always update positions for smooth motion
+                this.updateSatellitePositions();
 
-                    // On first load, immediately fetch again to establish velocity
-                    if (isFirstLoad) {
-                        console.log('📍 Fetching immediate follow-up for velocity...');
-                        setTimeout(() => {
-                            this.loadSatellites();
-                        }, 100); // Immediate follow-up (100ms) for velocity
-                    }
+                // Always re-render entities for debugging
+                console.log(`Loading ${data.satellites.length} satellites, first load: ${isFirstLoad}`);
+                this.renderSatellites();
 
-                    console.log(`🎯 Rendering satellites, first load: ${isFirstLoad}`);
-                    this.renderSatellites();
+                this.updateStatus(data.satellites.length, data.timestamp);
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'badge bg-success ms-auto';
 
-                    // Restore search filter if it was active and not in the middle of selection
-                    if (hasActiveSearch && this.satelliteSearch && !isSelectingFromSearch) {
-                        console.log(`🔍 Restoring search filter: "${currentSearchQuery}"`);
-                        this.satelliteSearch.applySearchFilter(currentSearchQuery);
-                    } else if (isSelectingFromSearch) {
-                        console.log(`🔍 Skipping search filter restoration - selection in progress`);
-                    }
-
-                    // Update all status elements
-                    this.updateStatus(newSatellites.size, data.timestamp);
-                    this.updateConnectionStatus('Connected', 'success');
-
-                    // Note: Orbit paths are NOT refreshed here to avoid recreating them every 10-15 seconds
-                    // Orbits are only created when: 1) orbit toggle is turned ON, or 2) a new satellite is selected
-
-                    console.log(`📊 Updated UI status: ${newSatellites.size} satellites visible`);
+                const satCountElement = document.getElementById('satCount');
+                if (satCountElement) {
+                    satCountElement.textContent = data.satellites.length;
                 }
             } else {
-                console.error('❌ Failed to load satellites:', data);
+                console.error('Failed to load satellites:', data);
                 this.showError(data.error || 'Failed to load satellite data');
-                this.updateConnectionStatus('No Data', 'warning');
+                document.getElementById('connectionStatus').textContent = 'No Data';
+                document.getElementById('connectionStatus').className = 'badge bg-warning ms-auto';
             }
         } catch (error) {
-            console.error('💥 Error loading satellites:', error);
+            console.error('Error loading satellites:', error);
             this.showError(`Network error: ${error.message}`);
-            this.updateConnectionStatus('Disconnected', 'danger');
+            document.getElementById('connectionStatus').textContent = 'Disconnected';
+            document.getElementById('connectionStatus').className = 'badge bg-danger ms-auto';
         }
-    }
-
-    async loadAirplanes() {
-        try {
-            console.log('✈️ Fetching airplane data from OpenSky API...');
-            this.showLoadingIndicator('Loading airplanes from OpenSky...');
-
-            const response = await fetchWithRetry('/api/airplanes');
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('✈️ OpenSky API Response:', {
-                success: data.success,
-                airplaneCount: data.airplanes?.length || 0,
-                hasData: !!data.airplanes
-            });
-
-            if (data.success && data.airplanes && data.airplanes.length > 0) {
-                // Update airplane data
-                const newAirplanes = new Map();
-                data.airplanes.forEach(airplane => {
-                    // Validate airplane data
-                    if (!airplane.icao24 || typeof airplane.latitude !== 'number' || typeof airplane.longitude !== 'number') {
-                        console.warn('Invalid airplane data:', airplane);
-                        return;
-                    }
-
-                    newAirplanes.set(airplane.icao24, airplane);
-                });
-
-                this.airplanes = newAirplanes;
-                console.log(`✅ Loaded ${newAirplanes.size} valid airplanes`);
-
-                if (this.currentMode === 'airplanes') {
-                    this.renderAirplanes();
-
-                    // Update all status elements for airplane mode
-                    this.updateStatus(newAirplanes.size, data.timestamp);
-                    this.updateConnectionStatus('Connected', 'success');
-
-                    console.log(`📊 Updated UI status: ${newAirplanes.size} airplanes visible`);
-                }
-            } else {
-                console.error('❌ Failed to load airplanes:', data);
-                this.showError(data.error || 'Failed to load airplane data');
-                this.updateConnectionStatus('No Data', 'warning');
-            }
-        } catch (error) {
-            console.error('💥 Error loading airplanes:', error);
-            this.showError(`Network error: ${error.message}`);
-            this.updateConnectionStatus('Disconnected', 'danger');
-        } finally {
-            this.hideLoadingIndicator();
-        }
-    }
-
-    updateConnectionStatus(text, type) {
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            statusElement.textContent = text;
-            statusElement.className = `badge bg-${type} ms-auto`;
-        }
-    }
-
-    updateStatus(satelliteCount, timestamp) {
-        // Update satellite count
-        const countElement = document.getElementById('count');
-        if (countElement) {
-            countElement.textContent = satelliteCount || this.satellites.size;
-        }
-
-        // Update last updated timestamp
-        const lastUpdateElement = document.getElementById('lastUpdate');
-        if (lastUpdateElement && timestamp) {
-            const updateTime = new Date(timestamp);
-            lastUpdateElement.textContent = `Last updated: ${updateTime.toLocaleTimeString()}`;
-        }
-
-        // Update tracking mode display
-        const trackingModeElement = document.getElementById('trackingMode');
-        if (trackingModeElement) {
-            const icon = this.currentMode === 'satellites' ? 'fas fa-satellite' : 'fas fa-plane';
-            const modeText = this.currentMode === 'satellites' ? 'Satellite Mode' : 'Airplane Mode';
-            trackingModeElement.innerHTML = `<i class="${icon} me-1"></i>${modeText}`;
-        }
-
-        // Check if priority satellites are loaded
-        const prioritySatellites = ['LANDSAT', 'SENTINEL', 'WORLDVIEW'];
-        let hasPrioritySatellites = false;
-
-        this.satellites.forEach(satellite => {
-            if (prioritySatellites.some(prefix => satellite.name.toUpperCase().includes(prefix))) {
-                hasPrioritySatellites = true;
-            }
-        });
-
-        const priorityStatusElement = document.getElementById('prioritySatsStatus');
-        if (priorityStatusElement && hasPrioritySatellites) {
-            priorityStatusElement.style.display = 'inline-block';
-        }
-
-        console.log(`📊 Status updated: ${satelliteCount} satellites, timestamp: ${timestamp}`);
     }
 
     updateSatellitePositions() {
@@ -799,126 +430,56 @@ class SatelliteViewer {
     }
 
     renderSatellites() {
-        if (!this.viewer || !this.viewer.entities) {
-            console.warn('❌ Viewer not ready for satellite rendering');
-            return;
-        }
+        // Enhanced performance rendering
+        const camera = this.viewer.camera;
+        const scene = this.viewer.scene;
 
-        console.log(`🎯 Rendering ${this.satellites.size} satellites`);
+        // Clear existing entities efficiently
+        this.satelliteEntities.forEach(entity => {
+            this.viewer.entities.remove(entity);
+        });
+        this.satelliteEntities.clear();
 
-        // If we have no entities yet, create them all first
-        if (this.satelliteEntities.size === 0) {
-            this.createAllSatelliteEntities();
-        }
+        // Render satellites with LOD and performance optimizations
+        let renderedCount = 0;
+        console.log(`Starting to render satellites. Total in map: ${this.satellites.size}`);
 
-        // Check if search is active before applying filters
-        const hasActiveSearch = this.satelliteSearch &&
-            this.satelliteSearch.currentQuery &&
-            this.satelliteSearch.currentQuery.length > 0;
-
-        if (hasActiveSearch) {
-            // If search is active, apply search filter instead of regular filters
-            console.log(`🔍 Search active, preserving search filter: "${this.satelliteSearch.currentQuery}"`);
-            this.satelliteSearch.applySearchFilter(this.satelliteSearch.currentQuery);
-        } else {
-            // Apply current filters using satellite filter module only if no search is active
-            if (this.satelliteFilter) {
-                this.satelliteFilter.applyCurrentFilters();
-            }
-        }
-
-        console.log(`✅ Satellites rendered with current filters`);
-        this.viewer.scene.requestRender();
-    }
-
-
-
-
-
-    createAllSatelliteEntities() {
-        console.log(`🔨 Creating entities for ${this.satellites.size} satellites`);
-
-        let createdCount = 0;
         this.satellites.forEach((satellite, noradId) => {
+            if (this.activeCategoryFilter && satellite.category !== this.activeCategoryFilter) {
+                return;
+            }
 
-            // CRITICAL FIX: Skip if entity already exists to prevent duplicates
-            if (this.satelliteEntities.has(noradId)) {
-                // Verify the entity still exists in viewer
-                const existingEntity = this.satelliteEntities.get(noradId);
-                if (this.viewer.entities.contains(existingEntity)) {
-                    return; // Entity exists and is valid, skip creation
-                } else {
-                    // Entity was removed from viewer but still in map, clean it up
-                    this.satelliteEntities.delete(noradId);
-                }
+            if (renderedCount >= this.maxVisibleSatellites) {
+                return;
             }
 
             // Validate satellite position data
-            if (typeof satellite.latitude !== 'number' || typeof satellite.longitude !== 'number' ||
-                typeof satellite.altitude !== 'number' || isNaN(satellite.latitude) ||
+            if (typeof satellite.latitude !== 'number' || typeof satellite.longitude !== 'number' || 
+                typeof satellite.altitude !== 'number' || isNaN(satellite.latitude) || 
                 isNaN(satellite.longitude) || isNaN(satellite.altitude)) {
+                console.warn(`Skipping satellite ${satellite.name} due to invalid position:`, satellite);
                 return;
             }
 
-            // Additional validation for extreme values
-            if (Math.abs(satellite.latitude) > 90 || Math.abs(satellite.longitude) > 180 || satellite.altitude < 0) {
-                return;
+            // Reduced logging for better performance
+            if (renderedCount < 2) {  // Only log first 2 for debugging
+                console.log(`Rendering satellite ${renderedCount + 1}: ${satellite.name} at ${satellite.latitude.toFixed(2)}, ${satellite.longitude.toFixed(2)}, ${satellite.altitude.toFixed(2)}km`);
             }
 
-            // Dynamic position with real-time velocity-based movement
-            // Uses exponential smoothing to prevent jumps when new data arrives
-            let lastRenderedPos = null;
-            let lastRenderedTime = null;
-
-            const position = new Cesium.CallbackProperty((time, result) => {
+            // Dynamic position that updates with satellite movement
+            const position = new Cesium.CallbackProperty(() => {
                 const currentSat = this.satellites.get(noradId);
-                if (!currentSat) {
+                if (currentSat) {
                     return Cesium.Cartesian3.fromDegrees(
-                        satellite.longitude,
-                        satellite.latitude,
-                        satellite.altitude * 1000,
-                        Cesium.Ellipsoid.WGS84,
-                        result
+                        currentSat.longitude,
+                        currentSat.latitude,
+                        currentSat.altitude * 1000
                     );
                 }
-
-                const now = Date.now();
-                const timeSinceUpdate = (now - currentSat.lastUpdateTime) / 1000; // seconds
-
-                // Use velocity to calculate expected position
-                const velocity = currentSat.velocity || { latitude: 0, longitude: 0, altitude: 0 };
-
-                let targetLat = currentSat.latitude + (velocity.latitude * timeSinceUpdate);
-                let targetLon = currentSat.longitude + (velocity.longitude * timeSinceUpdate);
-                let targetAlt = currentSat.altitude + (velocity.altitude * timeSinceUpdate);
-
-                // Handle longitude wrapping
-                if (targetLon > 180) targetLon -= 360;
-                if (targetLon < -180) targetLon += 360;
-
-                // Clamp latitude
-                targetLat = Math.max(-90, Math.min(90, targetLat));
-                targetAlt = Math.max(0, targetAlt);
-
-                // Smooth transition when new data arrives
-                if (lastRenderedPos && lastRenderedTime && (now - lastRenderedTime) < 100) {
-                    // Blend old and new positions over 100ms to prevent jumps
-                    const blendFactor = (now - lastRenderedTime) / 100;
-                    targetLat = lastRenderedPos.lat + (targetLat - lastRenderedPos.lat) * blendFactor;
-                    targetLon = lastRenderedPos.lon + (targetLon - lastRenderedPos.lon) * blendFactor;
-                    targetAlt = lastRenderedPos.alt + (targetAlt - lastRenderedPos.alt) * blendFactor;
-                }
-
-                // Store for next frame
-                lastRenderedPos = { lat: targetLat, lon: targetLon, alt: targetAlt };
-                lastRenderedTime = now;
-
                 return Cesium.Cartesian3.fromDegrees(
-                    targetLon,
-                    targetLat,
-                    targetAlt * 1000,
-                    Cesium.Ellipsoid.WGS84,
-                    result
+                    satellite.longitude,
+                    satellite.latitude,
+                    satellite.altitude * 1000
                 );
             }, false);
 
@@ -930,9 +491,10 @@ class SatelliteViewer {
                     pixelSize: 3,
                     color: Cesium.Color.fromCssColorString(satellite.color || '#64b5f6'),
                     outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 0.1,
+                    outlineWidth: 0.3,
                     heightReference: Cesium.HeightReference.NONE,
-                    show: true, // Will be controlled by filtering
+                    show: true,
+                    // Enable depth testing so satellites behind Earth are hidden
                     disableDepthTestDistance: 0
                 },
                 label: {
@@ -948,7 +510,7 @@ class SatelliteViewer {
                 },
                 path: {
                     show: false,
-                    leadTime: 3600,
+                    leadTime: 3600, // 15 minutes
                     trailTime: 900,
                     width: 3,
                     resolution: 60,
@@ -961,40 +523,18 @@ class SatelliteViewer {
             });
 
             this.satelliteEntities.set(noradId, entity);
-            createdCount++;
+            renderedCount++;
         });
 
-        console.log(`🔨 Created ${createdCount} satellite entities`);
+        console.log(`Rendered ${renderedCount} satellites out of ${this.satellites.size} total satellites`);
+
+        // Debug: Check if any satellites were actually added to Cesium
+        const totalEntities = this.viewer.entities.values.length;
+        console.log(`Total entities in Cesium viewer: ${totalEntities}`);
 
         // Enable proper depth testing and lighting for realistic rendering
-        try {
-            this.viewer.scene.globe.enableLighting = true;
-            this.viewer.scene.globe.depthTestAgainstTerrain = true;
-        } catch (error) {
-            console.warn('Error setting globe properties:', error);
-        }
-    }
-
-    onEntityClick(event) {
-        const pickedObject = this.viewer.scene.pick(event.position);
-
-        if (Cesium.defined(pickedObject)) {
-            console.log(`🖱️ Entity clicked in ${this.currentMode} mode:`, pickedObject.id);
-
-            if (this.currentMode === 'satellites' && pickedObject.id.satelliteData) {
-                this.onSatelliteClick(event);
-            } else if (this.currentMode === 'airplanes' && pickedObject.id.airplaneData) {
-                this.onAirplaneClick(event);
-            } else {
-                console.log('🖱️ Clicked entity does not match current mode or has no data');
-            }
-        } else {
-            if (this.currentMode === 'satellites') {
-                this.deselectSatellite();
-            } else if (this.currentMode === 'airplanes') {
-                this.deselectAirplane();
-            }
-        }
+        this.viewer.scene.globe.enableLighting = true;
+        this.viewer.scene.globe.depthTestAgainstTerrain = true;
     }
 
     onSatelliteClick(event) {
@@ -1002,42 +542,72 @@ class SatelliteViewer {
 
         if (Cesium.defined(pickedObject) && pickedObject.id.satelliteData) {
             const satellite = pickedObject.id.satelliteData;
-
+            
             // Clear any existing click timeout
             if (this.clickTimeout) {
                 clearTimeout(this.clickTimeout);
                 this.clickTimeout = null;
-
-                // This is a double click - enable continuous tracking using workflow
-                this.satelliteWorkflow.executeSatelliteSelectionWorkflow(satellite.norad_id, true, 'doubleclick');
+                
+                // This is a double click - enable continuous tracking
+                this.selectSatellite(satellite.norad_id, true);
                 return;
             }
-
+            
             // This might be a single click - wait to see if double click follows
             this.clickTimeout = setTimeout(() => {
                 this.clickTimeout = null;
-                // Single click - focus but don't track continuously using workflow
-                this.satelliteWorkflow.executeSatelliteSelectionWorkflow(satellite.norad_id, false, 'click');
+                // Single click - focus but don't track continuously
+                this.selectSatellite(satellite.norad_id, false);
             }, 300);
-
+            
         } else {
             this.deselectSatellite();
         }
     }
 
     async selectSatellite(noradId, enableTracking = false) {
-        // Use the new workflow system for consistent satellite selection
-        const result = await this.satelliteWorkflow.executeSatelliteSelectionWorkflow(noradId, enableTracking, 'manual');
-
-        // Ensure coverage swath is shown if toggled on
-        if (this.showCoverageSwath) {
-            this.showCoverageSwathPath(noradId);
+        // Clear previous selection visualizations
+        if (this.selectedSatellite && this.selectedSatellite !== noradId) {
+            this.clearSatelliteVisualizations(this.selectedSatellite);
         }
 
-        return result;
+        this.selectedSatellite = noradId;
+
+        // Enhanced visual selection
+        this.updateSatelliteSelection();
+
+        // Focus on satellite
+        this.focusOnSatellite(noradId);
+
+        // Only start continuous tracking if it's a double click or tracking is enabled
+        if (enableTracking) {
+            this.trackSatellite(noradId);
+        }
+
+        // Load detailed information
+        await this.loadSatelliteDetails(noradId);
+
+        // Start real-time details updates
+        this.startRealTimeDetailsUpdates(noradId);
+
+        // Load orbital path if enabled
+        if (this.showOrbits) {
+            await this.showOrbitPath(noradId);
+        }
+
+        // Only show ground tracks, nadir line, and field of view for Earth observation satellites
+        if (this.showGroundTracks && this.isEarthObservationSatellite(noradId)) {
+            await this.loadSatelliteGroundTrack(noradId);
+            await this.renderFutureGroundTrack(noradId);
+            this.renderNadirLine(noradId);
+        }
+
+        // Only show pass predictions for LEO satellites (not HEO/GEO)
+        const satellite = this.satellites.get(noradId);
+        if (satellite && satellite.altitude < 10000 && (this.userLocation.lat !== 0 || this.userLocation.lon !== 0)) {
+            await this.loadPassPredictions(noradId);
+        }
     }
-
-
 
     clearSatelliteVisualizations(noradId) {
         // Stop satellite tracking
@@ -1058,12 +628,6 @@ class SatelliteViewer {
         // Clear orbit path
         this.clearOrbitPath(noradId);
 
-        // Clear coverage swath
-        this.clearCoverageSwath(noradId);
-
-        // Stop animated ground swath
-        this.stopGroundSwathAnimation();
-
         // Clear ground track
         this.clearSelectedGroundTrack();
 
@@ -1078,11 +642,7 @@ class SatelliteViewer {
         // Update details every 10 seconds for reasonable real-time feel
         this.realTimeUpdateInterval = setInterval(async () => {
             if (this.selectedSatellite === noradId) {
-                // Only update details if the panel is currently visible
-                const panel = document.getElementById('satelliteDetailsPanel');
-                if (panel && panel.classList.contains('show')) {
-                    await this.loadSatelliteDetails(noradId);
-                }
+                await this.loadSatelliteDetails(noradId);
             }
         }, 10000);
     }
@@ -1094,50 +654,14 @@ class SatelliteViewer {
         }
     }
 
-    closeDetailsPanel() {
-        const panel = document.getElementById('satelliteDetailsPanel');
-        if (panel) {
-            panel.classList.add('fade-out');
-            panel.classList.remove('show');
-
-            // Hide panel after animation completes
-            setTimeout(() => {
-                if (panel.classList.contains('fade-out')) {
-                    panel.style.display = 'none';
-                    panel.classList.remove('fade-out');
-                }
-            }, 300);
-        }
-    }
-
     deselectSatellite() {
         if (this.selectedSatellite) {
             this.clearSatelliteVisualizations(this.selectedSatellite);
         }
-
-        // Disable motion control if active
-        if (this.motionControl.motionControlEnabled) {
-            this.motionControl.disableMotionControl();
-            const motionBtn = document.getElementById('motionControlBtn');
-            if (motionBtn) {
-                motionBtn.classList.remove('active');
-                motionBtn.innerHTML = '<i class="fas fa-route"></i> Motion Control';
-            }
-        }
-
         this.selectedSatellite = null;
 
-        // Reset past passes state
-        this.passFilter.showingPastPasses = false;
-
-        // Hide past passes info
-        const pastPassesInfo = document.getElementById('pastPassesInfo');
-        if (pastPassesInfo) {
-            pastPassesInfo.style.display = 'none';
-        }
-
-        // Hide the sliding panel with animation
-        this.closeDetailsPanel();
+        document.getElementById('satelliteInfo').style.display = 'none';
+        document.getElementById('passInfo').style.display = 'none';
 
         this.updateSatelliteSelection();
     }
@@ -1149,14 +673,12 @@ class SatelliteViewer {
             // Enhanced selection appearance with smaller sizes
             entity.point.pixelSize = isSelected ? 6 : 3;
             entity.point.outlineWidth = isSelected ? 0.8 : 0.3;
+            entity.label.show = isSelected;
 
-            // Preserve label visibility for selected satellite
             if (isSelected) {
-                entity.label.show = true;
                 entity.point.color = Cesium.Color.YELLOW;
                 entity.point.outlineColor = Cesium.Color.WHITE;
             } else {
-                entity.label.show = false;
                 const sat = this.satellites.get(noradId);
                 if (sat) {
                     entity.point.color = Cesium.Color.fromCssColorString(sat.color);
@@ -1170,7 +692,7 @@ class SatelliteViewer {
         try {
             // Include user location for signal strength calculation
             const url = `/api/satellite/${noradId}?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}`;
-            const response = await fetchWithRetry(url);
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
@@ -1178,20 +700,7 @@ class SatelliteViewer {
             const data = await response.json();
 
             if (data.success && data.satellite) {
-                // Also fetch EO metadata if available
-                let eoMetadata = null;
-                try {
-                    const eoResponse = await fetchWithRetry(`/api/satellite/${noradId}/eo-metadata`);
-                    const eoData = await eoResponse.json();
-                    if (eoData.success && eoData.is_eo_satellite) {
-                        eoMetadata = eoData.metadata;
-                    }
-                } catch (eoError) {
-                    // Not an EO satellite, that's OK
-                    console.log(`Satellite ${noradId} is not an EO satellite`);
-                }
-
-                this.renderSatelliteDetails(data.satellite, eoMetadata);
+                this.renderSatelliteDetails(data.satellite);
             } else {
                 console.warn('Failed to load satellite details:', data);
                 document.getElementById('satelliteInfo').style.display = 'none';
@@ -1202,7 +711,7 @@ class SatelliteViewer {
         }
     }
 
-    renderSatelliteDetails(satellite, eoMetadata = null) {
+    renderSatelliteDetails(satellite) {
         const container = document.getElementById('satelliteDetails');
 
         // Get signal strength color based on percentage
@@ -1238,33 +747,6 @@ class SatelliteViewer {
                     <div class="col-6"><small class="text-cyan">${satellite.signal.frequency_mhz.toFixed(1)} MHz</small></div>
                     <div class="col-6"><small class="text-muted">Path Loss:</small></div>
                     <div class="col-6"><small class="text-secondary">${satellite.signal.path_loss_db.toFixed(1)} dB</small></div>
-                </div>
-            </div>
-            ` : ''}
-
-            <!-- Earth Observation Information -->
-            ${eoMetadata ? `
-            <div class="satellite-section mb-3">
-                <h6 class="text-info mb-2">
-                    <i class="fas fa-camera me-2"></i>Earth Observation
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Constellation:</small></div>
-                    <div class="col-6"><small class="text-success">${eoMetadata.constellation}</small></div>
-                    <div class="col-6"><small class="text-muted">Operator:</small></div>
-                    <div class="col-6"><small class="text-info">${eoMetadata.operator}</small></div>
-                    <div class="col-6"><small class="text-muted">Sensor Type:</small></div>
-                    <div class="col-6"><small class="text-primary">${eoMetadata.sensor_type.toUpperCase()}</small></div>
-                    <div class="col-6"><small class="text-muted">Resolution:</small></div>
-                    <div class="col-6"><small class="text-warning">${eoMetadata.spatial_res_m}m</small></div>
-                    <div class="col-6"><small class="text-muted">Swath Width:</small></div>
-                    <div class="col-6"><small class="text-cyan">${eoMetadata.swath_km} km</small></div>
-                    <div class="col-6"><small class="text-muted">Data Access:</small></div>
-                    <div class="col-6"><small class="${eoMetadata.data_access === 'open' ? 'text-success' : 'text-warning'}">${eoMetadata.data_access.toUpperCase()}</small></div>
-                    ${eoMetadata.tasking ? `
-                    <div class="col-6"><small class="text-muted">Tasking:</small></div>
-                    <div class="col-6"><small class="text-success">✓ Available</small></div>
-                    ` : ''}
                 </div>
             </div>
             ` : ''}
@@ -1323,41 +805,175 @@ class SatelliteViewer {
                     <div class="col-6"><small class="text-success">${satellite.technical.status}</small></div>
                 </div>
             </div>
-            <div class="d-flex justify-content-start mt-3 gap-2">
+            <div class="d-flex justify-content-start mt-3">
                         ${this.isISS(satellite) ? `
                             <button class="btn btn-primary btn-sm" onclick="showISSVideo()">
                                 <i class="fas fa-video"></i> Live Video
                             </button>
                         ` : ''}
-                        ${this.isEarthObservationSatellite(satellite.technical.norad_id) ? `
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-success btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <i class="fas fa-images"></i> Imagery
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-dark">
-                                    ${this.getImageryLinks(satellite.technical.norad_id, satellite.name).map((link, index) => `
-                                        <li>
-                                            <a class="dropdown-item ${link.available ? 'text-success' : 'text-warning'}" 
-                                               href="${link.url}" target="_blank" rel="noopener noreferrer">
-                                                ${link.name}
-                                                ${link.available ? '<i class="fas fa-external-link-alt ms-1"></i>' : '<small class="text-muted">(Limited)</small>'}
-                                            </a>
-                                        </li>
-                                    `).join('')}
-                                </ul>
-                            </div>
-                        ` : ''}
-                        <button class="btn btn-warning btn-sm" id="pastPassesBtn" onclick="satelliteViewer.passFilter.togglePastPasses()">
-                            <i class="fas fa-history"></i> Past Passes
-                        </button>
-                        </div>
+                    </div>
         `;
 
-        // Only show the panel if it's not already visible (initial selection)
-        const panel = document.getElementById('satelliteDetailsPanel');
-        if (panel && !panel.classList.contains('show') && typeof window.showDetailsPanel === 'function') {
-            window.showDetailsPanel();
+        document.getElementById('satelliteInfo').style.display = 'block';
+    }
+
+    async loadSatelliteOrbit(noradId) {
+        try {
+            this.clearSelectedOrbit();
+
+            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
+            const data = await response.json();
+
+            if (data.success && data.orbit_points.length > 0) {
+                this.renderSatelliteOrbit(noradId, data.orbit_points);
+            }
+        } catch (error) {
+            console.error('Error loading satellite orbit:', error);
         }
+    }
+
+    async loadSatelliteGroundTrack(noradId) {
+        try {
+            const response = await fetch(`/api/satellite/${noradId}/ground-track?duration=3&swath_width=300`);
+            const data = await response.json();
+
+            if (data.success && data.ground_track.length > 0) {
+                this.renderSatelliteGroundTrack(noradId, data.ground_track);
+            }
+        } catch (error) {
+            console.error('Error loading satellite ground track:', error);
+        }
+    }
+
+    renderSatelliteGroundTrack(noradId, groundTrackPoints) {
+        // Remove existing ground track for this satellite
+        this.clearSelectedGroundTrack();
+
+        if (groundTrackPoints.length < 2) return;
+
+        const satellite = this.satellites.get(noradId);
+        const color = satellite ? satellite.color : '#64b5f6';
+
+        // Create center line positions
+        const centerPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
+        );
+
+        // Create swath boundary positions
+        const leftBoundaryPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.swath_left_lon, point.swath_left_lat, 0)
+        );
+
+        const rightBoundaryPositions = groundTrackPoints.map(point =>
+            Cesium.Cartesian3.fromDegrees(point.swath_right_lon, point.swath_right_lat, 0)
+        );
+
+        // Create swath polygon for coverage area
+        const swathPositions = [];
+        leftBoundaryPositions.forEach(pos => swathPositions.push(pos));
+        rightBoundaryPositions.reverse().forEach(pos => swathPositions.push(pos));
+
+        // Add enhanced swath coverage area with real-time satellite reference
+        const swathEntity = this.viewer.entities.add({
+            id: `ground_swath_${noradId}`,
+            polygon: {
+                hierarchy: swathPositions,
+                material: new Cesium.ColorMaterialProperty(
+                    new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return Cesium.Color.fromCssColorString(color).withAlpha(0.4);
+                        }
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.2);
+                    }, false)
+                ),
+                outline: true,
+                outlineColor: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat && this.selectedSatellite === noradId) {
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.8);
+                    }
+                    return Cesium.Color.fromCssColorString(color).withAlpha(0.5);
+                }, false),
+                height: 0,
+                extrudedHeight: 0
+            }
+        });
+
+        // Add enhanced center line with dynamic properties
+        const centerLineEntity = this.viewer.entities.add({
+            id: `ground_track_center_${noradId}`,
+            polyline: {
+                positions: centerPositions,
+                width: new Cesium.CallbackProperty(() => {
+                    const currentSat = this.satellites.get(noradId);
+                    if (currentSat && this.selectedSatellite === noradId) {
+                        return 4; // Thicker line for selected satellite
+                    }
+                    return 2;
+                }, false),
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return 0.6; // More glow for selected satellite
+                        }
+                        return 0.3;
+                    }, false),
+                    color: new Cesium.CallbackProperty(() => {
+                        const currentSat = this.satellites.get(noradId);
+                        if (currentSat && this.selectedSatellite === noradId) {
+                            return Cesium.Color.fromCssColorString(color).withAlpha(1.0);
+                        }
+                        return Cesium.Color.fromCssColorString(color).withAlpha(0.7);
+                    }, false)
+                }),
+                clampToGround: true
+            }
+        });
+
+        // Add satellite reference markers along the ground track
+        const currentSatellitePosition = this.viewer.entities.add({
+            id: `ground_track_current_${noradId}`,
+            position: new Cesium.CallbackProperty(() => {
+                const currentSat = this.satellites.get(noradId);
+                if (currentSat) {
+                    return Cesium.Cartesian3.fromDegrees(
+                        currentSat.longitude,
+                        currentSat.latitude,
+                        0
+                    );
+                }
+                return undefined;
+            }, false),
+            point: {
+                pixelSize: 8,
+                color: Cesium.Color.fromCssColorString(color),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 2,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                show: new Cesium.CallbackProperty(() => {
+                    return this.selectedSatellite === noradId;
+                }, false)
+            },
+            label: {
+                text: 'Current Position',
+                font: '10pt Arial',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -30),
+                show: new Cesium.CallbackProperty(() => {
+                    return this.selectedSatellite === noradId;
+                }, false),
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+
+        this.groundTrackEntities.set(`swath_${noradId}`, swathEntity);
+        this.groundTrackEntities.set(`center_${noradId}`, centerLineEntity);
+        this.groundTrackEntities.set(`current_${noradId}`, currentSatellitePosition);
     }
 
     clearSelectedGroundTrack() {
@@ -1391,6 +1007,34 @@ class SatelliteViewer {
         }
     }
 
+    renderSatelliteOrbit(noradId, orbitPoints) {
+        this.clearSelectedOrbit();
+
+        if (orbitPoints.length < 2) return;
+
+        const positions = orbitPoints.map(point => 
+            Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, point.altitude * 1000)
+        );
+
+        const satellite = this.satellites.get(noradId);
+        const color = satellite ? satellite.color : '#64b5f6';
+
+        const orbitEntity = this.viewer.entities.add({
+            id: `orbit_${noradId}`,
+            polyline: {
+                positions: positions,
+                width: 3,
+                material: new Cesium.PolylineGlowMaterialProperty({
+                    glowPower: 0.3,
+                    color: Cesium.Color.fromCssColorString(color).withAlpha(0.8)
+                }),
+                clampToGround: false
+            }
+        });
+
+        this.orbitEntities.set(noradId, orbitEntity);
+    }
+
     clearSelectedOrbit() {
         if (this.selectedSatellite) {
             const orbitEntity = this.orbitEntities.get(this.selectedSatellite);
@@ -1402,274 +1046,171 @@ class SatelliteViewer {
     }
 
     async loadPassPredictions(noradId) {
-        if (!this.userLocation.lat && !this.userLocation.lon) {
-            console.log('User location not set, skipping pass predictions');
-            return;
-        }
-
         try {
-            // Include current motion control time for accurate pass calculations
-            let timeOffset = 0;
-            if (this.motionControl.motionControlEnabled && this.motionControl.orbitTimeData && this.motionControl.currentOrbitTimeIndex < this.motionControl.orbitTimeData.length) {
-                const currentMotionTime = this.motionControl.orbitTimeData[this.motionControl.currentOrbitTimeIndex];
-                const realTime = Date.now();
-                timeOffset = Math.round((currentMotionTime - realTime) / 1000); // offset in seconds
-            }
-
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/passes?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}&time_offset=${timeOffset}`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
+            const response = await fetch(`/api/satellite/${noradId}/passes?lat=${this.userLocation.lat}&lon=${this.userLocation.lon}&alt=${this.userLocation.alt}`);
             const data = await response.json();
 
-            if (data.success && data.passes) {
-                this.displayPassPredictions(data.passes, noradId, data.is_earth_observation, data.fov_info, data.pass_calculation);
-            } else {
-                console.warn('Failed to load pass predictions:', data);
+            if (data.success) {
+                this.renderPassPredictions(data.passes);
             }
         } catch (error) {
             console.error('Error loading pass predictions:', error);
         }
     }
 
-    displayPassPredictions(passes, noradId, isEarthObservation = false, fovInfo = null, calculationType = 'Standard') {
-        const passInfo = document.getElementById('passInfo');
-        if (!passInfo) return;
+    renderPassPredictions(passes) {
+        const tabsContainer = document.getElementById('passNavTabs');
+        const contentContainer = document.getElementById('passTabContent');
 
-        // Clear existing content
-        const headerText = isEarthObservation ? 'Coverage Pass Predictions' : 'Overhead Passes';
-        const headerIcon = isEarthObservation ? 'fas fa-satellite' : 'fas fa-crosshairs';
-
-        passInfo.innerHTML = `
-            <h6 class="text-info mb-3">
-                <i class="${headerIcon} me-2"></i>${headerText}
-                ${isEarthObservation ? '<span class="badge bg-success ms-2">EO Satellite</span>' : ''}
-            </h6>
-        `;
-
-        // Add FOV information for Earth observation satellites
-        if (isEarthObservation && fovInfo) {
-            const fovInfoDiv = document.createElement('div');
-            fovInfoDiv.className = 'alert alert-info mb-3';
-            fovInfoDiv.innerHTML = `
-                <div class="row">
-                    <div class="col-12">
-                        <strong>Field of View Information:</strong><br>
-                        <small>Swath Width: ${fovInfo.default_swath || 'N/A'} km</small><br>
-                        <small>Sensors: ${fovInfo.sensors ? fovInfo.sensors.join(', ') : 'N/A'}</small><br>
-                        <small>Country: ${fovInfo.country || 'N/A'}</small><br>
-                        <small>Calculation Type: ${calculationType}</small>
-                    </div>
-                </div>
-            `;
-            passInfo.appendChild(fovInfoDiv);
-        }
-
-        if (!passes || passes.length === 0) {
-            const noPassesMsg = isEarthObservation ?
-                'No coverage opportunities in the next 7 days based on satellite FOV.' :
-                'No overhead passes in the next 7 days for your location.';
-            passInfo.innerHTML += `<p class="text-muted">${noPassesMsg}</p>`;
+        if (passes.length === 0) {
+            tabsContainer.innerHTML = '';
+            contentContainer.innerHTML = '<p class="text-muted p-3">No upcoming passes found</p>';
+            document.getElementById('passInfo').style.display = 'block';
             return;
         }
 
         // Create tabs for each pass
-        const navTabs = document.createElement('ul');
-        navTabs.className = 'nav nav-tabs';
-        navTabs.id = 'passNavTabs';
-        navTabs.setAttribute('role', 'tablist');
+        const tabsHtml = passes.slice(0, 6).map((pass, index) => `
+            <li class="nav-item" role="presentation">
+                <button class="nav-link ${index === 0 ? 'active' : ''}" id="pass-tab-${index}" 
+                        data-bs-toggle="tab" data-bs-target="#pass-${index}" type="button" 
+                        role="tab" aria-controls="pass-${index}" aria-selected="${index === 0}">
+                    Pass ${index + 1}
+                </button>
+            </li>
+        `).join('');
 
-        const tabContent = document.createElement('div');
-        tabContent.className = 'tab-content';
-        tabContent.id = 'passTabContent';
-
-        passes.forEach((pass, index) => {
-            const passDate = new Date(pass.rise_time);
-            const tabId = `pass-${noradId}-${index}`;
-            const paneId = `pane-${noradId}-${index}`;
-
-            // Create tab
-            const tabItem = document.createElement('li');
-            tabItem.className = 'nav-item';
-            tabItem.setAttribute('role', 'presentation');
-
-            const tabLink = document.createElement('button');
-            tabLink.className = `nav-link ${index === 0 ? 'active' : ''}`;
-            tabLink.id = tabId;
-            tabLink.setAttribute('data-bs-toggle', 'tab');
-            tabLink.setAttribute('data-bs-target', `#${paneId}`);
-            tabLink.setAttribute('type', 'button');
-            tabLink.setAttribute('role', 'tab');
-            tabLink.setAttribute('aria-controls', paneId);
-            tabLink.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
-
-            const tabText = isEarthObservation ? `Coverage ${index + 1}` : `Pass ${index + 1}`;
-            tabLink.textContent = tabText;
-
-            tabItem.appendChild(tabLink);
-            navTabs.appendChild(tabItem);
-
-            // Create tab pane
-            const tabPane = document.createElement('div');
-            tabPane.className = `tab-pane fade ${index === 0 ? 'show active' : ''}`;
-            tabPane.id = paneId;
-            tabPane.setAttribute('role', 'tabpanel');
-            tabPane.setAttribute('aria-labelledby', tabId);
-
-            // Format times
-            const riseTime = new Date(pass.rise_time);
-            const setTime = new Date(pass.set_time);
-            const culminationTime = new Date(pass.culmination_time);
-
-            // Enhanced display for Earth observation satellites
-            let additionalInfo = '';
-            if (isEarthObservation && pass.sensors) {
-                additionalInfo = `
-                    <div class="row mb-2">
-                        <div class="col-12">
-                            <small class="text-muted">Sensors:</small><br>
-                            <small class="text-info">${pass.sensors.join(', ')}</small>
-                        </div>
+        // Create tab content for each pass
+        const contentHtml = passes.slice(0, 6).map((pass, index) => `
+            <div class="tab-pane fade ${index === 0 ? 'show active' : ''}" id="pass-${index}" 
+                 role="tabpanel" aria-labelledby="pass-tab-${index}">
+                <div class="p-3">
+                    <div class="mb-2">
+                        <strong class="text-info">Rise Time:</strong><br>
+                        <small>${new Date(pass.rise_time).toLocaleString()}</small>
                     </div>
-                `;
-            }
-
-            if (pass.swath_width) {
-                additionalInfo += `
-                    <div class="row mb-2">
-                        <div class="col-6">
-                            <small class="text-muted">Swath Width:</small><br>
-                            <small class="text-success">${pass.swath_width} km</small>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">Coverage Type:</small><br>
-                            <small class="text-warning">${pass.coverage_type || 'Standard'}</small>
-                        </div>
+                    <div class="mb-2">
+                        <strong class="text-success">Max Elevation:</strong><br>
+                        <small>${pass.max_elevation?.toFixed(1)}° at ${new Date(pass.culmination_time || pass.rise_time).toLocaleTimeString()}</small>
                     </div>
-                `;
-            }
-
-            const startLabel = isEarthObservation ? 'Coverage Start:' : 'Overhead Start:';
-            const endLabel = isEarthObservation ? 'Coverage End:' : 'Overhead End:';
-
-            tabPane.innerHTML = `
-                <div class="pass-item mt-3">
-                    <div class="row mb-2">
-                        <div class="col-6">
-                            <small class="text-muted">${startLabel}</small><br>
-                            <small class="text-primary">${riseTime.toLocaleDateString()} ${riseTime.toLocaleTimeString()}</small>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">${endLabel}</small><br>
-                            <small class="text-primary">${setTime.toLocaleDateString()} ${setTime.toLocaleTimeString()}</small>
-                        </div>
+                    <div class="mb-2">
+                        <strong class="text-warning">Duration:</strong><br>
+                        <small>${pass.duration_minutes?.toFixed(1)} minutes</small>
                     </div>
-                    <div class="row mb-2">
-                        <div class="col-6">
-                            <small class="text-muted">Max Elevation:</small><br>
-                            <small class="text-success">${pass.max_elevation}°</small>
-                        </div>
-                        <div class="col-6">
-                            <small class="text-muted">Duration:</small><br>
-                            <small class="text-info">${pass.duration_minutes} min</small>
-                        </div>
+                    ${pass.set_time ? `
+                    <div class="mb-2">
+                        <strong class="text-danger">Set Time:</strong><br>
+                        <small>${new Date(pass.set_time).toLocaleString()}</small>
                     </div>
-                    ${additionalInfo}
-                    <div class="row mb-2">
+                    ` : ''}
+                    <div class="row g-2 mt-2">
                         <div class="col-6">
-                            <small class="text-muted">Start Az:</small><br>
+                            <small class="text-muted">Rise Az:</small><br>
                             <small class="text-primary">${pass.rise_azimuth?.toFixed(1)}°</small>
                         </div>
                         <div class="col-6">
-                            <small class="text-muted">End Az:</small><br>
+                            <small class="text-muted">Set Az:</small><br>
                             <small class="text-primary">${pass.set_azimuth?.toFixed(1)}°</small>
                         </div>
                     </div>
-                    ${pass.min_distance ? `
-                        <div class="row mt-2">
-                            <div class="col-6">
-                                <small class="text-muted">Min Distance:</small><br>
-                                <small class="text-success">${pass.min_distance} km</small>
-                            </div>
-                            <div class="col-6">
-                                <small class="text-muted">Overhead Threshold:</small><br>
-                                <small class="text-info">${pass.overhead_threshold_km} km</small>
-                            </div>
-                        </div>
-                    ` : ''}
-                    ${pass.calculation_method ? `
-                        <div class="row mt-2">
-                            <div class="col-12">
-                                <small class="text-muted">Method:</small><br>
-                                <small class="badge bg-info">${pass.calculation_method}</small>
-                            </div>
-                        </div>
-                    ` : ''}
-                    ${pass.pass_type ? `
-                        <div class="row mt-2">
-                            <div class="col-12">
-                                <small class="text-muted">Pass Type:</small><br>
-                                <small class="badge bg-primary">${pass.pass_type}</small>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
-            `;
+            </div>
+        `).join('');
 
-            tabContent.appendChild(tabPane);
-        });
-
-        passInfo.appendChild(navTabs);
-        passInfo.appendChild(tabContent);
+        tabsContainer.innerHTML = tabsHtml;
+        contentContainer.innerHTML = contentHtml;
+        document.getElementById('passInfo').style.display = 'block';
     }
 
+    async searchSatellites(query) {
+        const container = document.getElementById('searchResults');
 
-
-    focusOnSatellite(noradId) {
-        const satellite = this.satellites.get(noradId);
-        if (!satellite) {
-            console.warn(`❌ Cannot focus on satellite ${noradId} - not found`);
+        if (!query || query.length < 2) {
+            container.innerHTML = '';
+            this.showAllSatellites();
             return;
         }
 
-        console.log(`🎯 Focusing on satellite: ${satellite.name} at ${satellite.latitude.toFixed(4)}, ${satellite.longitude.toFixed(4)}, ${satellite.altitude.toFixed(1)}km`);
+        try {
+            const response = await fetch(`/api/satellites/search?q=${encodeURIComponent(query)}`);
+            const data = await response.json();
 
-        // Calculate proper viewing distance based on satellite altitude
+            if (data.success && data.satellites.length > 0) {
+                // Show only searched satellites
+                this.showOnlySearchedSatellites(data.satellites);
+
+                container.innerHTML = data.satellites.slice(0, 10).map(sat => `
+                    <div class="search-result" data-norad-id="${sat.norad_id}">
+                        <div class="d-flex align-items-center">
+                            <div class="category-color me-2"></div>
+                            <span class="text-white">${sat.name}</span>
+                            <small class="text-muted ms-auto">${sat.category}</small>
+                        </div>
+                    </div>
+                `).join('');
+
+                // Add click handlers
+                container.querySelectorAll('.search-result').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const noradId = parseInt(item.dataset.noradId);
+                        this.selectSatellite(noradId);
+                        this.focusOnSatellite(noradId);
+                        container.innerHTML = '';
+                    });
+                });
+            } else {
+                container.innerHTML = '<div class="text-muted p-2">No satellites found</div>';
+            }
+        } catch (error) {
+            console.error('Error searching satellites:', error);
+        }
+    }
+
+    showOnlySearchedSatellites(searchedSatellites) {
+        // Hide all satellite entities first
+        this.satelliteEntities.forEach(entity => {
+            entity.show = false;
+        });
+
+        // Show only searched satellites
+        searchedSatellites.forEach(searchedSat => {
+            const entity = this.satelliteEntities.get(searchedSat.norad_id);
+            if (entity) {
+                entity.show = true;
+            }
+        });
+    }
+
+    showAllSatellites() {
+        // Show all satellite entities
+        this.satelliteEntities.forEach(entity => {
+            entity.show = true;
+        });
+    }
+
+    focusOnSatellite(noradId) {
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return;
+
+        // Smooth flyTo animation to satellite's actual position in space
         const satelliteAltitude = parseFloat(satellite.altitude) * 1000; // Convert km to meters
-        const viewingDistance = Math.max(satelliteAltitude * 3, 2000000); // Better distance calculation
-
+        const viewingDistance = Math.max(satelliteAltitude + 2000000, 2000000); // At least 2000km viewing distance
+        
         const destination = Cesium.Cartesian3.fromDegrees(
             parseFloat(satellite.longitude),
             parseFloat(satellite.latitude),
             viewingDistance
         );
 
-        // Enhanced camera positioning
         this.viewer.camera.flyTo({
             destination: destination,
             orientation: {
                 heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO, // Better viewing angle
+                pitch: -Cesium.Math.PI_OVER_TWO, // Look down at an angle to see satellite
                 roll: 0.0
             },
-            duration: 2.5, // Slightly longer for smoother movement
-            easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT,
-            complete: () => {
-                console.log(`✅ Camera focus completed for ${satellite.name}`);
-
-                // Force scene update to ensure proper rendering
-                this.viewer.scene.requestRender();
-
-                // Ensure satellite is visible and highlighted after focus
-                const entity = this.satelliteEntities.get(noradId);
-                if (entity && entity.point) {
-                    entity.point.show = true;
-                    entity.point.pixelSize = 6;
-                    entity.point.color = Cesium.Color.YELLOW;
-                    entity.label.show = true;
-                }
-            }
+            duration: 2.0,
+            easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT
         });
     }
 
@@ -1715,17 +1256,16 @@ class SatelliteViewer {
         }, 5000); // Update camera position every 5 seconds for smooth tracking
     }
 
-
-
-
+    filterByCategory(category) {
+        this.activeCategoryFilter = category;
+        this.renderSatellites();
+    }
 
 
 
     async showOrbitPath(noradId) {
         try {
-            // Use the same backend timestamp that satellite positions use
-            const timestampParam = this.backendTimestampISO ? `&timestamp=${encodeURIComponent(this.backendTimestampISO)}` : '';
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/orbit?duration=3${timestampParam}`);
+            const response = await fetch(`/api/satellite/${noradId}/orbit?duration=3`);
             const data = await response.json();
 
             if (data.success && data.orbit_points.length > 0) {
@@ -1786,9 +1326,6 @@ class SatelliteViewer {
 
         const color = satellite ? satellite.color : '#64b5f6';
 
-        // Get accurate FOV data for this satellite
-        const fovData = this.getFOVDataForSatellite(noradId);
-
         // Create dynamic nadir line that updates with satellite position
         const nadirLine = this.viewer.entities.add({
             id: `nadir_line_${noradId}`,
@@ -1819,9 +1356,9 @@ class SatelliteViewer {
             }
         });
 
-        // Create accurate FOV circle that accounts for look angles and real FOV data
-        const fovCircle = this.viewer.entities.add({
-            id: `fov_circle_${noradId}`,
+        // Create dynamic circular swath footprint that updates with satellite position
+        const circularSwath = this.viewer.entities.add({
+            id: `nadir_circle_${noradId}`,
             position: new Cesium.CallbackProperty(() => {
                 const currentSat = this.satellites.get(noradId);
                 if (currentSat) {
@@ -1841,29 +1378,33 @@ class SatelliteViewer {
                 semiMajorAxis: new Cesium.CallbackProperty(() => {
                     const currentSat = this.satellites.get(noradId);
                     if (currentSat) {
-                        return this.calculateAccurateFOVRadius(noradId, currentSat.altitude);
+                        // Calculate swath radius based on altitude (300km default swath width)
+                        const swathWidth = 300000; // 300km in meters
+                        const altitude = currentSat.altitude * 1000; // Convert to meters
+                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6)); // Max 30° viewing angle
                     }
-                    return this.calculateAccurateFOVRadius(noradId, satellite.altitude);
+                    return 150000; // Default 150km radius
                 }, false),
                 semiMinorAxis: new Cesium.CallbackProperty(() => {
                     const currentSat = this.satellites.get(noradId);
                     if (currentSat) {
-                        return this.calculateAccurateFOVRadius(noradId, currentSat.altitude);
+                        const swathWidth = 300000; // 300km in meters
+                        const altitude = currentSat.altitude * 1000;
+                        return Math.min(swathWidth / 2, altitude * Math.tan(Math.PI / 6));
                     }
-                    return this.calculateAccurateFOVRadius(noradId, satellite.altitude);
+                    return 150000;
                 }, false),
                 material: new Cesium.ColorMaterialProperty(
-                    Cesium.Color.fromCssColorString(color).withAlpha(0.25)
+                    Cesium.Color.fromCssColorString(color).withAlpha(0.2)
                 ),
                 outline: true,
-                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
+                outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.6),
                 height: 0,
                 rotation: new Cesium.CallbackProperty(() => {
-                    // Rotation based on satellite orbital direction for realism
+                    // Add slight rotation based on satellite movement for realism
                     const currentSat = this.satellites.get(noradId);
-                    if (currentSat) {
-                        // Calculate orbital direction based on inclination and longitude change
-                        return Math.atan2(currentSat.latitude, currentSat.longitude) + Math.PI / 2;
+                    if (currentSat && currentSat.velocity) {
+                        return (Date.now() / 10000) % (2 * Math.PI); // Slow rotation
                     }
                     return 0;
                 }, false)
@@ -1871,68 +1412,76 @@ class SatelliteViewer {
         });
 
         this.nadirEntities.set(`line_${noradId}`, nadirLine);
-        this.nadirEntities.set(`circle_${noradId}`, fovCircle);
-    }
-
-    getFOVDataForSatellite(noradId) {
-        // FOV database for known Earth observation satellites
-        const fovDatabase = {
-            // Sentinel satellites
-            39634: { swath_width: 250, look_angle: 30.45 }, // Sentinel-1A
-            42063: { swath_width: 290, look_angle: 20.6 },  // Sentinel-2A
-            43437: { swath_width: 290, look_angle: 20.6 },  // Sentinel-2B
-            43485: { swath_width: 1270, look_angle: 68.5 }, // Sentinel-3A
-            44427: { swath_width: 1270, look_angle: 68.5 }, // Sentinel-3B
-            43564: { swath_width: 2600, look_angle: 77.0 }, // Sentinel-5P
-
-            // Landsat satellites
-            39084: { swath_width: 185, look_angle: 15.0 },  // Landsat-8
-            49260: { swath_width: 185, look_angle: 15.0 },  // Landsat-9
-
-            // Terra & Aqua (MODIS)
-            25994: { swath_width: 2330, look_angle: 110.0 }, // Terra
-            27424: { swath_width: 2330, look_angle: 110.0 }, // Aqua
-
-            // WorldView satellites
-            32060: { swath_width: 17.6, look_angle: 1.35 }, // WorldView-1
-            35946: { swath_width: 16.4, look_angle: 1.35 }, // WorldView-2
-            40115: { swath_width: 13.1, look_angle: 1.07 }, // WorldView-3
-
-            // NOAA satellites (AVHRR)
-            33591: { swath_width: 2900, look_angle: 112.0 }, // NOAA-19
-            43013: { swath_width: 3000, look_angle: 112.0 }, // NOAA-20
-        };
-
-        return fovDatabase[noradId] || { swath_width: 300, look_angle: 30 }; // Default FOV
-    }
-
-    calculateAccurateFOVRadius(noradId, altitude_km) {
-        const fovData = this.getFOVDataForSatellite(noradId);
-        const earth_radius = 6371.0; // km
-        const altitude = altitude_km;
-
-        // For nadir-only instruments
-        if (fovData.swath_width === 0) {
-            return 1000; // 1km radius for nadir-only
-        }
-
-        // Calculate ground footprint using look angle and satellite altitude
-        // Ground range = altitude * tan(look_angle/2)
-        const half_look_angle_rad = (fovData.look_angle / 2) * (Math.PI / 180);
-
-        // More accurate calculation considering Earth curvature
-        const sat_distance = earth_radius + altitude;
-        const ground_range_rad = Math.asin((sat_distance * Math.sin(half_look_angle_rad)) / earth_radius);
-        const ground_range_km = earth_radius * ground_range_rad;
-
-        // Convert to meters for Cesium
-        return ground_range_km * 1000;
+        this.nadirEntities.set(`circle_${noradId}`, circularSwath);
     }
 
     async renderFutureGroundTrack(noradId) {
-        // Future ground tracks disabled - only nadir line and FOV circle are shown
-        console.log('Future ground track rendering disabled');
-        return;
+        try {
+            const response = await fetch(`/api/satellite/${noradId}/ground-track?duration=6&swath_width=300`);
+            const data = await response.json();
+
+            if (data.success && data.ground_track.length > 0) {
+                const satellite = this.satellites.get(noradId);
+                const color = satellite ? satellite.color : '#64b5f6';
+
+                // Split ground track into past (dimmer) and future (brighter)
+                const currentTime = Date.now();
+                const futurePoints = data.ground_track.filter(point => point.time_offset_minutes > 0);
+
+                if (futurePoints.length < 2) return;
+
+                // Create future center line positions
+                const futureCenterPositions = futurePoints.map(point =>
+                    Cesium.Cartesian3.fromDegrees(point.longitude, point.latitude, 0)
+                );
+
+                // Create future swath boundary positions
+                const futureLeftBoundary = futurePoints.map(point =>
+                    Cesium.Cartesian3.fromDegrees(point.swath_left_lon, point.swath_left_lat, 0)
+                );
+
+                const futureRightBoundary = futurePoints.map(point =>
+                    Cesium.Cartesian3.fromDegrees(point.swath_right_lon, point.swath_right_lat, 0)
+                );
+
+                // Create future swath polygon
+                const futureSwathPositions = [];
+                futureLeftBoundary.forEach(pos => futureSwathPositions.push(pos));
+                futureRightBoundary.reverse().forEach(pos => futureSwathPositions.push(pos));
+
+                // Add future swath coverage area
+                const futureSwathEntity = this.viewer.entities.add({
+                    id: `future_ground_swath_${noradId}`,
+                    polygon: {
+                        hierarchy: futureSwathPositions,
+                        material: Cesium.Color.fromCssColorString(color).withAlpha(0.15),
+                        outline: true,
+                        outlineColor: Cesium.Color.fromCssColorString(color).withAlpha(0.4),
+                        height: 0,
+                        extrudedHeight: 0
+                    }
+                });
+
+                // Add future center line
+                const futureCenterLineEntity = this.viewer.entities.add({
+                    id: `future_ground_track_center_${noradId}`,
+                    polyline: {
+                        positions: futureCenterPositions,
+                        width: 2,
+                        material: new Cesium.PolylineDashMaterialProperty({
+                            color: Cesium.Color.fromCssColorString(color).withAlpha(0.8),
+                            dashLength: 16
+                        }),
+                        clampToGround: true
+                    }
+                });
+
+                this.groundTrackEntities.set(`future_swath_${noradId}`, futureSwathEntity);
+                this.groundTrackEntities.set(`future_center_${noradId}`, futureCenterLineEntity);
+            }
+        } catch (error) {
+            console.error('Error loading future ground track:', error);
+        }
     }
 
     clearNadirLine() {
@@ -1978,13 +1527,15 @@ class SatelliteViewer {
 
         if (this.showGroundTracks) {
             btn.classList.add('active');
-            // Show nadir line and FOV circle for earth observation satellites
+            // Ground tracks will be shown only for earth observation satellites
             if (this.selectedSatellite && this.isEarthObservationSatellite(this.selectedSatellite)) {
+                this.loadSatelliteGroundTrack(this.selectedSatellite);
+                this.renderFutureGroundTrack(this.selectedSatellite);
                 this.renderNadirLine(this.selectedSatellite);
             }
         } else {
             btn.classList.remove('active');
-            this.clearNadirLine();
+            this.clearSelectedGroundTrack();
         }
     }
 
@@ -2010,484 +1561,324 @@ class SatelliteViewer {
         this.orbitEntities.clear();
     }
 
-    // =========================================================================
-    // COVERAGE SWATH VISUALIZATION (EO Satellites)
-    // =========================================================================
+    toggleCloudCover() {
+        this.cloudCoverEnabled = !this.cloudCoverEnabled;
+        const btn = document.getElementById('cloudCoverBtn');
 
-    toggleCoverageSwath() {
-        this.showCoverageSwath = !this.showCoverageSwath;
-        const btn = document.getElementById('coverageSwathBtn');
-
-        if (this.showCoverageSwath) {
+        if (this.cloudCoverEnabled) {
             btn.classList.add('active');
-            if (this.selectedSatellite) {
-                this.showCoverageSwathPath(this.selectedSatellite);
-            }
+            this.enableCloudCover();
         } else {
             btn.classList.remove('active');
-            if (this.selectedSatellite) {
-                this.clearCoverageSwath(this.selectedSatellite);
-            } else {
-                this.clearCoverageSwath();
-            }
+            this.disableCloudCover();
         }
     }
 
-    async showCoverageSwathPath(noradId) {
+    async enableCloudCover() {
         try {
-            console.log(`📊 Loading coverage swath for satellite ${noradId}...`);
+            console.log('Enabling real-time cloud cover...');
+            this.showLoadingIndicator('Loading cloud data...');
 
-            // Clear ALL previous swaths first to avoid showing multiple satellites
-            this.clearCoverageSwath();
+            // Remove any existing cloud layers first
+            this.disableCloudCover();
 
-            // Use 1.6-hour intervals to ensure full orbit coverage (~100 mins)
-            const hours_past = 1.6;
-            const hours_future = 1.6;
-            const interval_minutes = 2;  // Finer resolution prevents swath misalignment at poles
-            const response = await fetchWithRetry(
-                `/api/satellite/${noradId}/coverage-swath?hours_past=${hours_past}&hours_future=${hours_future}&interval_minutes=${interval_minutes}`
+            // Try multiple cloud sources for better reliability
+            const cloudSources = [
+                {
+                    name: 'OpenWeatherMap',
+                    provider: () => new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22',
+                        credit: 'OpenWeatherMap Clouds',
+                        maximumLevel: 12, // Reduced for faster loading
+                        minimumLevel: 0,
+                        hasAlphaChannel: true,
+                        tilingScheme: new Cesium.WebMercatorTilingScheme(),
+                        tileWidth: 256,
+                        tileHeight: 256
+                    })
+                },
+                {
+                    name: 'Windy',
+                    provider: () => new Cesium.UrlTemplateImageryProvider({
+                        url: 'https://tile.windy.com/v9.3/satellite-infrared/{z}/{x}/{y}.jpg',
+                        credit: 'Windy Satellite',
+                        maximumLevel: 10,
+                        minimumLevel: 0,
+                        tilingScheme: new Cesium.WebMercatorTilingScheme()
+                    })
+                }
+            ];
+
+            // Try each source until one works
+            let cloudLoaded = false;
+            for (const source of cloudSources) {
+                try {
+                    console.log(`Trying ${source.name} cloud data...`);
+                    this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(source.provider());
+                    
+                    // Set optimal properties for cloud visibility
+                    this.cloudLayer.alpha = 0.7;
+                    this.cloudLayer.brightness = 1.3;
+                    this.cloudLayer.contrast = 1.2;
+                    this.cloudLayer.hue = 0.0;
+                    this.cloudLayer.saturation = 1.1;
+                    this.cloudLayer.gamma = 1.0;
+
+                    console.log(`${source.name} cloud cover enabled successfully`);
+                    cloudLoaded = true;
+                    break;
+                } catch (sourceError) {
+                    console.warn(`${source.name} failed:`, sourceError);
+                    if (this.cloudLayer) {
+                        this.viewer.imageryLayers.remove(this.cloudLayer);
+                        this.cloudLayer = null;
+                    }
+                }
+            }
+
+            if (!cloudLoaded) {
+                throw new Error('All cloud sources failed');
+            }
+
+            // Enhanced atmospheric effects for realism
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0003;
+            this.viewer.scene.fog.screenSpaceErrorFactor = 2.5;
+
+            // Update clouds every 15 minutes for fresh data
+            this.cloudUpdateInterval = setInterval(() => {
+                this.updateCloudData();
+            }, 900000); // 15 minutes
+
+            // Force scene update and hide loading
+            this.viewer.scene.requestRender();
+            this.hideLoadingIndicator();
+            
+            console.log('Real-time cloud cover system activated');
+
+        } catch (error) {
+            console.warn('Cloud services failed, trying fallback:', error);
+            this.hideLoadingIndicator();
+            this.enableFallbackCloudVisualization();
+        }
+    }
+
+    enableNASACloudCover() {
+        try {
+            console.log('Enabling NASA GIBS cloud visualization...');
+
+            // Get yesterday's date (NASA GIBS usually has 1-day delay)
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const dateString = yesterday.getFullYear() + '-' + 
+                String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(yesterday.getDate()).padStart(2, '0');
+
+            // Use NASA GIBS MODIS Aqua True Color imagery
+            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.UrlTemplateImageryProvider({
+                    url: `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/MODIS_Aqua_CorrectedReflectance_TrueColor/default/${dateString}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`,
+                    credit: 'NASA GIBS MODIS Aqua',
+                    maximumLevel: 9,
+                    minimumLevel: 0,
+                    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+                    tileWidth: 256,
+                    tileHeight: 256,
+                    hasAlphaChannel: false
+                })
             );
-            const data = await response.json();
 
-            if (data.success && data.coverage) {
-                this.renderCoverageSwath(noradId, data.coverage);
-                console.log(`✅ Coverage swath loaded: ${data.coverage.sensor_type} sensor, ${data.coverage.swath_km}km swath`);
-            } else {
-                console.warn(`❌ Failed to load coverage swath: ${data.error || 'Unknown error'}`);
-            }
+            // Optimal settings for NASA imagery
+            this.cloudLayer.alpha = 0.8;
+            this.cloudLayer.brightness = 1.1;
+            this.cloudLayer.contrast = 1.3;
+            this.cloudLayer.gamma = 0.9;
+            this.cloudLayer.saturation = 1.2;
+
+            // Enhanced atmospheric effects
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0001;
+            this.viewer.scene.fog.screenSpaceErrorFactor = 1.8;
+
+            console.log('NASA GIBS cloud cover enabled successfully');
+
         } catch (error) {
-            console.error('Error loading coverage swath:', error);
+            console.error('Failed to enable NASA cloud effects:', error);
+            this.enableBasicAtmosphericEffects();
         }
     }
 
-    renderCoverageSwath(noradId, coverageData) {
-        // Clear existing coverage
-        this.clearCoverageSwath(noradId);
-
-        // Initialize entities array for this satellite
-        this.coverageSwathEntities.set(noradId, []);
-
-        const sensor_type = coverageData.sensor_type || 'optical';
-        const is_sar = sensor_type === 'SAR';
-
-        // Render day coverage (cyan)
-        if (coverageData.day_polygons && coverageData.day_polygons.length > 0) {
-            coverageData.day_polygons.forEach((polygon, idx) => {
-                if (polygon.coordinates && polygon.coordinates.length > 0) {
-                    const coords = polygon.coordinates[0];
-
-                    // Check for antimeridian crossing
-                    let crossesAntimeridian = false;
-                    for (let i = 1; i < coords.length; i++) {
-                        if (Math.abs(coords[i][0] - coords[i - 1][0]) > 180) {
-                            crossesAntimeridian = true;
-                            break;
-                        }
-                    }
-
-                    if (crossesAntimeridian) {
-                        console.log(`Skipping day polygon ${idx} - crosses antimeridian`);
-                        return;
-                    }
-
-                    const positions = [];
-                    coords.forEach(coord => {
-                        positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-                    });
-
-                    const entity = this.viewer.entities.add({
-                        name: `Day Coverage ${noradId}-${idx}`,
-                        polygon: {
-                            hierarchy: new Cesium.PolygonHierarchy(positions),
-                            material: Cesium.Color.CYAN.withAlpha(0.25),
-                            outline: true,
-                            outlineColor: Cesium.Color.CYAN.withAlpha(0.7),
-                            outlineWidth: 2,
-                            height: 0,
-                            zIndex: 100,
-                            classificationType: Cesium.ClassificationType.TERRAIN
-                        }
-                    });
-
-                    this.coverageSwathEntities.get(noradId).push(entity);
-                }
-            });
-        }
-
-        // Render night coverage (dark blue) - only for optical sensors
-        if (!is_sar && coverageData.night_polygons && coverageData.night_polygons.length > 0) {
-            coverageData.night_polygons.forEach((polygon, idx) => {
-                if (polygon.coordinates && polygon.coordinates.length > 0) {
-                    const coords = polygon.coordinates[0];
-
-                    // Check for antimeridian crossing
-                    let crossesAntimeridian = false;
-                    for (let i = 1; i < coords.length; i++) {
-                        if (Math.abs(coords[i][0] - coords[i - 1][0]) > 180) {
-                            crossesAntimeridian = true;
-                            break;
-                        }
-                    }
-
-                    if (crossesAntimeridian) {
-                        console.log(`Skipping night polygon ${idx} - crosses antimeridian`);
-                        return;
-                    }
-
-                    const positions = [];
-                    coords.forEach(coord => {
-                        positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-                    });
-
-                    const entity = this.viewer.entities.add({
-                        name: `Night Coverage ${noradId}-${idx}`,
-                        polygon: {
-                            hierarchy: new Cesium.PolygonHierarchy(positions),
-                            material: Cesium.Color.DARKBLUE.withAlpha(0.2),
-                            outline: true,
-                            outlineColor: Cesium.Color.DARKBLUE.withAlpha(0.6),
-                            outlineWidth: 2,
-                            height: 0,
-                            zIndex: 90,
-                            classificationType: Cesium.ClassificationType.TERRAIN
-                        }
-                    });
-
-                    this.coverageSwathEntities.get(noradId).push(entity);
-                }
-            });
-        }
-
-        // Render ground track (center line)
-        if (coverageData.ground_track && coverageData.ground_track.length > 1) {
-            const positions = [];
-            coverageData.ground_track.forEach(coord => {
-                positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-            });
-
-            const trackEntity = this.viewer.entities.add({
-                name: `Ground Track ${noradId}`,
-                polyline: {
-                    positions: positions,
-                    width: 2,
-                    material: Cesium.Color.YELLOW.withAlpha(0.7),
-                    zIndex: 110,
-                    clampToGround: true
-                }
-            });
-
-            this.coverageSwathEntities.get(noradId).push(trackEntity);
-        }
-
-        console.log(`✅ Rendered coverage swath: ${this.coverageSwathEntities.get(noradId)?.length || 0} entities`);
-    }
-
-    clearCoverageSwath(noradId) {
-        if (noradId) {
-            const entities = this.coverageSwathEntities.get(noradId);
-            if (entities) {
-                entities.forEach(entity => {
-                    this.viewer.entities.remove(entity);
-                });
-                this.coverageSwathEntities.delete(noradId);
-            }
-        } else {
-            // Clear all
-            this.coverageSwathEntities.forEach(entities => {
-                entities.forEach(entity => {
-                    this.viewer.entities.remove(entity);
-                });
-            });
-            this.coverageSwathEntities.clear();
-        }
-    }
-
-    // =========================================================================
-    // ANIMATED GROUND SWATH (Current Coverage Area)
-    // =========================================================================
-
-    toggleGroundSwath() {
-        this.showGroundSwath = !this.showGroundSwath;
-        const btn = document.getElementById('groundSwathBtn');
-
-        if (this.showGroundSwath) {
-            btn.classList.add('active');
-            if (this.selectedSatellite) {
-                this.startGroundSwathAnimation(this.selectedSatellite);
-            }
-        } else {
-            btn.classList.remove('active');
-            this.stopGroundSwathAnimation();
-        }
-    }
-
-    startGroundSwathAnimation(noradId) {
-        // Clear any existing animation
-        this.stopGroundSwathAnimation();
-
-        // Update immediately
-        this.updateGroundSwath(noradId);
-
-        // Update every 5 seconds
-        this.groundSwathUpdateInterval = setInterval(() => {
-            this.updateGroundSwath(noradId);
-        }, 5000);
-
-        console.log(`🎬 Started ground swath animation for satellite ${noradId}`);
-    }
-
-    async updateGroundSwath(noradId) {
+    enableFallbackCloudVisualization() {
+        console.log('Enabling fallback cloud visualization...');
+        
         try {
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/ground-swath`);
-            const data = await response.json();
-
-            if (data.success && data.ground_swath) {
-                this.renderGroundSwath(data.ground_swath);
-            }
-        } catch (error) {
-            console.error('Error updating ground swath:', error);
+            // Use a simple, fast cloud texture overlay
+            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.SingleTileImageryProvider({
+                    url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+                    rectangle: Cesium.Rectangle.fromDegrees(-180, -90, 180, 90)
+                })
+            );
+            
+            // Enhanced atmospheric effects to simulate cloud cover
+            this.viewer.scene.skyAtmosphere.show = true;
+            this.viewer.scene.skyAtmosphere.brightnessShift = 0.2;
+            this.viewer.scene.fog.enabled = true;
+            this.viewer.scene.fog.density = 0.0005;
+            this.viewer.scene.fog.minimumBrightness = 0.05;
+            
+            // Add more prominent haze effect to simulate cloud coverage
+            this.viewer.scene.globe.atmosphereHueShift = 0.15;
+            this.viewer.scene.globe.atmosphereSaturationShift = 0.2;
+            this.viewer.scene.globe.atmosphereBrightnessShift = 0.1;
+            
+            console.log('Fallback atmospheric cloud simulation enabled');
+            
+        } catch (fallbackError) {
+            console.warn('Fallback failed, using basic effects:', fallbackError);
+            this.enableBasicAtmosphericEffects();
         }
     }
 
-    renderGroundSwath(swathData) {
-        // Remove existing ground swath
-        if (this.groundSwathEntity) {
-            this.viewer.entities.remove(this.groundSwathEntity);
-            this.groundSwathEntity = null;
-        }
+    enableBasicAtmosphericEffects() {
+        console.log('Enabling basic atmospheric effects...');
+        
+        // Last resort: enhance atmospheric rendering
+        this.viewer.scene.skyAtmosphere.show = true;
+        this.viewer.scene.skyAtmosphere.brightnessShift = 0.1;
+        this.viewer.scene.fog.enabled = true;
+        this.viewer.scene.fog.density = 0.0003;
+        this.viewer.scene.fog.minimumBrightness = 0.03;
+        
+        // Add subtle haze effect
+        this.viewer.scene.globe.atmosphereHueShift = 0.1;
+        this.viewer.scene.globe.atmosphereSaturationShift = 0.1;
+        this.viewer.scene.globe.atmosphereBrightnessShift = 0.05;
+        
+        console.log('Basic atmospheric enhancement enabled');
+    }
 
-        const polygon = swathData.polygon;
-        if (!polygon || !polygon.coordinates || polygon.coordinates.length === 0) {
+    updateCloudData() {
+        console.log('Updating real-time cloud data...');
+        
+        if (!this.cloudCoverEnabled) {
+            console.log('Cloud cover disabled, skipping update');
             return;
         }
 
-        const positions = [];
-        polygon.coordinates[0].forEach(coord => {
-            positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-        });
-
-        // Color based on day/night
-        const color = swathData.daytime ? Cesium.Color.CYAN : Cesium.Color.DARKBLUE;
-        const alpha = swathData.daytime ? 0.3 : 0.2;
-
-        this.groundSwathEntity = this.viewer.entities.add({
-            name: `Current Ground Swath ${swathData.norad_id}`,
-            polygon: {
-                hierarchy: new Cesium.PolygonHierarchy(positions),
-                material: color.withAlpha(alpha),
-                outline: true,
-                outlineColor: color.withAlpha(0.8),
-                outlineWidth: 2,
-                height: 0
-            }
-        });
-    }
-
-    stopGroundSwathAnimation() {
-        if (this.groundSwathUpdateInterval) {
-            clearInterval(this.groundSwathUpdateInterval);
-            this.groundSwathUpdateInterval = null;
-        }
-
-        if (this.groundSwathEntity) {
-            this.viewer.entities.remove(this.groundSwathEntity);
-            this.groundSwathEntity = null;
-        }
-    }
-
-
-
-    handleImageryAction(noradId, linkIndex) {
-        const satellite = this.satellites.get(noradId);
-        if (!satellite) return;
-
-        const links = this.getImageryLinks(noradId, satellite.name);
-        const link = links[linkIndex];
-
-        if (link && link.action) {
-            link.action();
-        }
-    }
-
-    async loadLandsatData(noradId, landsatNum) {
         try {
-            this.showLoadingIndicator('Loading Landsat imagery...');
+            // Store current settings
+            const currentAlpha = this.cloudLayer?.alpha || 0.6;
+            const currentBrightness = this.cloudLayer?.brightness || 1.2;
+            const currentContrast = this.cloudLayer?.contrast || 1.1;
 
-            // Get current satellite position
-            const satellite = this.satellites.get(noradId);
-            if (!satellite) return;
-
-            // Use NASA's Landsat Look API for recentimagery
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/imagery/landsat`);
-            const data = await response.json();
-
-            if (data.success && data.imagery_urls) {
-                this.displayImageryModal('Landsat Imagery', data.imagery_urls, satellite);
-            } else {
-                // Fallback to NASA Worldview with satellite's current location
-                const worldviewUrl = `https://worldview.earthdata.nasa.gov/?v=${satellite.longitude - 5},${satellite.latitude - 5},${satellite.longitude + 5},${satellite.latitude + 5}&l=Landsat_WELD_CorrectedReflectance_TrueColor_Global_Annual&t=2024-01-01`;
-                window.open(worldviewUrl, '_blank');
+            // Remove old cloud layers
+            if (this.cloudLayer) {
+                this.viewer.imageryLayers.remove(this.cloudLayer);
+                this.cloudLayer = null;
             }
+            if (this.precipitationLayer) {
+                this.viewer.imageryLayers.remove(this.precipitationLayer);
+                this.precipitationLayer = null;
+            }
+
+            // Add fresh cloud layer with timestamp to avoid caching
+            const timestamp = Date.now();
+            this.cloudLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.UrlTemplateImageryProvider({
+                    url: `https://tile.openweathermap.org/map/clouds_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22&t=${timestamp}`,
+                    credit: 'OpenWeatherMap Clouds (Updated)',
+                    maximumLevel: 18,
+                    minimumLevel: 0,
+                    hasAlphaChannel: true,
+                    tilingScheme: new Cesium.WebMercatorTilingScheme()
+                })
+            );
+
+            // Restore settings
+            this.cloudLayer.alpha = currentAlpha;
+            this.cloudLayer.brightness = currentBrightness;
+            this.cloudLayer.contrast = currentContrast;
+
+            // Add updated precipitation layer
+            this.precipitationLayer = this.viewer.imageryLayers.addImageryProvider(
+                new Cesium.UrlTemplateImageryProvider({
+                    url: `https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=b6907d289e10d714a6e88b30761fae22&t=${timestamp}`,
+                    credit: 'OpenWeatherMap Precipitation (Updated)',
+                    maximumLevel: 16,
+                    minimumLevel: 0,
+                    hasAlphaChannel: true,
+                    tilingScheme: new Cesium.WebMercatorTilingScheme()
+                })
+            );
+
+            this.precipitationLayer.alpha = 0.4;
+            this.precipitationLayer.brightness = 1.0;
+
+            // Force scene refresh
+            this.viewer.scene.requestRender();
+            
+            console.log('Cloud data updated successfully with fresh imagery');
+
         } catch (error) {
-            console.error('Error loading Landsat data:', error);
-            this.showError('Failed to load Landsat imagery');
-        } finally {
-            this.hideLoadingIndicator();
+            console.warn('Failed to update cloud data:', error);
+            // Try to re-enable cloud cover if update fails
+            setTimeout(() => {
+                if (this.cloudCoverEnabled) {
+                    this.enableCloudCover();
+                }
+            }, 5000);
         }
     }
 
-    async loadSentinelData(noradId, sentinelType) {
-        try {
-            this.showLoadingIndicator('Loading Sentinel imagery...');
+    disableCloudCover() {
+        console.log('Disabling cloud cover...');
 
-            const satellite = this.satellites.get(noradId);
-            if (!satellite) return;
-
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/imagery/sentinel`);
-            const data = await response.json();
-
-            if (data.success && data.imagery_urls) {
-                this.displayImageryModal('Sentinel Imagery', data.imagery_urls, satellite);
-            } else {
-                // Fallback to Copernicus Browser with satellite's current location
-                const browserUrl = `https://browser.dataspace.copernicus.eu/?zoom=10&lat=${satellite.latitude}&lng=${satellite.longitude}&themeId=DEFAULT-THEME&datasetId=S${sentinelType.charAt(0)}_L2A&fromTime=2024-01-01T00%3A00%3A00.000Z&toTime=2024-12-31T23%3A59%3A59.999Z`;
-                window.open(browserUrl, '_blank');
-            }
-        } catch (error) {
-            console.error('Error loading Sentinel data:', error);
-            this.showError('Failed to load Sentinel imagery');
-        } finally {
-            this.hideLoadingIndicator();
+        // Remove all cloud-related layers
+        if (this.cloudLayer) {
+            this.viewer.imageryLayers.remove(this.cloudLayer);
+            this.cloudLayer = null;
         }
-    }
 
-    async loadModisData(noradId, satellite) {
-        try {
-            this.showLoadingIndicator('Loading MODIS imagery...');
-
-            const satelliteData = this.satellites.get(noradId);
-            if (!satelliteData) return;
-
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/imagery/modis`);
-            const data = await response.json();
-
-            if (data.success && data.imagery_urls) {
-                this.displayImageryModal('MODIS Imagery', data.imagery_urls, satelliteData);
-            } else {
-                // Fallback to NASA Worldview
-                const worldviewUrl = `https://worldview.earthdata.nasa.gov/?v=${satelliteData.longitude - 10},${satelliteData.latitude - 10},${satelliteData.longitude + 10},${satelliteData.latitude + 10}&l=MODIS_${satellite.name}_CorrectedReflectance_TrueColor&t=2024-01-01`;
-                window.open(worldviewUrl, '_blank');
-            }
-        } catch (error) {
-            console.error('Error loading MODIS data:', error);
-            this.showError('Failed to load MODIS imagery');
-        } finally {
-            this.hideLoadingIndicator();
+        if (this.precipitationLayer) {
+            this.viewer.imageryLayers.remove(this.precipitationLayer);
+            this.precipitationLayer = null;
         }
-    }
 
-    async loadNoaaData(noradId, satelliteNum) {
-        try {
-            this.showLoadingIndicator('Loading NOAA weather imagery...');
-
-            const satellite = this.satellites.get(noradId);
-            if (!satellite) return;
-
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/imagery/noaa`);
-            const data = await response.json();
-
-            if (data.success && data.imagery_urls) {
-                this.displayImageryModal('NOAA Weather Imagery', data.imagery_urls, satellite);
-            } else {
-                // Fallback to NOAA STAR
-                const noaaUrl = `https://www.star.nesdis.noaa.gov/GOES/fulldisk_band.php?sat=G${satelliteNum}&band=GEOCOLOR&length=12`;
-                window.open(noaaUrl, '_blank');
-            }
-        } catch (error) {
-            console.error('Error loading NOAA data:', error);
-            this.showError('Failed to load NOAA imagery');
-        } finally {
-            this.hideLoadingIndicator();
+        if (this.goesLayer) {
+            this.viewer.imageryLayers.remove(this.goesLayer);  
+            this.goesLayer = null;
         }
-    }
 
-    async loadResursData(noradId, resursNum) {
-        try {
-            this.showLoadingIndicator('Loading RESURS imagery...');
-
-            const satellite = this.satellites.get(noradId);
-            if (!satellite) return;
-
-            const response = await fetchWithRetry(`/api/satellite/${noradId}/imagery/resurs`);
-            const data = await response.json();
-
-            if (data.success && data.imagery_urls) {
-                this.displayImageryModal('RESURS Imagery', data.imagery_urls, satellite);
-            } else {
-                // Fallback to RESURS data portal
-                const resursUrl = `https://gptl.ru/en/catalog?satellites=resurs-p${resursNum}&bbox=${satellite.longitude - 2},${satellite.latitude - 2},${satellite.longitude + 2},${satellite.latitude + 2}`;
-                window.open(resursUrl, '_blank');
-            }
-        } catch (error) {
-            console.error('Error loading RESURS data:', error);
-            this.showError('Failed to load RESURS imagery');
-        } finally {
-            this.hideLoadingIndicator();
+        if (this.cloudProvider) {
+            this.cloudProvider = null;
         }
+
+        // Clear update interval
+        if (this.cloudUpdateInterval) {
+            clearInterval(this.cloudUpdateInterval);
+            this.cloudUpdateInterval = null;
+        }
+
+        // Reset atmospheric effects to normal
+        this.viewer.scene.fog.enabled = false;
+        this.viewer.scene.fog.density = 0.0;
+        this.viewer.scene.fog.minimumBrightness = 0.0;
+        this.viewer.scene.skyAtmosphere.show = true; // Keep atmosphere visible
+        this.viewer.scene.skyAtmosphere.brightnessShift = 0.0;
+        
+        // Reset globe atmospheric effects
+        this.viewer.scene.globe.atmosphereHueShift = 0.0;
+        this.viewer.scene.globe.atmosphereSaturationShift = 0.0;
+        this.viewer.scene.globe.atmosphereBrightnessShift = 0.0;
+
+        // Force scene refresh
+        this.viewer.scene.requestRender();
+
+        console.log('Cloud cover completely disabled and atmospheric effects reset');
     }
-
-    displayImageryModal(title, imageryUrls, satellite) {
-        // Create modal for displaying satellite imagery
-        const modal = document.createElement('div');
-        modal.className = 'modal fade';
-        modal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content bg-dark">
-                    <div class="modal-header">
-                        <h5 class="modal-title text-info">${title} - ${satellite.name}</h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <strong>Current Position:</strong><br>
-                                <small>Lat: ${satellite.latitude.toFixed(4)}°, Lon: ${satellite.longitude.toFixed(4)}°</small><br>
-                                <small>Alt: ${satellite.altitude.toFixed(1)} km</small>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <strong>Imagery Sources:</strong><br>
-                                <small>Updated: ${new Date().toLocaleString()}</small>
-                            </div>
-                        </div>
-                        <div class="imagery-gallery">
-                            ${imageryUrls.map((url, index) => `
-                                <div class="mb-3">
-                                    <h6>Image ${index + 1}</h6>
-                                    <img src="${url}" class="img-fluid rounded" alt="Satellite imagery" style="max-height: 300px;">
-                                    <br><small class="text-muted">${url}</small>
-                                </div>
-                            `).join('')}
-                        </div>
-                        ${imageryUrls.length === 0 ? '<p class="text-muted">No recent imagery available. Try external links.</p>' : ''}
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        document.body.appendChild(modal);
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
-
-        // Remove modal when hidden
-        modal.addEventListener('hidden.bs.modal', () => {
-            document.body.removeChild(modal);
-        });
-    }
-
-
 
     toggleTracking() {
         this.trackingMode = !this.trackingMode;
@@ -2506,314 +1897,6 @@ class SatelliteViewer {
                 this.satelliteTrackingInterval = null;
             }
         }
-    }
-
-    isEarthObservationSatellite(noradId) {
-        // First check if this satellite is in our FOV database (the 17 satellites from Excel)
-        const fovSatellites = [
-            39634, 40697, 42063, 41335, 43437, 42969, 46984, // Sentinel series
-            39084, 49260, // Landsat series
-            25994, 27424, 37849, 43013, // Terra, Aqua, Suomi NPP, NOAA-20
-            32060, 35946, 40115 // WorldView series
-        ];
-
-        if (fovSatellites.includes(noradId)) {
-            console.log(`✅ Found EO satellite ${noradId} in FOV database`);
-            return true;
-        }
-
-        // Check if this satellite is in our Earth observation database
-        const satellite = this.satellites.get(noradId);
-        if (!satellite) return false;
-
-        const name = satellite.name.toUpperCase();
-        const category = satellite.category?.toLowerCase() || '';
-
-        // Check category first
-        if (category === 'earth_observation') return true;
-
-        // Check comprehensive Earth observation keywords
-        const eoKeywords = [
-            'LANDSAT', 'SENTINEL', 'SPOT', 'WORLDVIEW', 'QUICKBIRD', 'GEOEYE',
-            'TERRA', 'AQUA', 'MODIS', 'NOAA', 'GOES', 'HIMAWARI', 'METEOSAT',
-            'KOMPSAT', 'ALOS', 'RADARSAT', 'COSMO-SKYMED', 'TERRASAR',
-            'ENVISAT', 'ERS-', 'CBERS', 'RESOURCESAT', 'CARTOSAT', 'RISAT',
-            'OCEANSAT', 'SCATSAT', 'SARAL', 'JASON', 'TOPEX', 'POSEIDON',
-            'SMAP', 'YAOGAN', 'GAOFEN', 'ZIYUAN', 'TIANHUI', 'JILIN',
-            'SUPERVIEW', 'PLANETSCOPE', 'RAPIDEYE', 'SKYSAT', 'DOVE',
-            'FLOCK', 'PLANET', 'BLACKSKY', 'ICEYE', 'CAPELLA'
-        ];
-
-        return eoKeywords.some(keyword => name.includes(keyword));
-    }
-
-    isISS(satellite) {
-        return satellite.name.toLowerCase().includes('iss') ||
-            satellite.name.toLowerCase().includes('international space station');
-    }
-
-    getImageryLinks(noradId, satelliteName) {
-        const name = satelliteName.toUpperCase();
-        const links = [];
-
-        // Get current satellite position for location-specific links
-        const satellite = this.satellites.get(noradId);
-        const lat = satellite ? satellite.latitude.toFixed(4) : '0';
-        const lon = satellite ? satellite.longitude.toFixed(4) : '0';
-        const bbox = satellite ? `${(satellite.longitude - 2).toFixed(4)},${(satellite.latitude - 2).toFixed(4)},${(satellite.longitude + 2).toFixed(4)},${(satellite.latitude + 2).toFixed(4)}` : '-2,-2,2,2';
-
-        // Landsat satellites (USGS Earth Explorer - Free)
-        if (name.includes('LANDSAT')) {
-            const landsatNum = name.match(/LANDSAT[- ]?(\d+)/i)?.[1] || '8';
-
-            links.push({
-                name: 'Load Landsat Data',
-                url: '#',
-                icon: 'fas fa-download',
-                type: 'direct',
-                description: 'Load latest Landsat imagery directly',
-                action: () => this.loadLandsatData(noradId, landsatNum)
-            });
-            links.push({
-                name: 'USGS Earth Explorer (Location)',
-                url: `https://earthexplorer.usgs.gov/?lng=${lon}&lat=${lat}&zoom=8`,
-                icon: 'fas fa-globe-americas',
-                type: 'free',
-                description: `Search Landsat ${landsatNum} at current position`
-            });
-            links.push({
-                name: 'NASA Worldview (Focused)',
-                url: `https://worldview.earthdata.nasa.gov/?v=${satellite ? (satellite.longitude - 5).toFixed(2) : '-5'},${satellite ? (satellite.latitude - 5).toFixed(2) : '-5'},${satellite ? (satellite.longitude + 5).toFixed(2) : '5'},${satellite ? (satellite.latitude + 5).toFixed(2) : '5'}&l=Landsat_WELD_CorrectedReflectance_TrueColor_Global_Annual&t=2024-01-01`,
-                icon: 'fas fa-satellite-dish',
-                type: 'free',
-                description: 'View area where satellite is currently located'
-            });
-        }
-
-        // Sentinel satellites (ESA Copernicus - Free)
-        if (name.includes('SENTINEL')) {
-            const sentinelType = name.match(/SENTINEL[- ]?(\d+[A-Z]?)/i)?.[1] || '2A';
-
-            links.push({
-                name: 'Load Sentinel Data',
-                url: '#',
-                icon: 'fas fa-download',
-                type: 'direct',
-                description: 'Load latest Sentinel imagery directly',
-                action: () => this.loadSentinelData(noradId, sentinelType)
-            });
-            links.push({
-                name: 'Copernicus Browser (Location)',
-                url: `https://browser.dataspace.copernicus.eu/?zoom=10&lat=${lat}&lng=${lon}&themeId=DEFAULT-THEME&datasetId=S${sentinelType.charAt(0)}_L2A&fromTime=2024-01-01T00%3A00%3A00.000Z&toTime=2024-12-31T23%3A59%3A59.999Z`,
-                icon: 'fas fa-satellite',
-                type: 'free',
-                description: `Browse Sentinel-${sentinelType} imagery at current position`
-            });
-            links.push({
-                name: 'Sentinel Hub EO Browser (Focused)',
-                url: `https://apps.sentinel-hub.com/eo-browser/?zoom=10&lat=${lat}&lng=${lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A&fromTime=2024-01-01T00%3A00%3A00.000Z&toTime=2024-12-31T23%3A59%3A59.999Z`,
-                icon: 'fas fa-eye',
-                type: 'free',
-                description: `Interactive viewer focused on satellite's current area`
-            });
-        }
-
-        // MODIS (Terra/Aqua) - Free NASA data
-        if (name.includes('TERRA') || name.includes('AQUA') || name.includes('MODIS')) {
-            const satelliteName = name.includes('TERRA') ? 'Terra' : 'Aqua';
-
-            links.push({
-                name: 'Load MODIS Data',
-                url: '#',
-                icon: 'fas fa-download',
-                type: 'direct',
-                description: `Load latest ${satelliteName} MODIS imagery`,
-                action: () => this.loadModisData(noradId, satelliteName)
-            });
-            links.push({
-                name: 'NASA Worldview (Current Area)',
-                url: `https://worldview.earthdata.nasa.gov/?v=${satellite ? (satellite.longitude - 10).toFixed(2) : '-10'},${satellite ? (satellite.latitude - 10).toFixed(2) : '-10'},${satellite ? (satellite.longitude + 10).toFixed(2) : '10'},${satellite ? (satellite.latitude + 10).toFixed(2) : '10'}&l=MODIS_${satelliteName}_CorrectedReflectance_TrueColor&t=2024-01-01`,
-                icon: 'fas fa-rocket',
-                type: 'free',
-                description: `NASA ${satelliteName} MODIS imagery at current location`
-            });
-            links.push({
-                name: 'MODIS Browse (Location)',
-                url: `https://modis.gsfc.nasa.gov/cgi-bin/gallery.cgi?platform=${satelliteName}&lat=${lat}&lon=${lon}&radius=500`,
-                icon: 'fas fa-database',
-                type: 'free',
-                description: `${satelliteName} MODIS images near current position`
-            });
-        }
-
-        // NOAA satellites - Free weather imagery
-        if (name.includes('NOAA') || name.includes('GOES')) {
-            const satelliteNum = name.match(/(?:NOAA|GOES)[- ]?(\d+)/i)?.[1] || '16';
-
-            links.push({
-                name: 'Load Weather Data',
-                url: '#',
-                icon: 'fas fa-download',
-                type: 'direct',
-                description: 'Load latest weather imagery',
-                action: () => this.loadNoaaData(noradId, satelliteNum)
-            });
-
-            if (name.includes('GOES')) {
-                links.push({
-                    name: 'GOES Image Viewer (Current)',
-                    url: `https://www.star.nesdis.noaa.gov/GOES/fulldisk_band.php?sat=G${satelliteNum}&band=GEOCOLOR&length=12`,
-                    icon: 'fas fa-satellite-dish',
-                    type: 'free',
-                    description: `Latest GOES-${satelliteNum} full disk imagery`
-                });
-                links.push({
-                    name: 'GOES Sector View',
-                    url: `https://cdn.star.nesdis.noaa.gov/GOES${satelliteNum}/ABI/SECTOR/`,
-                    icon: 'fas fa-map',
-                    type: 'free',
-                    description: `GOES-${satelliteNum} sector imagery`
-                });
-            } else {
-                links.push({
-                    name: 'NOAA CLASS (Location)',
-                    url: `https://www.avl.class.noaa.gov/saa/products/search?spatial_type=bbox&spatial_bbox=${bbox}&datatype_family=AVHRR&platform=NOAA-${satelliteNum}`,
-                    icon: 'fas fa-cloud',
-                    type: 'free',
-                    description: `NOAA-${satelliteNum} data near current position`
-                });
-            }
-        }
-
-        // RESURS and Russian satellites
-        if (name.includes('RESURS')) {
-            const resursNum = name.match(/RESURS[- ]?P?(\d+)/i)?.[1] || '4';
-
-            links.push({
-                name: 'Load RESURS Data',
-                url: '#',
-                icon: 'fas fa-download',
-                type: 'direct',
-                description: 'Load available RESURS imagery',
-                action: () => this.loadResursData(noradId, resursNum)
-            });
-            links.push({
-                name: 'RESURS Data Portal (Location)',
-                url: `https://gptl.ru/en/catalog?satellites=resurs-p${resursNum}&bbox=${bbox}`,
-                icon: 'fas fa-satellite',
-                type: 'free',
-                description: `RESURS-P${resursNum} data at current position`
-            });
-            links.push({
-                name: 'Russian Space Agency (Location)',
-                url: `https://www.roscosmos.ru/en/`,
-                icon: 'fas fa-rocket',
-                type: 'free',
-                description: `Russian satellite mission data`
-            });
-        }
-
-        // WorldView satellites (DigitalGlobe/Maxar - Paid)
-        if (name.includes('WORLDVIEW')) {
-            const wvNum = name.match(/WORLDVIEW[- ]?(\d+)/i)?.[1] || '2';
-            links.push({
-                name: 'Maxar SecureWatch (Location)',
-                url: `https://securewatch.digitalglobe.com/myDigitalGlobe_viewer/main.html?lat=${lat}&lng=${lon}&zoom=10`,
-                icon: 'fas fa-lock',
-                type: 'paid',
-                description: `WorldView-${wvNum} high-res imagery at current area`
-            });
-            links.push({
-                name: 'Google Earth (Location)',
-                url: `https://earth.google.com/web/@${lat},${lon},15000a,35y,0t,0r`,
-                icon: 'fab fa-google',
-                type: 'free',
-                description: 'View area in Google Earth'
-            });
-        }
-
-        // SPOT satellites - Paid
-        if (name.includes('SPOT')) {
-            const spotNum = name.match(/SPOT[- ]?(\d+)/i)?.[1] || '7';
-            links.push({
-                name: 'Airbus Intelligence (Location)',
-                url: `https://www.intelligence-airbusds.com/optical/spot/`,
-                icon: 'fas fa-plane',
-                type: 'paid',
-                description: `SPOT-${spotNum} imagery from Airbus`
-            });
-            links.push({
-                name: 'OneAtlas (Location)',
-                url: `https://oneatlas.airbus.com/`,
-                icon: 'fas fa-globe-europe',
-                type: 'paid',
-                description: 'Airbus satellite imagery platform'
-            });
-        }
-
-        // Planet Labs satellites - Paid
-        if (name.includes('DOVE') || name.includes('SKYSAT') || name.includes('PLANET')) {
-            links.push({
-                name: 'Planet Explorer (Location)',
-                url: `https://www.planet.com/explorer/#/zoom/${satellite ? Math.round(Math.log2(111319.5 / 1000)) : 8}/${lat}/${lon}`,
-                icon: 'fas fa-globe',
-                type: 'paid',
-                description: 'Planet Labs imagery at current position'
-            });
-            links.push({
-                name: 'Planet Imagery API',
-                url: 'https://developers.planet.com/',
-                icon: 'fas fa-code',
-                type: 'paid',
-                description: 'Planet Labs developer platform'
-            });
-        }
-
-        // RADARSAT - Mixed (some free, some paid)
-        if (name.includes('RADARSAT')) {
-            const rsNum = name.match(/RADARSAT[- ]?(\d+)/i)?.[1] || '2';
-            links.push({
-                name: 'EODMS (Location)',
-                url: `https://www.eodms-sgdot.nrcan-rncan.gc.ca/index-en.html`,
-                icon: 'fas fa-leaf',
-                type: 'free',
-                description: `Canadian EO data near lat:${lat}, lon:${lon}`
-            });
-            links.push({
-                name: 'MDA Geospatial (Location)',
-                url: `https://mdacorporation.com/geospatial/international/satellites/radarsat-${rsNum}`,
-                icon: 'fas fa-radar',
-                type: 'paid',
-                description: `RADARSAT-${rsNum} commercial imagery`
-            });
-        }
-
-        // Add generic location-specific sources for any Earth observation satellite
-        if (links.length === 0 || !links.some(link => link.type === 'free')) {
-            links.push({
-                name: 'NASA Worldview (Location)',
-                url: `https://worldview.earthdata.nasa.gov/?v=${satellite ? (satellite.longitude - 5).toFixed(2) : '-5'},${satellite ? (satellite.latitude - 5).toFixed(2) : '-5'},${satellite ? (satellite.longitude + 5).toFixed(2) : '5'},${satellite ? (satellite.latitude + 5).toFixed(2) : '5'}&l=MODIS_Aqua_CorrectedReflectance_TrueColor&t=2024-01-01`,
-                icon: 'fas fa-rocket',
-                type: 'free',
-                description: 'NASA satellite imagery at current area'
-            });
-            links.push({
-                name: 'Google Earth (Location)',
-                url: `https://earth.google.com/web/@${lat},${lon},15000a,35y,0t,0r`,
-                icon: 'fab fa-google',
-                type: 'free',
-                description: 'View area in Google Earth'
-            });
-            links.push({
-                name: 'EO Browser (Location)',
-                url: `https://apps.sentinel-hub.com/eo-browser/?zoom=10&lat=${lat}&lng=${lon}&themeId=DEFAULT-THEME&datasetId=S2_L2A&fromTime=2024-01-01T00%3A00%3A00.000Z&toTime=2024-12-31T23%3A59%3A59.999Z`,
-                icon: 'fas fa-satellite',
-                type: 'free',
-                description: 'Browse Earth observation data at current position'
-            });
-        }
-
-        return links.slice(0, 6); // Limit to 6 links to avoid clutter
     }
 
     showError(message) {
@@ -2864,44 +1947,6 @@ class SatelliteViewer {
         });
     }
 
-    showLoadingIndicator(message) {
-        const indicator = document.getElementById('loadingOverlay');
-        if (indicator) {
-            indicator.style.display = 'flex';
-            const messageEl = indicator.querySelector('p');
-            if (messageEl) messageEl.textContent = message;
-        }
-    }
-
-    hideLoadingIndicator() {
-        const indicator = document.getElementById('loadingOverlay');
-        if (indicator) {
-            indicator.style.display = 'none';
-        }
-    }
-
-    startAutoUpdate() {
-        // Auto-refresh every 5 minutes
-        this.updateInterval = setInterval(() => {
-            this.loadSatellites();
-        }, 300000);
-    }
-
-    setUserLocation(lat, lon, alt) {
-        this.userLocation = { lat, lon, alt };
-        this.addUserLocationMarker();
-
-        // Update preferences
-        this.preferences.location = this.userLocation;
-        this.saveUserPreferences();
-
-        // Fly to location
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(lon, lat, 1000000),
-            duration: 2.0
-        });
-    }
-
     resetView() {
         // If user location is available, go there; otherwise go to default view
         if (this.userLocation && (this.userLocation.lat !== 0 || this.userLocation.lon !== 0)) {
@@ -2909,7 +1954,7 @@ class SatelliteViewer {
                 destination: Cesium.Cartesian3.fromDegrees(
                     this.userLocation.lon,
                     this.userLocation.lat,
-                    50000000 // 5000km altitude for good view
+                    5000000 // 5000km altitude for good view
                 ),
                 orientation: {
                     heading: 0.0,
@@ -2936,7 +1981,7 @@ class SatelliteViewer {
         try {
             this.updateStatus('Refreshing satellite data...', false);
 
-            const response = await fetchWithRetry('/api/refresh', {
+            const response = await fetch('/api/refresh', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -2962,14 +2007,12 @@ class SatelliteViewer {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    this.setUserLocation(
-                        position.coords.latitude,
-                        position.coords.longitude,
-                        position.coords.altitude || 0
-                    );
+                    document.getElementById('latitude').value = position.coords.latitude;
+                    document.getElementById('longitude').value = position.coords.longitude;
+                    document.getElementById('altitude').value = position.coords.altitude || 0;
                 },
                 (error) => {
-                    this.showError('Could not get your location: ' + error.message);
+                    this.showError('Could not get your location');
                 }
             );
         } else {
@@ -2977,741 +2020,43 @@ class SatelliteViewer {
         }
     }
 
-    saveCoordinates() {
-        const lat = parseFloat(document.getElementById('coordLatitude').value);
-        const lon = parseFloat(document.getElementById('coordLongitude').value);
-        const alt = parseFloat(document.getElementById('coordAltitude').value) || 0;
+    saveLocation() {
+        const lat = parseFloat(document.getElementById('latitude').value);
+        const lon = parseFloat(document.getElementById('longitude').value);
+        const alt = parseFloat(document.getElementById('altitude').value) || 0;
 
-        if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-            alert('Please enter valid coordinates');
-            return;
+        this.userLocation = { lat, lon, alt };
+        this.preferences.location = this.userLocation;
+        this.saveUserPreferences();
+
+        const modal = bootstrap.Modal.getInstance(document.getElementById('locationModal'));
+        modal.hide();
+
+        // Reload pass predictions for selected satellite
+        if (this.selectedSatellite) {
+            this.loadPassPredictions(this.selectedSatellite);
         }
-
-        this.setUserLocation(lat, lon, alt);
-
-        // Close modal with proper cleanup
-        this.cleanupCoordinatesModal();
-    }
-
-    cleanupCoordinatesModal() {
-        // Get the modal instance
-        const modalElement = document.getElementById('coordinatesModal');
-        const modal = bootstrap.Modal.getInstance(modalElement);
-
-        // Hide the modal if it exists
-        if (modal) {
-            modal.hide();
-        }
-
-        // Wait for modal animation to complete, then cleanup
-        setTimeout(() => {
-            // Remove all modal backdrops
-            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-                backdrop.remove();
-            });
-
-            // Remove modal-open class from body
-            document.body.classList.remove('modal-open');
-
-            // Restore body overflow and padding
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-
-            console.log('Coordinates modal cleanup completed');
-        }, 300); // Wait for Bootstrap modal animation to complete
-    }
-
-    async searchLocationByName() {
-        const query = document.getElementById('locationSearchInput').value.trim();
-        if (!query) {
-            alert('Please enter a location name');
-            return;
-        }
-
-        const resultsContainer = document.getElementById('locationSearchResults');
-        resultsContainer.innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
-
-        try {
-            // Use Nominatim OSM geocoding service (free, no API key required)
-            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`);
-
-            if (!response.ok) {
-                throw new Error('Geocoding service unavailable');
-            }
-
-            const data = await response.json();
-
-            if (data && data.length > 0) {
-                resultsContainer.innerHTML = data.map((result, index) => `
-                    <div class="search-result p-2 mb-2" data-lat="${result.lat}" data-lon="${result.lon}" style="cursor: pointer; background: rgba(100, 181, 246, 0.1); border: 1px solid rgba(100, 181, 246, 0.2); border-radius: 6px; transition: all 0.3s ease;">
-                        <strong class="text-info">${result.display_name}</strong><br>
-                        <small class="text-muted">${parseFloat(result.lat).toFixed(4)}, ${parseFloat(result.lon).toFixed(4)}</small>
-                        <small class="text-success d-block">Type: ${result.type || 'Location'}</small>
-                    </div>
-                `).join('');
-
-                // Add hover effects
-                resultsContainer.querySelectorAll('.search-result').forEach(item => {
-                    item.addEventListener('mouseenter', () => {
-                        item.style.background = 'rgba(100, 181, 246, 0.2)';
-                        item.style.transform = 'translateX(4px)';
-                    });
-                    item.addEventListener('mouseleave', () => {
-                        item.style.background = 'rgba(100, 181, 246, 0.1)';
-                        item.style.transform = 'translateX(0)';
-                    });
-                });
-
-                // Add click handlers
-                resultsContainer.querySelectorAll('.search-result').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const lat = parseFloat(item.dataset.lat);
-                        const lon = parseFloat(item.dataset.lon);
-
-                        // Close modal first, then update location
-                        this.cleanupSearchLocationModal();
-
-                        // Set location with a small delay to ensure modal is fully closed
-                        setTimeout(() => {
-                            this.setUserLocation(lat, lon, 0);
-                        }, 100);
-                    });
-                });
-            } else {
-                resultsContainer.innerHTML = '<div class="text-muted p-2">No locations found. Try searching for a specific city, town, or landmark.</div>';
-            }
-        } catch (error) {
-            console.error('Geocoding error:', error);
-            resultsContainer.innerHTML = '<div class="text-danger p-2">Search failed. Please check your internet connection and try again.</div>';
-        }
-    }
-
-    cleanupSearchLocationModal() {
-        // Get the modal instance
-        const modalElement = document.getElementById('searchLocationModal');
-        const modal = bootstrap.Modal.getInstance(modalElement);
-
-        // Hide the modal if it exists
-        if (modal) {
-            modal.hide();
-        }
-
-        // Wait for modal animation to complete, then cleanup
-        setTimeout(() => {
-            // Remove all modal backdrops
-            document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-                backdrop.remove();
-            });
-
-            // Remove modal-open class from body
-            document.body.classList.remove('modal-open');
-
-            // Restore body overflow and padding
-            document.body.style.overflow = '';
-            document.body.style.paddingRight = '';
-
-            // Clear search results
-            const resultsContainer = document.getElementById('locationSearchResults');
-            if (resultsContainer) {
-                resultsContainer.innerHTML = '';
-            }
-
-            // Clear search input
-            const searchInput = document.getElementById('locationSearchInput');
-            if (searchInput) {
-                searchInput.value = '';
-            }
-
-            console.log('Search location modal cleanup completed');
-        }, 300); // Wait for Bootstrap modal animation to complete
-    }
-
-    enableGlobeSelection() {
-        alert('Click anywhere on the globe to set your location');
-
-        // Enable globe click selection
-        this.globeSelectionEnabled = true;
-
-        // Change cursor to crosshair
-        document.getElementById('cesiumContainer').style.cursor = 'crosshair';
-
-        // Add temporary click handler
-        this.globeClickHandler = (event) => {
-            if (!this.globeSelectionEnabled) return;
-
-            const pickedPosition = this.viewer.camera.pickEllipsoid(event.position, this.viewer.scene.globe.ellipsoid);
-            if (pickedPosition) {
-                const cartographic = Cesium.Cartographic.fromCartesian(pickedPosition);
-                const lat = Cesium.Math.toDegrees(cartographic.latitude);
-                const lon = Cesium.Math.toDegrees(cartographic.longitude);
-
-                this.setUserLocation(lat, lon, 0);
-                this.disableGlobeSelection();
-
-                // Ensure no modal overlays remain
-                const backdrop = document.querySelector('.modal-backdrop');
-                if (backdrop) {
-                    backdrop.remove();
-                }
-
-                // Restore body overflow
-                document.body.style.overflow = '';
-                document.body.classList.remove('modal-open');
-            }
-        };
-
-        this.viewer.cesiumWidget.screenSpaceEventHandler.setInputAction(
-            this.globeClickHandler,
-            Cesium.ScreenSpaceEventType.LEFT_CLICK
-        );
-    }
-
-    disableGlobeSelection() {
-        this.globeSelectionEnabled = false;
-        document.getElementById('cesiumContainer').style.cursor = 'default';
-
-        // Remove the temporary click handler and restore satellite click handler
-        this.viewer.cesiumWidget.screenSpaceEventHandler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
-        this.viewer.cesiumWidget.screenSpaceEventHandler.setInputAction(
-            this.onEntityClick.bind(this),
-            Cesium.ScreenSpaceEventType.LEFT_CLICK
-        );
-    }
-
-    switchToSatelliteMode() {
-        if (this.currentMode === 'satellites') return;
-
-        console.log('🛰️ Switching to satellite mode');
-        this.currentMode = 'satellites';
-
-        // Update UI
-        document.getElementById('satelliteModeBtn').classList.add('active');
-        document.getElementById('airplaneModeBtn').classList.remove('active');
-        document.getElementById('trackingMode').innerHTML = '<i class="fas fa-satellite me-1"></i>Satellite Mode';
-        document.getElementById('countLabel').textContent = 'satellites';
-        document.getElementById('satelliteSearch').placeholder = 'Search satellites...';
-
-        // Clear airplane entities and data
-        this.clearAirplaneEntities();
-        this.selectedAirplane = null;
-
-        // Close any open details panels
-        if (typeof window.closeDetailsPanel === 'function') {
-            window.closeDetailsPanel();
-        }
-
-        // Stop any airplane-related updates
-        this.stopRealTimeDetailsUpdates();
-
-        // Load and render satellites
-        this.loadSatellites();
-    }
-
-    switchToAirplaneMode() {
-        if (this.currentMode === 'airplanes') return;
-
-        console.log('✈️ Switching to airplane mode');
-        this.currentMode = 'airplanes';
-
-        // Update UI
-        document.getElementById('airplaneModeBtn').classList.add('active');
-        document.getElementById('satelliteModeBtn').classList.remove('active');
-        document.getElementById('trackingMode').innerHTML = '<i class="fas fa-plane me-1"></i>Airplane Mode';
-        document.getElementById('countLabel').textContent = 'airplanes';
-        document.getElementById('satelliteSearch').placeholder = 'Search airplanes...';
-
-        // Clear satellite entities and data
-        this.clearSatelliteEntities();
-        this.selectedSatellite = null;
-
-        // Close any open details panels
-        if (typeof window.closeDetailsPanel === 'function') {
-            window.closeDetailsPanel();
-        }
-
-        // Stop any satellite-related updates and tracking
-        this.stopRealTimeDetailsUpdates();
-        if (this.satelliteTrackingInterval) {
-            clearInterval(this.satelliteTrackingInterval);
-            this.satelliteTrackingInterval = null;
-        }
-
-        // Clear satellite visualizations
-        this.clearNadirLine();
-        this.clearSelectedOrbit();
-        this.clearSelectedGroundTrack();
-
-        // Initialize airplane viewer if not already done
-        if (!this.airplaneViewer) {
-            if (typeof AirplaneViewer === 'undefined') {
-                console.error('AirplaneViewer not loaded yet, retrying...');
-                setTimeout(() => this.switchToAirplaneMode(), 100);
-                return;
-            }
-            this.airplaneViewer = new AirplaneViewer(this.viewer);
-        }
-
-        // Load and render airplanes
-        this.loadAirplanes();
-    }
-
-    clearSatelliteEntities() {
-        this.satelliteEntities.forEach(entity => {
-            this.viewer.entities.remove(entity);
-        });
-        this.satelliteEntities.clear();
-    }
-
-    renderAirplanes() {
-        if (!this.viewer || !this.viewer.entities) {
-            console.warn('❌ Viewer not ready for airplane rendering');
-            return;
-        }
-
-        console.log(`✈️ Rendering ${this.airplanes.size} airplanes`);
-
-        // Clear existing airplane entities
-        this.clearAirplaneEntities();
-
-        // Create airplane entities with better data handling
-        this.airplanes.forEach((airplane, icao24) => {
-            if (!airplane.latitude || !airplane.longitude || isNaN(airplane.latitude) || isNaN(airplane.longitude)) {
-                console.warn(`Invalid airplane position data for ${icao24}:`, airplane);
-                return;
-            }
-
-            // Ensure altitude is valid
-            const altitude = airplane.altitude_meters || airplane.geo_altitude * 1000 || 10000;
-            if (altitude < 0 || altitude > 50000) {
-                console.warn(`Invalid altitude for airplane ${icao24}: ${altitude}m`);
-                return;
-            }
-
-            const position = Cesium.Cartesian3.fromDegrees(
-                airplane.longitude,
-                airplane.latitude,
-                altitude
-            );
-
-            // Determine airplane color based on status
-            let color = Cesium.Color.ORANGE; // Default flying color
-            if (airplane.on_ground) {
-                color = Cesium.Color.GRAY; // Ground color
-            } else if (airplane.velocity > 200) {
-                color = Cesium.Color.LIME; // High speed
-            } else if (airplane.velocity < 50) {
-                color = Cesium.Color.YELLOW; // Low speed/landing
-            }
-
-            // Better callsign handling
-            const displayName = airplane.callsign && airplane.callsign.trim() && airplane.callsign.trim() !== ''
-                ? airplane.callsign.trim()
-                : `Aircraft ${icao24.toUpperCase()}`;
-
-            const entity = this.viewer.entities.add({
-                id: `airplane_${icao24}`,
-                name: displayName,
-                position: position,
-                point: {
-                    pixelSize: airplane.on_ground ? 3 : 5,
-                    color: color,
-                    outlineColor: Cesium.Color.WHITE,
-                    outlineWidth: 1,
-                    heightReference: Cesium.HeightReference.NONE,
-                    show: true,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY
-                },
-                label: {
-                    text: displayName,
-                    font: '10pt Arial',
-                    fillColor: color,
-                    outlineColor: Cesium.Color.BLACK,
-                    outlineWidth: 2,
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                    pixelOffset: new Cesium.Cartesian2(0, -20),
-                    show: false, // Only show when selected
-                    scaleByDistance: new Cesium.NearFarScalar(1.5e5, 1.0, 1.5e6, 0.5)
-                },
-                airplaneData: airplane
-            });
-
-            this.airplaneEntities.set(icao24, entity);
-        });
-
-        console.log(`✈️ Created ${this.airplaneEntities.size} airplane entities`);
-        this.viewer.scene.requestRender();
-    }
-
-    clearAirplaneEntities() {
-        this.airplaneEntities.forEach(entity => {
-            this.viewer.entities.remove(entity);
-        });
-        this.airplaneEntities.clear();
-    }
-
-    onAirplaneClick(event) {
-        const pickedObject = this.viewer.scene.pick(event.position);
-
-        if (Cesium.defined(pickedObject) && pickedObject.id.airplaneData) {
-            const airplane = pickedObject.id.airplaneData;
-            this.selectAirplane(airplane.icao24, false);
-        } else {
-            this.deselectAirplane();
-        }
-    }
-
-    async selectAirplane(icao24, enableTracking = false) {
-        console.log(`✈️ Selecting airplane: ${icao24}`);
-
-        const airplane = this.airplanes.get(icao24);
-        if (!airplane) {
-            console.warn(`❌ Airplane ${icao24} not found in airplanes map`);
-            return;
-        }
-
-        // Clear previous airplane selection
-        if (this.selectedAirplane && this.selectedAirplane !== icao24) {
-            this.clearAirplaneVisualizations(this.selectedAirplane);
-        }
-
-        this.selectedAirplane = icao24;
-
-        // Update airplane selection visuals
-        this.updateAirplaneSelection();
-
-        // Focus on airplane
-        this.focusOnAirplane(icao24);
-
-        // Load detailed information directly without API call since we have the data
-        this.renderAirplaneDetails(airplane);
-
-        // Start real-time updates for airplane details
-        this.startRealTimeAirplaneUpdates(icao24);
-
-        const displayName = airplane.callsign && airplane.callsign.trim() && airplane.callsign.trim() !== ''
-            ? airplane.callsign.trim()
-            : `Aircraft ${icao24.toUpperCase()}`;
-
-        console.log(`✅ Airplane ${icao24} (${displayName}) selected successfully`);
-    }
-
-    updateAirplaneSelection() {
-        this.airplaneEntities.forEach((entity, icao24) => {
-            const isSelected = icao24 === this.selectedAirplane;
-
-            // Enhanced selection appearance
-            entity.point.pixelSize = isSelected ? 8 : 5;
-            entity.point.outlineWidth = isSelected ? 1.5 : 1;
-
-            // Show label for selected airplane
-            if (isSelected) {
-                entity.label.show = true;
-                entity.point.color = Cesium.Color.CYAN;
-                entity.point.outlineColor = Cesium.Color.WHITE;
-            } else {
-                entity.label.show = false;
-                const airplane = this.airplanes.get(icao24);
-                if (airplane) {
-                    // Restore original color based on status
-                    if (airplane.on_ground) {
-                        entity.point.color = Cesium.Color.GRAY;
-                    } else if (airplane.velocity > 200) {
-                        entity.point.color = Cesium.Color.LIME;
-                    } else if (airplane.velocity < 50) {
-                        entity.point.color = Cesium.Color.YELLOW;
-                    } else {
-                        entity.point.color = Cesium.Color.ORANGE;
-                    }
-                    entity.point.outlineColor = Cesium.Color.WHITE;
-                }
-            }
-        });
-    }
-
-    focusOnAirplane(icao24) {
-        const airplane = this.airplanes.get(icao24);
-        if (!airplane || !airplane.latitude || !airplane.longitude) return;
-
-        // Focus on airplane position
-        const destination = Cesium.Cartesian3.fromDegrees(
-            airplane.longitude,
-            airplane.latitude,
-            (airplane.altitude_meters || 10000) + 50000 // 50km above airplane
-        );
-
-        this.viewer.camera.flyTo({
-            destination: destination,
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
-            },
-            duration: 2.0
-        });
-    }
-
-    renderAirplaneDetails(airplane) {
-        const container = document.getElementById('satelliteDetails');
-        if (!container) return;
-
-        // Make details panel visible
-        const detailsPanel = document.getElementById('satelliteDetailsPanel');
-        if (detailsPanel) {
-            detailsPanel.style.display = 'block';
-        }
-
-        const callsign = airplane.callsign || 'Unknown';
-        const country = airplane.origin_country || 'Unknown';
-        const squawk = airplane.squawk || 'N/A';
-
-        // Format velocity
-        const velocityMs = airplane.velocity || 0;
-        const velocityKmh = velocityMs * 3.6;
-        const velocityKnots = velocityMs * 1.94384;
-
-        // Format altitude with multiple units
-        const altitudeM = airplane.altitude_meters || airplane.geo_altitude * 1000 || 0;
-        const altitudeFt = altitudeM * 3.28084;
-
-        // Format heading/track
-        const heading = airplane.true_track || airplane.heading || 0;
-
-        // Format vertical rate
-        const verticalRateMs = airplane.vertical_rate || 0;
-        const verticalRateFpm = verticalRateMs * 196.85; // feet per minute
-
-        // Determine flight status
-        const status = airplane.on_ground ? 'On Ground' : 'In Flight';
-        const statusColor = airplane.on_ground ? 'text-warning' : 'text-success';
-
-        container.innerHTML = `
-            <div class="satellite-header mb-3">
-                <strong class="text-info">${callsign}</strong>
-                <br><small class="text-muted">Live Aircraft Tracking</small>
-            </div>
-
-            <!-- Flight Information -->
-            <div class="satellite-section mb-3">
-                <h6 class="text-primary mb-2">
-                    <i class="fas fa-plane me-2"></i>Flight Information
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Callsign:</small></div>
-                    <div class="col-6"><small class="text-info">${callsign}</small></div>
-                    <div class="col-6"><small class="text-muted">ICAO24:</small></div>
-                    <div class="col-6"><small class="text-white">${airplane.icao24.toUpperCase()}</small></div>
-                    <div class="col-6"><small class="text-muted">Country:</small></div>
-                    <div class="col-6"><small class="text-success">${country}</small></div>
-                    <div class="col-6"><small class="text-muted">Transponder:</small></div>
-                    <div class="col-6"><small class="text-warning">${squawk}</small></div>
-                    <div class="col-6"><small class="text-muted">Status:</small></div>
-                    <div class="col-6"><small class="${statusColor}">${status}</small></div>
-                </div>
-            </div>
-
-            <!-- Position Information -->
-            <div class="satellite-section mb-3">
-                <h6 class="text-primary mb-2">
-                    <i class="fas fa-map-marker-alt me-2"></i>Position
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Latitude:</small></div>
-                    <div class="col-6"><small class="text-white">${airplane.latitude.toFixed(6)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Longitude:</small></div>
-                    <div class="col-6"><small class="text-white">${airplane.longitude.toFixed(6)}°</small></div>
-                    <div class="col-6"><small class="text-muted">Altitude:</small></div>
-                    <div class="col-6"><small class="text-success">${altitudeM.toFixed(0)}m (${altitudeFt.toFixed(0)}ft)</small></div>
-                    <div class="col-6"><small class="text-muted">Heading:</small></div>
-                    <div class="col-6"><small class="text-info">${heading.toFixed(0)}°</small></div>
-                </div>
-            </div>
-
-            <!-- Flight Dynamics -->
-            <div class="satellite-section mb-3">
-                <h6 class="text-primary mb-2">
-                    <i class="fas fa-tachometer-alt me-2"></i>Flight Dynamics
-                </h6>
-                <div class="row g-2">
-                    <div class="col-6"><small class="text-muted">Ground Speed:</small></div>
-                    <div class="col-6"><small class="text-warning">${velocityKmh.toFixed(0)} km/h</small></div>
-                    <div class="col-6"><small class="text-muted">Speed (knots):</small></div>
-                    <div class="col-6"><small class="text-warning">${velocityKnots.toFixed(0)} kts</small></div>
-                    <div class="col-6"><small class="text-muted">Vertical Rate:</small></div>
-                    <div class="col-6"><small class="text-info">${verticalRateFpm.toFixed(0)} fpm</small></div>
-                    <div class="col-6"><small class="text-muted">Track:</small></div>
-                    <div class="col-6"><small class="text-success">${heading.toFixed(1)}°</small></div>
-                </div>
-            </div>
-        `;
-
-        // Show the details panel
-        if (typeof window.showDetailsPanel === 'function') {
-            window.showDetailsPanel();
-        }
-    }
-
-    startRealTimeAirplaneUpdates(icao24) {
-        this.stopRealTimeAirplaneUpdates();
-
-        this.realTimeAirplaneUpdateInterval = setInterval(async () => {
-            if (this.selectedAirplane === icao24) {
-                // Update with fresh airplane data from our local storage
-                const airplane = this.airplanes.get(icao24);
-                if (airplane) {
-                    this.renderAirplaneDetails(airplane);
-                }
-            }
-        }, 5000); // Update every 5 seconds
-    }
-
-    stopRealTimeAirplaneUpdates() {
-        if (this.realTimeAirplaneUpdateInterval) {
-            clearInterval(this.realTimeAirplaneUpdateInterval);
-            this.realTimeAirplaneUpdateInterval = null;
-        }
-    }
-
-    clearAirplaneVisualizations(icao24) {
-        // Stop any airplane-specific tracking or updates
-        this.stopRealTimeAirplaneUpdates();
-    }
-
-    deselectAirplane() {
-        if (!this.selectedAirplane) return;
-
-        console.log(`✈️ Deselecting airplane: ${this.selectedAirplane}`);
-
-        // Clear visualizations
-        this.clearAirplaneVisualizations(this.selectedAirplane);
-
-        this.selectedAirplane = null;
-
-        // Close details panel
-        if (typeof window.closeDetailsPanel === 'function') {
-            window.closeDetailsPanel();
-        }
-
-        // Update airplane selection visuals
-        this.updateAirplaneSelection();
-    }
-
-    async loadAirplaneDetails(icao24) {
-        try {
-            const response = await fetchWithRetry(`/api/airplane/${icao24}`);
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            if (data.success && data.airplane) {
-                this.renderAirplaneDetails(data.airplane);
-            } else {
-                console.warn('Failed to load airplane details:', data);
-                document.getElementById('satelliteInfo').style.display = 'none';
-            }
-        } catch (error) {
-            console.error('Error loading airplane details:', error);
-            document.getElementById('satelliteInfo').style.display = 'none';
-        }
-    }
-
-    startRealTimeAirplaneUpdates(icao24) {
-        // Clear any existing interval
-        this.stopRealTimeAirplaneUpdates();
-
-        // Update airplane details every 15 seconds
-        this.airplaneUpdateInterval = setInterval(async () => {
-            if (this.selectedAirplane === icao24) {
-                // Update with fresh data from airplanes map
-                const airplane = this.airplanes.get(icao24);
-                if (airplane) {
-                    // Only update details if the panel is currently visible
-                    const panel = document.getElementById('satelliteDetailsPanel');
-                    if (panel && panel.classList.contains('show')) {
-                        this.renderAirplaneDetails(airplane);
-                    }
-                }
-            }
-        }, 15000); // 15 seconds to match data refresh rate
-    }
-
-    stopRealTimeAirplaneUpdates() {
-        if (this.airplaneUpdateInterval) {
-            clearInterval(this.airplaneUpdateInterval);
-            this.airplaneUpdateInterval = null;
-        }
-    }
-
-    deselectAirplane() {
-        if (this.selectedAirplane) {
-            this.clearAirplaneVisualizations(this.selectedAirplane);
-        }
-        this.selectedAirplane = null;
-
-        // Hide the sliding panel
-        if (typeof window.closeDetailsPanel === 'function') {
-            window.closeDetailsPanel();
-        }
-
-        // Update airplane selection visuals
-        this.updateAirplaneSelection();
-
-        // Stop any real-time updates
-        this.stopRealTimeAirplaneUpdates();
-    }
-
-    onAirplaneClick(event) {
-        const pickedObject = this.viewer.scene.pick(event.position);
-
-        if (Cesium.defined(pickedObject) && pickedObject.id.airplaneData) {
-            const airplane = pickedObject.id.airplaneData;
-            this.selectAirplane(airplane.icao24, false);
-        } else {
-            this.deselectAirplane();
-        }
-    }
-
-    focusOnAirplane(icao24) {
-        const airplane = this.airplanes.get(icao24);
-        if (!airplane || !airplane.latitude || !airplane.longitude) return;
-
-        // Focus on airplane position
-        const destination = Cesium.Cartesian3.fromDegrees(
-            airplane.longitude,
-            airplane.latitude,
-            (airplane.altitude_meters || 10000) + 50000 // 50km above airplane
-        );
-
-        this.viewer.camera.flyTo({
-            destination: destination,
-            orientation: {
-                heading: 0.0,
-                pitch: -Cesium.Math.PI_OVER_TWO,
-                roll: 0.0
-            },
-            duration: 2.0,
-            easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT
-        });
     }
 
     startAutoUpdate() {
-        // Synchronized with backend cache interval (10s) to prevent interpolation jumps
+        // Optimized update frequency for better performance
         this.updateInterval = setInterval(() => {
-            console.log('Auto-updating positions...');
-            if (this.currentMode === 'satellites') {
-                this.loadSatellites();
-            } else if (this.currentMode === 'airplanes') {
-                this.loadAirplanes();
-            }
-        }, 10000); // 10 seconds - SYNCHRONIZED with backend cache interval
+            console.log('Auto-updating satellite positions...');
+            this.loadSatellites();
+        }, 30000); // 30 seconds for better performance
 
-        // Optimized position interpolation for satellites only
+        // Optimized position interpolation for balanced performance
         this.positionUpdateInterval = setInterval(() => {
-            if (this.currentMode === 'satellites') {
-                this.updateSatellitePositions();
-            }
-        }, 1000); // Update positions every 1 second for smooth interpolation between 10s data points
+            this.updateSatellitePositions();
+        }, 5000); // Update positions every 5 seconds for balanced performance
+    }
+
+    updateStatus(count, timestamp) {
+        document.getElementById('satelliteCount').textContent = `${count} satellites`;
+
+        const lastUpdateTime = new Date(timestamp);
+        document.getElementById('lastUpdate').textContent = 
+            `Updated: ${lastUpdateTime.toLocaleTimeString()}`;
     }
 
     showLoadingIndicator(message = 'Loading...') {
@@ -3741,7 +2086,7 @@ class SatelliteViewer {
             </div>
             <div>${message}</div>
         `;
-
+        
         // Add CSS animation
         if (!document.getElementById('loadingStyles')) {
             const style = document.createElement('style');
@@ -3758,20 +2103,78 @@ class SatelliteViewer {
         }
     }
 
+    showLoadingOverlay() {
+        // Loading overlay removed for smoother experience
+    }
+
+    hideLoadingOverlay() {
+        // Loading overlay removed for smoother experience
+    }
+
     showError(message) {
         document.getElementById('errorMessage').textContent = message;
         const toast = new bootstrap.Toast(document.getElementById('errorToast'));
         toast.show();
     }
 
-    closeDetailsPanel() {
-        const panel = document.getElementById('satelliteDetailsPanel');
-        if (panel) {
-            panel.classList.remove('show');
-            console.log('📱 Details panel closed (satellite remains selected)');
+    clearGroundTrack() {
+        // Remove ground track entity
+        if (this.groundTrackEntity) {
+            this.viewer.entities.remove(this.groundTrackEntity);
+            this.groundTrackEntity = null;
         }
 
-        // Keep satellite selected when closing panel - user can deselect manually if needed
+        // Remove nadir line entity
+        if (this.nadirLineEntity) {
+            this.viewer.entities.remove(this.nadirLineEntity);
+            this.nadirLineEntity = null;
+        }
+
+        // Remove any ground track related entities
+        const entitiesToRemove = [];
+        this.viewer.entities.values.forEach(entity => {
+            if (entity.id && (entity.id.includes('groundtrack') || entity.id.includes('nadir') || entity.id.includes('swath'))) {
+                entitiesToRemove.push(entity);
+            }
+        });
+
+        entitiesToRemove.forEach(entity => {
+            this.viewer.entities.remove(entity);
+        });
+
+        // Clear any polyline collections
+        if (this.viewer.scene.primitives) {
+            const primitivesToRemove = [];
+            for (let i = 0; i < this.viewer.scene.primitives.length; i++) {
+                const primitive = this.viewer.scene.primitives.get(i);
+                if (primitive.constructor.name === 'PolylineCollection') {
+                    primitivesToRemove.push(primitive);
+                }
+            }
+            primitivesToRemove.forEach(primitive => {
+                this.viewer.scene.primitives.remove(primitive);
+            });
+        }
+    }
+
+    createISSVideoModal() {
+        // Create ISS Video Modal
+        const modalHTML = `
+            <div class="modal fade" id="issVideoModal" tabindex="-1" aria-labelledby="issVideoModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="issVideoModalLabel">ISS Live Video</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <iframe id="issVideoFrame" width="100%" height="500" src="" frameborder="0" allowfullscreen></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
     }
 
     isISS(satellite) {
@@ -3780,31 +2183,51 @@ class SatelliteViewer {
         return name.includes('ISS') || name.includes('ZARYA') || satellite.norad_id === 25544;
     }
 
-
+    isEarthObservationSatellite(noradId) {
+        // Check if satellite is earth observation based on category
+        const satellite = this.satellites.get(noradId);
+        if (!satellite) return false;
+        
+        const category = satellite.category ? satellite.category.toLowerCase() : '';
+        const name = satellite.name ? satellite.name.toUpperCase() : '';
+        
+        // Check category first
+        if (category === 'earth_observation' || category === 'scientific') return true;
+        
+        // Check name patterns for earth observation satellites
+        const earthObsKeywords = [
+            'LANDSAT', 'SENTINEL', 'SPOT', 'WORLDVIEW', 'QUICKBIRD', 
+            'TERRA', 'AQUA', 'MODIS', 'IKONOS', 'GEOEYE', 'PLEIADES',
+            'RESOURCESAT', 'CARTOSAT', 'KOMPSAT', 'ALOS', 'RADARSAT',
+            'COSMO-SKYMED', 'TERRASAR', 'ENVISAT', 'ERS', 'CBERS',
+            'NOAA', 'GOES', 'METEOSAT', 'HIMAWARI', 'METEOR'
+        ];
+        
+        return earthObsKeywords.some(keyword => name.includes(keyword));
+    }
 }
 
 // Function to show ISS live video
-async function showISSVideo() {
-    // Create ISS Video Modal
+function showISSVideo() {
+    // Create modal for ISS video
     const modal = document.createElement('div');
     modal.className = 'modal fade';
     modal.id = 'issVideoModal';
     modal.innerHTML = `
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
+            <div class="modal-content bg-dark text-light">
                 <div class="modal-header">
-                    <h5 class="modal-title">ISS Live Video</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title">ISS Live Video Stream</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="issVideoContainer" class="ratio ratio-16x9">
-                        <div class="d-flex align-items-center justify-content-center">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                        </div>
+                    <div class="ratio ratio-16x9">
+                        <iframe src="https://www.youtube.com/embed/fO9e9jnhYK8?rel=0&modestbranding=1" 
+                                frameborder="0" 
+                                allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
                     </div>
-                    <p id="issVideoInfo" class="text-muted mt-2 mb-0"></p>
                 </div>
             </div>
         </div>
@@ -3812,14 +2235,13 @@ async function showISSVideo() {
 
     document.body.appendChild(modal);
 
-    // Show modal first
-    let modalInstance;
+    // Check if Bootstrap is available
     if (typeof bootstrap !== 'undefined') {
-        modalInstance = new bootstrap.Modal(modal);
+        const modalInstance = new bootstrap.Modal(modal);
         modalInstance.show();
 
         // Clean up modal when hidden
-        modal.addEventListener('hidden.bs.modal', function () {
+        modal.addEventListener('hidden.bs.modal', function() {
             document.body.removeChild(modal);
         });
     } else {
@@ -3829,60 +2251,17 @@ async function showISSVideo() {
 
         // Add close functionality
         const closeBtn = modal.querySelector('.btn-close');
-        closeBtn.addEventListener('click', function () {
+        closeBtn.addEventListener('click', function() {
             modal.style.display = 'none';
             document.body.removeChild(modal);
         });
     }
-
-    // Fetch ISS live video URL from backend
-    try {
-        const response = await fetchWithRetry('/api/iss/live-video');
-        const data = await response.json();
-
-        const container = document.getElementById('issVideoContainer');
-        const infoElement = document.getElementById('issVideoInfo');
-
-        if (data.success && data.video_url) {
-            // Load the video
-            container.innerHTML = `
-                <iframe id="issVideoFrame" width="100%" height="500" 
-                    src="${data.video_url}" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-                </iframe>
-            `;
-
-            if (infoElement && data.description) {
-                infoElement.textContent = data.description;
-            }
-        } else {
-            container.innerHTML = `
-                <div class="alert alert-warning m-3">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    ISS live video is temporarily unavailable
-                </div>
-            `;
-        }
-    } catch (error) {
-        console.error('Error loading ISS video:', error);
-        const container = document.getElementById('issVideoContainer');
-        if (container) {
-            container.innerHTML = `
-                <div class="alert alert-danger m-3">
-                    <i class="fas fa-exclamation-circle"></i>
-                    Error loading ISS video: ${error.message}
-                </div>
-            `;
-        }
-    }
 }
 
 // Initialize satellite viewer when both DOM and Cesium are ready
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM loaded, checking for Cesium...');
-
+    
     // Wait for Cesium to be loaded
     function initWhenReady() {
         if (typeof Cesium !== 'undefined') {
@@ -3891,7 +2270,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.satelliteViewer = new SatelliteViewer();
             } catch (error) {
                 console.error('Failed to initialize satellite viewer:', error);
-
+                
                 // Show error message in the cesium container
                 const container = document.getElementById('cesiumContainer');
                 if (container) {
@@ -3914,6 +2293,6 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(initWhenReady, 100);
         }
     }
-
+    
     initWhenReady();
 });
