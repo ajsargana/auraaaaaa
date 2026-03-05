@@ -1,4 +1,4 @@
-const CACHE_NAME = 'skyscope-v1';
+const CACHE_NAME = 'AURA-AI-v1';
 const STATIC_ASSETS = [
   '/',
   '/tracker',

@@ -843,8 +843,8 @@ class EarthObservationSatellites:
                 'launch_date': '2009-11-02',
             },
 
-            # ── GOSAT / IBUKI (JAXA carbon) ───────────────────────────────
-            33591: {
+            # ── GOSAT / IBUKI (JAXA carbon) — correct NORAD is 33492 ─────────
+            33492: {
                 'name': 'GOSAT (IBUKI)',
                 'fov_modes': {
                     'TANSO-FTS': {'swath_width': 0, 'coverage_angle': 0},
@@ -1009,8 +1009,8 @@ class EarthObservationSatellites:
                 'launch_date': '2014-11-06',
             },
 
-            # ── KENT RIDGE 1 (Singapore) ──────────────────────────────────
-            41789: {
+            # ── KENT RIDGE 1 (Singapore, PSLV-C29 Dec 2015) ──────────────────
+            41172: {  # NORAD approximate; distinct from ALSAT-1B (41789)
                 'name': 'KENT RIDGE 1',
                 'fov_modes': {
                     'PAN': {'swath_width': 20, 'coverage_angle': 1.9},
@@ -1037,8 +1037,8 @@ class EarthObservationSatellites:
                 'launch_date': '2012-12-18',
             },
 
-            # ── GPM Core Observatory ──────────────────────────────────────
-            40376: {
+            # ── GPM Core Observatory — correct NORAD 39574 (SMAP is 40376) ──
+            39574: {
                 'name': 'GPM CORE',
                 'fov_modes': {
                     'DPR': {'swath_width': 245, 'coverage_angle': 17.0},
@@ -1092,11 +1092,1610 @@ class EarthObservationSatellites:
                 'launch_date': '2008-08-29',
             },
 
-            # ── NOAA-20 (JPSS-1) – fixed NORAD (was duplicate) ───────────
-            # 43013 was duplicate above, keeping correct entry below
-            # Note: 43013 is NOAA-20 (JPSS-1), launched 2017-11-18
-            # The duplicate entries for GAOFEN-7 and DOVE have been
-            # given their correct NORAD IDs (44231 and 41168 above).
+            # ──────────────────────────────────────────────────────────────
+            # EXTENDED DATABASE – added 2026-03
+            # Sources: ESA, NASA, NOAA, JAXA, ISRO, CMA, ASI, DLR, CSA,
+            #          space-track.org estimates, published mission docs.
+            # NORADs marked "approx" should be verified on space-track.org.
+            # ──────────────────────────────────────────────────────────────
+
+            # ═══════════════ ESA EARTH OBSERVATION ════════════════════════
+
+            # ── CryoSat-2 (ESA Ku-band radar altimeter, ice/ocean) ────────
+            36508: {
+                'name': 'CRYOSAT-2',
+                'fov_modes': {
+                    'SAR':   {'swath_width': 1,  'coverage_angle': 0.08},
+                    'SARIn': {'swath_width': 15, 'coverage_angle': 1.2},
+                },
+                'default_swath': 1,
+                'sensors': ['SIRAL Ku-band Radar Altimeter (SAR/SARIn/LRM modes)'],
+                'sensor_type': 'altimeter',
+                'country': 'ESA',
+                'altitude_km': 717,
+                'launch_date': '2010-04-08',
+            },
+
+            # ── ADM-Aeolus (ESA UV wind lidar, decommissioned 2023-07) ────
+            43600: {
+                'name': 'ADM-AEOLUS',
+                'fov_modes': {
+                    'ALADIN': {'swath_width': 10, 'coverage_angle': 35.0},
+                },
+                'default_swath': 10,
+                'sensors': ['ALADIN UV Doppler Wind Lidar 355nm (decommissioned 2023-07)'],
+                'sensor_type': 'lidar',
+                'country': 'ESA',
+                'altitude_km': 320,
+                'launch_date': '2018-08-22',
+            },
+
+            # ── PROBA-V (ESA vegetation monitor, 3-camera wide swath) ─────
+            39159: {
+                'name': 'PROBA-V',
+                'fov_modes': {
+                    'VGT': {'swath_width': 2285, 'coverage_angle': 102.0},
+                },
+                'default_swath': 2285,
+                'sensors': ['Vegetation 4-band VNIR/SWIR (100m centre, 300m side)'],
+                'sensor_type': 'multispectral',
+                'country': 'ESA',
+                'altitude_km': 820,
+                'launch_date': '2013-05-07',
+            },
+
+            # ── PROBA-1 (ESA tech demo, hyperspectral, still operational) ─
+            26958: {
+                'name': 'PROBA-1',
+                'fov_modes': {
+                    'CHRIS': {'swath_width': 14, 'coverage_angle': 1.3},
+                    'HRC':   {'swath_width': 14, 'coverage_angle': 1.3},
+                },
+                'default_swath': 14,
+                'sensors': ['CHRIS Hyperspectral 18-62 bands 400-1050nm 17m (5 angles)',
+                            'HRC 6m PAN'],
+                'sensor_type': 'hyperspectral',
+                'country': 'ESA',
+                'altitude_km': 615,
+                'launch_date': '2001-10-22',
+            },
+
+            # ── Swarm A / B / C (ESA geomagnetic field constellation) ─────
+            39452: {
+                'name': 'SWARM-A',
+                'fov_modes': {'VFM': {'swath_width': 0, 'coverage_angle': 0}},
+                'default_swath': 0,
+                'sensors': ['VFM Vector Field Magnetometer, ASM, EFI, GPS'],
+                'sensor_type': 'other',
+                'country': 'ESA',
+                'altitude_km': 460,
+                'launch_date': '2013-11-22',
+            },
+            39451: {
+                'name': 'SWARM-B',
+                'fov_modes': {'VFM': {'swath_width': 0, 'coverage_angle': 0}},
+                'default_swath': 0,
+                'sensors': ['VFM Vector Field Magnetometer, ASM, EFI, GPS'],
+                'sensor_type': 'other',
+                'country': 'ESA',
+                'altitude_km': 510,
+                'launch_date': '2013-11-22',
+            },
+            39453: {
+                'name': 'SWARM-C',
+                'fov_modes': {'VFM': {'swath_width': 0, 'coverage_angle': 0}},
+                'default_swath': 0,
+                'sensors': ['VFM Vector Field Magnetometer, ASM, EFI, GPS'],
+                'sensor_type': 'other',
+                'country': 'ESA',
+                'altitude_km': 460,
+                'launch_date': '2013-11-22',
+            },
+
+            # ── EarthCARE (ESA/JAXA cloud+aerosol profiler, 2024) ─────────
+            59996: {  # NORAD approx; verify on space-track.org
+                'name': 'EARTHCARE',
+                'fov_modes': {
+                    'MSI': {'swath_width': 150, 'coverage_angle': 10.6},
+                    'CPR': {'swath_width': 1,   'coverage_angle': 0.07},
+                },
+                'default_swath': 150,
+                'sensors': ['CPR 94GHz W-band Radar', 'ATLID UV Lidar 355nm',
+                            'MSI 7-band 500m', 'BBR Broadband Radiometer'],
+                'sensor_type': 'lidar',
+                'country': 'ESA/JAXA',
+                'altitude_km': 393,
+                'launch_date': '2024-05-28',
+            },
+
+            # ── Sentinel-1B (ESA C-SAR, FAILED 2022-08-23) ───────────────
+            41456: {
+                'name': 'SENTINEL-1B',
+                'fov_modes': {
+                    'IW': {'swath_width': 250, 'coverage_angle': 30.45},
+                    'EW': {'swath_width': 400, 'coverage_angle': 45.0},
+                },
+                'default_swath': 250,
+                'sensors': ['C-band SAR (FAILED 2022-08-23)'],
+                'sensor_type': 'SAR',
+                'country': 'ESA',
+                'altitude_km': 693,
+                'launch_date': '2016-04-25',
+            },
+
+            # ── Sentinel-1C (ESA C-SAR, launched 2024-12-05) ─────────────
+            61950: {  # NORAD approx; verify on space-track.org
+                'name': 'SENTINEL-1C',
+                'fov_modes': {
+                    'IW': {'swath_width': 250, 'coverage_angle': 30.45},
+                    'EW': {'swath_width': 400, 'coverage_angle': 45.0},
+                },
+                'default_swath': 250,
+                'sensors': ['C-band SAR (replaces Sentinel-1B)'],
+                'sensor_type': 'SAR',
+                'country': 'ESA',
+                'altitude_km': 693,
+                'launch_date': '2024-12-05',
+            },
+
+            # ── Sentinel-2C (ESA MSI, launched 2024-09-04) ───────────────
+            61321: {  # NORAD approx; verify on space-track.org
+                'name': 'SENTINEL-2C',
+                'fov_modes': {
+                    'MSI': {'swath_width': 290, 'coverage_angle': 20.6},
+                },
+                'default_swath': 290,
+                'sensors': ['MSI 13 bands 10/20/60m VNIR-SWIR (replaces Sentinel-2A)'],
+                'sensor_type': 'multispectral',
+                'country': 'ESA',
+                'altitude_km': 786,
+                'launch_date': '2024-09-04',
+            },
+
+            # ═══════════════ NASA / CNES EARTH SCIENCE ════════════════════
+
+            # ── OCO-2 (NASA CO2 column measurement) ──────────────────────
+            40059: {
+                'name': 'OCO-2',
+                'fov_modes': {
+                    'Nadir': {'swath_width': 10.6, 'coverage_angle': 0.86},
+                    'Glint': {'swath_width': 10.6, 'coverage_angle': 0.86},
+                },
+                'default_swath': 10.6,
+                'sensors': ['NIR/SWIR Spectrometer 3-ch (O2 A-band, CO2 1.61μm, CO2 2.06μm)'],
+                'sensor_type': 'hyperspectral',
+                'country': 'NASA',
+                'altitude_km': 705,
+                'launch_date': '2014-07-02',
+            },
+
+            # ── ICESat-2 (NASA photon-counting lidar) ────────────────────
+            43613: {
+                'name': 'ICESAT-2',
+                'fov_modes': {
+                    'ATLAS': {'swath_width': 3.3, 'coverage_angle': 0.27},
+                },
+                'default_swath': 3.3,
+                'sensors': ['ATLAS 532nm Photon-counting Lidar (6 beams, 17m footprint, 70cm vert)'],
+                'sensor_type': 'lidar',
+                'country': 'NASA',
+                'altitude_km': 496,
+                'launch_date': '2018-09-15',
+            },
+
+            # ── GRACE-FO 1 & 2 (NASA/DLR gravity field tandem) ───────────
+            43476: {
+                'name': 'GRACE-FO-1',
+                'fov_modes': {'MWI': {'swath_width': 0, 'coverage_angle': 0}},
+                'default_swath': 0,
+                'sensors': ['K/Ka-band Microwave Ranging Instrument', 'LRI Laser Interferometer', 'GPS', 'Accelerometer'],
+                'sensor_type': 'other',
+                'country': 'NASA/DLR',
+                'altitude_km': 490,
+                'launch_date': '2018-05-22',
+            },
+            43477: {
+                'name': 'GRACE-FO-2',
+                'fov_modes': {'MWI': {'swath_width': 0, 'coverage_angle': 0}},
+                'default_swath': 0,
+                'sensors': ['K/Ka-band Microwave Ranging Instrument', 'LRI Laser Interferometer'],
+                'sensor_type': 'other',
+                'country': 'NASA/DLR',
+                'altitude_km': 490,
+                'launch_date': '2018-05-22',
+            },
+
+            # ── CloudSat (NASA W-band cloud radar, decommissioned 2023) ──
+            29107: {
+                'name': 'CLOUDSAT',
+                'fov_modes': {
+                    'CPR': {'swath_width': 1.4, 'coverage_angle': 0.11},
+                },
+                'default_swath': 1.4,
+                'sensors': ['CPR 94GHz W-band Cloud Profiling Radar (decommissioned 2023-03)'],
+                'sensor_type': 'weather',
+                'country': 'NASA',
+                'altitude_km': 705,
+                'launch_date': '2006-04-28',
+            },
+
+            # ── CALIPSO (NASA/CNES dual-wavelength lidar, decom. 2023) ───
+            29108: {
+                'name': 'CALIPSO',
+                'fov_modes': {
+                    'CALIOP': {'swath_width': 0.1, 'coverage_angle': 0.009},
+                    'WFC':    {'swath_width': 61,  'coverage_angle': 5.0},
+                },
+                'default_swath': 0.1,
+                'sensors': ['CALIOP 532/1064nm Lidar', 'IIR 3-band IR Imager',
+                            'WFC 645nm Wide-field Camera (decommissioned 2023-08)'],
+                'sensor_type': 'lidar',
+                'country': 'NASA/CNES',
+                'altitude_km': 705,
+                'launch_date': '2006-04-28',
+            },
+
+            # ── CYGNSS 1-8 (NASA GNSS-R ocean wind constellation) ────────
+            42917: {'name': 'CYGNSS-1', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42918: {'name': 'CYGNSS-2', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42919: {'name': 'CYGNSS-3', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42920: {'name': 'CYGNSS-4', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42921: {'name': 'CYGNSS-5', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42922: {'name': 'CYGNSS-6', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42923: {'name': 'CYGNSS-7', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+            42924: {'name': 'CYGNSS-8', 'fov_modes': {'DDMI': {'swath_width': 25, 'coverage_angle': 0}}, 'default_swath': 25, 'sensors': ['DDMI GNSS-R L1 GPS ocean wind'], 'sensor_type': 'weather', 'country': 'NASA', 'altitude_km': 520, 'launch_date': '2016-12-15'},
+
+            # ── TEMPO (NASA air quality GEO – hosted on Intelsat 40E) ────
+            56217: {
+                'name': 'TEMPO',
+                'fov_modes': {
+                    'UV-Vis': {'swath_width': 4000, 'coverage_angle': 47.0},
+                },
+                'default_swath': 4000,
+                'sensors': ['UV/Vis/NIR Spectrometer 290-740nm (NO2 O3 SO2 HCHO; 10km GEO)'],
+                'sensor_type': 'hyperspectral',
+                'country': 'NASA',
+                'altitude_km': 35786,
+                'launch_date': '2023-04-07',
+            },
+
+            # ── PACE (NASA hyperspectral ocean color, launched 2024-02) ──
+            58928: {  # NORAD approx; verify on space-track.org
+                'name': 'PACE',
+                'fov_modes': {
+                    'OCI':   {'swath_width': 2663, 'coverage_angle': 116.0},
+                    'HARP2': {'swath_width': 3000, 'coverage_angle': 94.0},
+                },
+                'default_swath': 2663,
+                'sensors': ['OCI Hyperspectral 339-900nm+SWIR 1km',
+                            'SPEXone Multi-angle Polarimeter 5.4km',
+                            'HARP2 Rainbow Polarimeter 3km'],
+                'sensor_type': 'hyperspectral',
+                'country': 'NASA',
+                'altitude_km': 677,
+                'launch_date': '2024-02-08',
+            },
+
+            # ── SWOT (NASA/CNES Ka-band wide-swath altimeter, 2022) ──────
+            54754: {
+                'name': 'SWOT',
+                'fov_modes': {
+                    'KaRIn': {'swath_width': 120, 'coverage_angle': 2.5},
+                },
+                'default_swath': 120,
+                'sensors': ['KaRIn 35.75GHz Ka-band Radar Interferometer (2×50km + 20km gap)'],
+                'sensor_type': 'altimeter',
+                'country': 'NASA/CNES',
+                'altitude_km': 891,
+                'launch_date': '2022-12-16',
+            },
+
+            # ═══════════════ NOAA SATELLITES ════════════════════════════
+
+            # ── NOAA-15 / 18 / 19 (AVHRR polar orbiters) ────────────────
+            25338: {
+                'name': 'NOAA-15',
+                'fov_modes': {
+                    'AVHRR': {'swath_width': 2900, 'coverage_angle': 110.0},
+                },
+                'default_swath': 2900,
+                'sensors': ['AVHRR/3 6-band VIS-TIR 1.1km', 'HIRS/3', 'AMSU-A', 'AMSU-B'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 810,
+                'launch_date': '1998-05-13',
+            },
+            28654: {
+                'name': 'NOAA-18',
+                'fov_modes': {
+                    'AVHRR': {'swath_width': 2900, 'coverage_angle': 110.0},
+                },
+                'default_swath': 2900,
+                'sensors': ['AVHRR/3 6-band VIS-TIR 1.1km', 'HIRS/4', 'AMSU-A', 'MHS'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 854,
+                'launch_date': '2005-05-20',
+            },
+            # 33591 = NOAA-19 (was incorrectly labelled GOSAT above; GOSAT fixed to 33492)
+            33591: {
+                'name': 'NOAA-19',
+                'fov_modes': {
+                    'AVHRR': {'swath_width': 2900, 'coverage_angle': 110.0},
+                },
+                'default_swath': 2900,
+                'sensors': ['AVHRR/3 6-band VIS-TIR 1.1km', 'HIRS/4', 'AMSU-A', 'MHS'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 870,
+                'launch_date': '2009-02-06',
+            },
+
+            # ── NOAA-21 / JPSS-2 (VIIRS, launched 2022-11-10) ────────────
+            54234: {
+                'name': 'NOAA-21 (JPSS-2)',
+                'fov_modes': {
+                    'VIIRS': {'swath_width': 3040, 'coverage_angle': 112.0},
+                },
+                'default_swath': 3040,
+                'sensors': ['VIIRS 22-band 375m/750m', 'CrIS 2211-ch Sounder',
+                            'ATMS 22-ch Microwave', 'OMPS Ozone', 'CERES'],
+                'sensor_type': 'weather',
+                'country': 'NOAA/NASA',
+                'altitude_km': 824,
+                'launch_date': '2022-11-10',
+            },
+
+            # ── GOES-16 / 17 / 18 (GOES-R GEO weather) ──────────────────
+            41866: {
+                'name': 'GOES-16',
+                'fov_modes': {
+                    'ABI_Full':  {'swath_width': 17400, 'coverage_angle': 17.4},
+                    'ABI_CONUS': {'swath_width': 5000,  'coverage_angle': 5.0},
+                },
+                'default_swath': 17400,
+                'sensors': ['ABI 16-band 0.47-13.3μm (0.5/1/2km)',
+                            'GLM Geostationary Lightning Mapper', 'EXIS', 'SUVI', 'SEISS', 'MAG'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 35786,
+                'launch_date': '2016-11-19',
+            },
+            43226: {
+                'name': 'GOES-17',
+                'fov_modes': {
+                    'ABI_Full': {'swath_width': 17400, 'coverage_angle': 17.4},
+                },
+                'default_swath': 17400,
+                'sensors': ['ABI 16-band (cooling anomaly limits night thermal)', 'GLM', 'EXIS'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 35786,
+                'launch_date': '2018-03-01',
+            },
+            51850: {
+                'name': 'GOES-18',
+                'fov_modes': {
+                    'ABI_Full':  {'swath_width': 17400, 'coverage_angle': 17.4},
+                    'ABI_CONUS': {'swath_width': 5000,  'coverage_angle': 5.0},
+                },
+                'default_swath': 17400,
+                'sensors': ['ABI 16-band 0.47-13.3μm (0.5/1/2km)',
+                            'GLM Lightning Mapper', 'EXIS', 'SEISS', 'MAG'],
+                'sensor_type': 'weather',
+                'country': 'NOAA',
+                'altitude_km': 35786,
+                'launch_date': '2022-03-01',
+            },
+
+            # ═══════════════ JAXA SATELLITES ════════════════════════════
+
+            # ── GCOM-W / SHIZUKU (JAXA passive microwave radiometer) ─────
+            38337: {
+                'name': 'GCOM-W (SHIZUKU)',
+                'fov_modes': {
+                    'AMSR2': {'swath_width': 1450, 'coverage_angle': 74.0},
+                },
+                'default_swath': 1450,
+                'sensors': ['AMSR2 Passive Microwave 6.9-89GHz 7-freq (3-62km res)'],
+                'sensor_type': 'weather',
+                'country': 'JAXA',
+                'altitude_km': 700,
+                'launch_date': '2012-05-17',
+            },
+
+            # ── GCOM-C / SHIKISAI (JAXA multi-parameter imager) ──────────
+            43065: {
+                'name': 'GCOM-C (SHIKISAI)',
+                'fov_modes': {
+                    'SGLI': {'swath_width': 1150, 'coverage_angle': 57.0},
+                },
+                'default_swath': 1150,
+                'sensors': ['SGLI 19-band UV-TIR (250m VNR, 500m-1km IRS, polarization)'],
+                'sensor_type': 'multispectral',
+                'country': 'JAXA',
+                'altitude_km': 798,
+                'launch_date': '2017-12-23',
+            },
+
+            # ── Himawari-8 & 9 (JMA GEO weather, 16-band AHI) ───────────
+            40267: {
+                'name': 'HIMAWARI-8',
+                'fov_modes': {
+                    'AHI_Full': {'swath_width': 14000, 'coverage_angle': 18.0},
+                },
+                'default_swath': 14000,
+                'sensors': ['AHI 16-band 0.47-13.3μm (0.5/1/2km); 10-min full disk'],
+                'sensor_type': 'weather',
+                'country': 'Japan/JMA',
+                'altitude_km': 35786,
+                'launch_date': '2014-10-07',
+            },
+            41836: {
+                'name': 'HIMAWARI-9',
+                'fov_modes': {
+                    'AHI_Full': {'swath_width': 14000, 'coverage_angle': 18.0},
+                },
+                'default_swath': 14000,
+                'sensors': ['AHI 16-band 0.47-13.3μm (0.5/1/2km); primary since Dec 2022'],
+                'sensor_type': 'weather',
+                'country': 'Japan/JMA',
+                'altitude_km': 35786,
+                'launch_date': '2016-11-02',
+            },
+
+            # ── ALOS-2 (JAXA L-band SAR PALSAR-2) ────────────────────────
+            39766: {
+                'name': 'ALOS-2',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 25,  'coverage_angle': 2.3},
+                    'StripMap':  {'swath_width': 70,  'coverage_angle': 6.4},
+                    'ScanSAR':   {'swath_width': 350, 'coverage_angle': 32.0},
+                },
+                'default_swath': 70,
+                'sensors': ['PALSAR-2 L-band SAR 1.27GHz (1-100m, fully polarimetric, right/left)'],
+                'sensor_type': 'SAR',
+                'country': 'JAXA',
+                'altitude_km': 628,
+                'launch_date': '2014-05-24',
+            },
+
+            # ── ALOS-4 (JAXA L-band SAR PALSAR-3, launched 2024-07) ──────
+            60042: {  # NORAD approx; verify on space-track.org
+                'name': 'ALOS-4',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 28,  'coverage_angle': 2.4},
+                    'StripMap':   {'swath_width': 70,  'coverage_angle': 6.0},
+                    'ScanSAR':    {'swath_width': 200, 'coverage_angle': 17.2},
+                    'UltraWide':  {'swath_width': 500, 'coverage_angle': 43.0},
+                },
+                'default_swath': 200,
+                'sensors': ['PALSAR-3 L-band SAR (1-60m, compact polarimetry, wider swath than PALSAR-2)'],
+                'sensor_type': 'SAR',
+                'country': 'JAXA',
+                'altitude_km': 669,
+                'launch_date': '2024-07-01',
+            },
+
+            # ═══════════════ ISRO (INDIA) ═══════════════════════════════
+
+            # ── Cartosat-3 (ISRO VHR optical, 0.25m) ────────────────────
+            44792: {
+                'name': 'CARTOSAT-3',
+                'fov_modes': {
+                    'PAN': {'swath_width': 16, 'coverage_angle': 1.8},
+                    'MS':  {'swath_width': 16, 'coverage_angle': 1.8},
+                },
+                'default_swath': 16,
+                'sensors': ['0.25m PAN, 1m MS 4-band'],
+                'sensor_type': 'optical',
+                'country': 'India/ISRO',
+                'altitude_km': 509,
+                'launch_date': '2019-11-27',
+            },
+
+            # ── RISAT-2B / BR1 / BR2 (ISRO X-band SAR) ──────────────────
+            44233: {
+                'name': 'RISAT-2B',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 4,  'coverage_angle': 0.41},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.58},
+                    'ScanSAR':   {'swath_width': 75, 'coverage_angle': 7.75},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (1m Spotlight, 3m Strip, 9m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'India/ISRO',
+                'altitude_km': 556,
+                'launch_date': '2019-05-22',
+            },
+            45231: {
+                'name': 'RISAT-2BR1',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 4,  'coverage_angle': 0.40},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.49},
+                    'ScanSAR':   {'swath_width': 75, 'coverage_angle': 7.46},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 9m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'India/ISRO',
+                'altitude_km': 576,
+                'launch_date': '2019-12-11',
+            },
+            47291: {
+                'name': 'RISAT-2BR2',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 4,  'coverage_angle': 0.40},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.49},
+                    'ScanSAR':   {'swath_width': 75, 'coverage_angle': 7.46},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 9m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'India/ISRO',
+                'altitude_km': 576,
+                'launch_date': '2021-02-28',
+            },
+
+            # ── EOS-01 / RISAT-2BR3 (ISRO X-band SAR) ───────────────────
+            46915: {
+                'name': 'EOS-01 (RISAT-2BR3)',
+                'fov_modes': {
+                    'Strip':   {'swath_width': 25, 'coverage_angle': 2.49},
+                    'ScanSAR': {'swath_width': 75, 'coverage_angle': 7.46},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (1m Strip, 6m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'India/ISRO',
+                'altitude_km': 576,
+                'launch_date': '2020-11-07',
+            },
+
+            # ── EOS-04 / RISAT-1A (ISRO C-band SAR) ─────────────────────
+            51657: {
+                'name': 'EOS-04 (RISAT-1A)',
+                'fov_modes': {
+                    'FRS':  {'swath_width': 25,  'coverage_angle': 2.71},
+                    'MRS':  {'swath_width': 100, 'coverage_angle': 10.83},
+                    'CRS':  {'swath_width': 500, 'coverage_angle': 54.2},
+                },
+                'default_swath': 100,
+                'sensors': ['C-band SAR (3m FRS, 25m MRS, 50m CRS ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'India/ISRO',
+                'altitude_km': 529,
+                'launch_date': '2022-02-14',
+            },
+
+            # ── Resourcesat-2A (ISRO multispectral) ──────────────────────
+            41877: {
+                'name': 'RESOURCESAT-2A',
+                'fov_modes': {
+                    'LISS-IV':  {'swath_width': 23,  'coverage_angle': 1.61},
+                    'LISS-III': {'swath_width': 141, 'coverage_angle': 9.88},
+                    'AWiFS':    {'swath_width': 740, 'coverage_angle': 51.9},
+                },
+                'default_swath': 141,
+                'sensors': ['LISS-IV 5.8m MS 4-band', 'LISS-III 23.5m', 'AWiFS 56m wide-field'],
+                'sensor_type': 'multispectral',
+                'country': 'India/ISRO',
+                'altitude_km': 817,
+                'launch_date': '2016-12-07',
+            },
+
+            # ── Oceansat-3 / EOS-06 (ISRO ocean color + scatterometer) ───
+            54357: {  # NORAD approx; launched 16 days after NOAA-21 (54234)
+                'name': 'OCEANSAT-3 (EOS-06)',
+                'fov_modes': {
+                    'OCM-3':  {'swath_width': 1400, 'coverage_angle': 117.0},
+                    'OSCAT3': {'swath_width': 1800, 'coverage_angle': 130.0},
+                },
+                'default_swath': 1400,
+                'sensors': ['OCM-3 13-band Ocean Color 360m', 'OSCAT-3 Ku-band Scatterometer 25km',
+                            'SSTM Thermal IR'],
+                'sensor_type': 'multispectral',
+                'country': 'India/ISRO',
+                'altitude_km': 742,
+                'launch_date': '2022-11-26',
+            },
+
+            # ── INSAT-3D / 3DR / 3DS (ISRO GEO weather) ─────────────────
+            39216: {
+                'name': 'INSAT-3D',
+                'fov_modes': {
+                    'Imager': {'swath_width': 8000, 'coverage_angle': 17.7},
+                },
+                'default_swath': 8000,
+                'sensors': ['Imager 6-band 1km VIS/4km IR', 'Sounder 18-channel'],
+                'sensor_type': 'weather',
+                'country': 'India/ISRO',
+                'altitude_km': 35786,
+                'launch_date': '2013-07-26',
+            },
+            41752: {
+                'name': 'INSAT-3DR',
+                'fov_modes': {
+                    'Imager': {'swath_width': 8000, 'coverage_angle': 17.7},
+                },
+                'default_swath': 8000,
+                'sensors': ['Imager 6-band 1km VIS/4km IR', 'Sounder 18-channel'],
+                'sensor_type': 'weather',
+                'country': 'India/ISRO',
+                'altitude_km': 35786,
+                'launch_date': '2016-09-08',
+            },
+            58958: {  # NORAD approx; verify on space-track.org
+                'name': 'INSAT-3DS',
+                'fov_modes': {
+                    'Imager': {'swath_width': 8000, 'coverage_angle': 17.7},
+                },
+                'default_swath': 8000,
+                'sensors': ['Imager 6-band 1km VIS/4km IR (upgraded from 3DR)', 'Sounder 18-channel'],
+                'sensor_type': 'weather',
+                'country': 'India/ISRO',
+                'altitude_km': 35786,
+                'launch_date': '2024-02-17',
+            },
+
+            # ── HysIS (ISRO hyperspectral imager) ────────────────────────
+            43719: {
+                'name': 'HYSI S',
+                'fov_modes': {
+                    'VNIR': {'swath_width': 30, 'coverage_angle': 2.7},
+                    'SWIR': {'swath_width': 30, 'coverage_angle': 2.7},
+                },
+                'default_swath': 30,
+                'sensors': ['VNIR 55-band 400-950nm 30m', 'SWIR 256-band 900-2500nm 30m'],
+                'sensor_type': 'hyperspectral',
+                'country': 'India/ISRO',
+                'altitude_km': 636,
+                'launch_date': '2018-11-29',
+            },
+
+            # ═══════════════ CHINA – GAOFEN SERIES ══════════════════════
+
+            # ── GAOFEN-5 (China 330-band hyperspectral) ──────────────────
+            43461: {
+                'name': 'GAOFEN-5',
+                'fov_modes': {
+                    'AHSI': {'swath_width': 60, 'coverage_angle': 4.9},
+                    'VIMS': {'swath_width': 60, 'coverage_angle': 4.9},
+                },
+                'default_swath': 60,
+                'sensors': ['AHSI 330-band Hyperspectral 0.39-2.5μm 30m',
+                            'VIMS 20m MS', 'DPC Polarimeter', 'POSP', 'GMI'],
+                'sensor_type': 'hyperspectral',
+                'country': 'China/CAST',
+                'altitude_km': 705,
+                'launch_date': '2018-05-09',
+            },
+
+            # ── GAOFEN-6 (China wide-field optical + Red-Edge) ───────────
+            43484: {
+                'name': 'GAOFEN-6',
+                'fov_modes': {
+                    'PAN': {'swath_width': 9,  'coverage_angle': 0.80},
+                    'WFV': {'swath_width': 90, 'coverage_angle': 8.0},
+                },
+                'default_swath': 90,
+                'sensors': ['2m PAN, 8m MS 4-band, 16m WFV 8-band (incl. Red Edge)'],
+                'sensor_type': 'multispectral',
+                'country': 'China/CAST',
+                'altitude_km': 645,
+                'launch_date': '2018-06-02',
+            },
+
+            # ── GAOFEN-8 (China VHR dual-use optical) ────────────────────
+            40890: {
+                'name': 'GAOFEN-8',
+                'fov_modes': {
+                    'PAN': {'swath_width': 15, 'coverage_angle': 1.65},
+                },
+                'default_swath': 15,
+                'sensors': ['~0.5-0.8m PAN (dual-use optical)'],
+                'sensor_type': 'optical',
+                'country': 'China/CAST',
+                'altitude_km': 519,
+                'launch_date': '2015-06-26',
+            },
+
+            # ── GAOFEN-10 (China VHR optical, 2019 launch) ───────────────
+            44710: {
+                'name': 'GAOFEN-10',
+                'fov_modes': {
+                    'PAN': {'swath_width': 15, 'coverage_angle': 1.72},
+                },
+                'default_swath': 15,
+                'sensors': ['~0.5m PAN (dual-use optical; 2016 launch failed, relaunched 2019)'],
+                'sensor_type': 'optical',
+                'country': 'China/CAST',
+                'altitude_km': 500,
+                'launch_date': '2019-10-05',
+            },
+
+            # ── GAOFEN-11 (China VHR optical) ────────────────────────────
+            43637: {
+                'name': 'GAOFEN-11',
+                'fov_modes': {
+                    'PAN': {'swath_width': 15, 'coverage_angle': 1.76},
+                },
+                'default_swath': 15,
+                'sensors': ['~0.5m PAN (dual-use optical)'],
+                'sensor_type': 'optical',
+                'country': 'China/CAST',
+                'altitude_km': 490,
+                'launch_date': '2018-07-31',
+            },
+
+            # ── GAOFEN-13 (China GEO VHR optical) ────────────────────────
+            46551: {
+                'name': 'GAOFEN-13',
+                'fov_modes': {
+                    'GEO_PAN': {'swath_width': 400, 'coverage_angle': 0.64},
+                },
+                'default_swath': 400,
+                'sensors': ['GEO optical ~0.5-1m PAN + MS (geostationary high-res)'],
+                'sensor_type': 'optical',
+                'country': 'China/CAST',
+                'altitude_km': 35786,
+                'launch_date': '2020-10-12',
+            },
+
+            # ── GAOFEN-14 (China stereo + laser altimeter) ───────────────
+            47210: {
+                'name': 'GAOFEN-14',
+                'fov_modes': {
+                    'Stereo': {'swath_width': 27, 'coverage_angle': 3.09},
+                },
+                'default_swath': 27,
+                'sensors': ['0.5m Nadir PAN stereo, 2m MS 4-band, Laser Altimeter'],
+                'sensor_type': 'optical',
+                'country': 'China/CAST',
+                'altitude_km': 500,
+                'launch_date': '2021-01-29',
+            },
+
+            # ═══════════════ CHINA – FY WEATHER ═════════════════════════
+
+            # ── FY-3D / 3E / 3F (polar-orbit weather imagers) ────────────
+            43010: {
+                'name': 'FY-3D',
+                'fov_modes': {
+                    'MERSI-II': {'swath_width': 2900, 'coverage_angle': 110.6},
+                },
+                'default_swath': 2900,
+                'sensors': ['MERSI-II 25-band 250m/1km', 'MWRI Microwave', 'HIRAS Sounder'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 836,
+                'launch_date': '2017-11-15',
+            },
+            49008: {
+                'name': 'FY-3E',
+                'fov_modes': {
+                    'MERSI-LL': {'swath_width': 2900, 'coverage_angle': 110.6},
+                },
+                'default_swath': 2900,
+                'sensors': ['MERSI-LL 6-band low-light 250m/1km (dawn-dusk orbit)', 'MWTS-3', 'MWRI-RM'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 836,
+                'launch_date': '2021-07-05',
+            },
+            57490: {
+                'name': 'FY-3F',
+                'fov_modes': {
+                    'MERSI': {'swath_width': 2900, 'coverage_angle': 110.6},
+                },
+                'default_swath': 2900,
+                'sensors': ['MERSI Enhanced 25+ bands 250m/1km', 'MWTS', 'MWRI-2', 'HIRAS'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 836,
+                'launch_date': '2023-08-03',
+            },
+            56171: {
+                'name': 'FY-3G',
+                'fov_modes': {
+                    'PMR':  {'swath_width': 800,  'coverage_angle': 70.0},
+                    'MWRI': {'swath_width': 2300, 'coverage_angle': 100.0},
+                },
+                'default_swath': 800,
+                'sensors': ['PMR Ka+Ku Dual-freq Precipitation Radar 5km',
+                            'MWRI-RM 15km@89GHz', 'MERSI', 'HAOC (50deg inclined orbit)'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 407,
+                'launch_date': '2023-04-16',
+            },
+
+            # ── FY-4A / 4B (GEO imager+sounder) ─────────────────────────
+            41882: {
+                'name': 'FY-4A',
+                'fov_modes': {
+                    'AGRI': {'swath_width': 14000, 'coverage_angle': 18.0},
+                },
+                'default_swath': 14000,
+                'sensors': ['AGRI 14-band 0.5-4km 0.47-13.8μm',
+                            'GIIRS 1650-ch Sounder', 'LMI Lightning', 'SEP'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 35786,
+                'launch_date': '2016-12-11',
+            },
+            49015: {
+                'name': 'FY-4B',
+                'fov_modes': {
+                    'AGRI': {'swath_width': 14000, 'coverage_angle': 18.0},
+                },
+                'default_swath': 14000,
+                'sensors': ['AGRI 16-band 0.5-2km (enhanced vs 4A)',
+                            'GIIRS-B 2000+ ch', 'LMI', 'GHI Solar Irradiance'],
+                'sensor_type': 'weather',
+                'country': 'China/CMA',
+                'altitude_km': 35786,
+                'launch_date': '2021-06-03',
+            },
+
+            # ═══════════════ CHINA – OCEAN SATELLITES ═══════════════════
+
+            # ── HY-2A / 2C / 2D (China ocean dynamics scatterometer) ─────
+            37781: {
+                'name': 'HY-2A',
+                'fov_modes': {
+                    'Scatterometer': {'swath_width': 1700, 'coverage_angle': 130.0},
+                    'Radiometer':    {'swath_width': 1600, 'coverage_angle': 120.0},
+                },
+                'default_swath': 1700,
+                'sensors': ['Ku-band Radar Altimeter', 'Ku/C Scatterometer 25km',
+                            'SSMR Microwave Radiometer 50km', 'DORIS'],
+                'sensor_type': 'altimeter',
+                'country': 'China/NSOAS',
+                'altitude_km': 963,
+                'launch_date': '2011-08-16',
+            },
+            46114: {
+                'name': 'HY-2C',
+                'fov_modes': {
+                    'Scatterometer': {'swath_width': 1700, 'coverage_angle': 130.0},
+                    'Radiometer':    {'swath_width': 1600, 'coverage_angle': 120.0},
+                },
+                'default_swath': 1700,
+                'sensors': ['Ku/C Scatterometer', 'Radar Altimeter', 'Microwave Radiometer', 'DORIS'],
+                'sensor_type': 'altimeter',
+                'country': 'China/NSOAS',
+                'altitude_km': 966,
+                'launch_date': '2020-09-21',
+            },
+            49044: {
+                'name': 'HY-2D',
+                'fov_modes': {
+                    'Scatterometer': {'swath_width': 1700, 'coverage_angle': 130.0},
+                    'Radiometer':    {'swath_width': 1600, 'coverage_angle': 120.0},
+                },
+                'default_swath': 1700,
+                'sensors': ['Ku/C Scatterometer', 'Radar Altimeter', 'Microwave Radiometer'],
+                'sensor_type': 'altimeter',
+                'country': 'China/NSOAS',
+                'altitude_km': 966,
+                'launch_date': '2021-05-19',
+            },
+
+            # ── HY-1C / 1D (China ocean color) ───────────────────────────
+            43609: {
+                'name': 'HY-1C',
+                'fov_modes': {
+                    'COCTS': {'swath_width': 2900, 'coverage_angle': 110.0},
+                    'CZI':   {'swath_width': 500,  'coverage_angle': 40.0},
+                },
+                'default_swath': 2900,
+                'sensors': ['COCTS 10-band Ocean Color/Thermal 1100m',
+                            'CZI Coastal Zone Imager 50m 4-band', 'UVI', 'AIS'],
+                'sensor_type': 'multispectral',
+                'country': 'China/NSOAS',
+                'altitude_km': 780,
+                'launch_date': '2018-09-07',
+            },
+            47232: {
+                'name': 'HY-1D',
+                'fov_modes': {
+                    'COCTS': {'swath_width': 2900, 'coverage_angle': 110.0},
+                    'CZI':   {'swath_width': 500,  'coverage_angle': 40.0},
+                },
+                'default_swath': 2900,
+                'sensors': ['COCTS 10-band Ocean Color/Thermal 1100m',
+                            'CZI 50m 4-band', 'UVI', 'AIS'],
+                'sensor_type': 'multispectral',
+                'country': 'China/NSOAS',
+                'altitude_km': 780,
+                'launch_date': '2020-06-11',
+            },
+
+            # ═══════════════ CHINA – CBERS / ZIYUAN / LUTAN ═════════════
+
+            # ── CBERS-4A (China/Brazil multi-sensor) ─────────────────────
+            44875: {
+                'name': 'CBERS-4A',
+                'fov_modes': {
+                    'WPM': {'swath_width': 92,  'coverage_angle': 8.38},
+                    'MUX': {'swath_width': 90,  'coverage_angle': 8.20},
+                    'WFI': {'swath_width': 866, 'coverage_angle': 62.0},
+                },
+                'default_swath': 92,
+                'sensors': ['WPM 2m PAN / 8m MS', 'MUX 16m MS', 'WFI 55m', 'IRS 40m IR'],
+                'sensor_type': 'multispectral',
+                'country': 'China/Brazil',
+                'altitude_km': 628,
+                'launch_date': '2019-12-20',
+            },
+
+            # ── Ziyuan-3-01 (China stereo mapping) ───────────────────────
+            38256: {
+                'name': 'ZIYUAN-3-01',
+                'fov_modes': {
+                    'Nadir': {'swath_width': 51,  'coverage_angle': 4.3},
+                    'MS':    {'swath_width': 166, 'coverage_angle': 13.7},
+                },
+                'default_swath': 51,
+                'sensors': ['2.1m Nadir PAN TDI stereo, 3.5m Fwd/Aft PAN, 5.8m MS'],
+                'sensor_type': 'optical',
+                'country': 'China/SASMAC',
+                'altitude_km': 506,
+                'launch_date': '2012-01-09',
+            },
+
+            # ── Ziyuan-3-03 (China stereo mapping) ───────────────────────
+            46699: {
+                'name': 'ZIYUAN-3-03',
+                'fov_modes': {
+                    'Nadir': {'swath_width': 51,  'coverage_angle': 4.3},
+                    'MS':    {'swath_width': 166, 'coverage_angle': 13.7},
+                },
+                'default_swath': 51,
+                'sensors': ['2.1m Nadir PAN stereo, 2.7m Fwd/Aft PAN, 5.8m MS'],
+                'sensor_type': 'optical',
+                'country': 'China/SASMAC',
+                'altitude_km': 506,
+                'launch_date': '2020-11-06',
+            },
+
+            # ── Lutan-1A / 1B (China L-band InSAR pair) ──────────────────
+            55678: {
+                'name': 'LUTAN-1A',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 10,  'coverage_angle': 0.95},
+                    'StripMap':  {'swath_width': 30,  'coverage_angle': 2.84},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 9.45},
+                },
+                'default_swath': 30,
+                'sensors': ['L-band SAR InSAR (3m Strip, 5m Strip-II, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'China/CAST',
+                'altitude_km': 607,
+                'launch_date': '2022-01-26',
+            },
+            55679: {
+                'name': 'LUTAN-1B',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 10,  'coverage_angle': 0.95},
+                    'StripMap':  {'swath_width': 30,  'coverage_angle': 2.84},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 9.45},
+                },
+                'default_swath': 30,
+                'sensors': ['L-band SAR InSAR (flies in formation with Lutan-1A for ground deformation)'],
+                'sensor_type': 'SAR',
+                'country': 'China/CAST',
+                'altitude_km': 607,
+                'launch_date': '2022-01-26',
+            },
+
+            # ═══════════════ ITALY / GERMANY / SPAIN – SAR ══════════════
+
+            # ── COSMO-SkyMed 1-4 (ASI X-band SAR first generation) ───────
+            31598: {
+                'name': 'COSMO-SKYMED-1',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 10,  'coverage_angle': 0.93},
+                    'StripMap':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'WideRegion': {'swath_width': 100, 'coverage_angle': 9.27},
+                    'HugeRegion': {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR SAR-2000 (1m Spotlight, 3-15m Strip, 30m Wide, 100m Huge)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2007-06-08',
+            },
+            32376: {
+                'name': 'COSMO-SKYMED-2',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 10,  'coverage_angle': 0.93},
+                    'StripMap':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'WideRegion': {'swath_width': 100, 'coverage_angle': 9.27},
+                    'HugeRegion': {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR (1m Spotlight, 3-15m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2007-12-09',
+            },
+            33408: {
+                'name': 'COSMO-SKYMED-3',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 10,  'coverage_angle': 0.93},
+                    'StripMap':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'WideRegion': {'swath_width': 100, 'coverage_angle': 9.27},
+                    'HugeRegion': {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR (1m Spotlight, 3-15m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2008-10-25',
+            },
+            36599: {
+                'name': 'COSMO-SKYMED-4',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 10,  'coverage_angle': 0.93},
+                    'StripMap':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'WideRegion': {'swath_width': 100, 'coverage_angle': 9.27},
+                    'HugeRegion': {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR (1m Spotlight, 3-15m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2010-11-06',
+            },
+
+            # ── COSMO-SkyMed Second Generation 1 & 2 ─────────────────────
+            47390: {
+                'name': 'COSMO-SKYMED-SG1',
+                'fov_modes': {
+                    'StaSpot': {'swath_width': 10,  'coverage_angle': 0.93},
+                    'Strip':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'Wide':    {'swath_width': 100, 'coverage_angle': 9.27},
+                    'Huge':    {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR 2nd Gen (0.35m Staring Spotlight, 1m Spotlight, 3-15m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2019-12-18',
+            },
+            51028: {
+                'name': 'COSMO-SKYMED-SG2',
+                'fov_modes': {
+                    'StaSpot': {'swath_width': 10,  'coverage_angle': 0.93},
+                    'Strip':   {'swath_width': 40,  'coverage_angle': 3.70},
+                    'Wide':    {'swath_width': 100, 'coverage_angle': 9.27},
+                    'Huge':    {'swath_width': 200, 'coverage_angle': 18.54},
+                },
+                'default_swath': 40,
+                'sensors': ['X-band SAR 2nd Gen (0.35m Staring Spotlight, 1m Spotlight, 3-15m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'Italy/ASI',
+                'altitude_km': 619,
+                'launch_date': '2022-07-31',
+            },
+
+            # ── TerraSAR-X & TanDEM-X (DLR/Airbus X-band SAR) ───────────
+            31698: {
+                'name': 'TERRASAR-X',
+                'fov_modes': {
+                    'StaSpot': {'swath_width': 10,  'coverage_angle': 1.12},
+                    'Strip':   {'swath_width': 30,  'coverage_angle': 3.36},
+                    'ScanSAR': {'swath_width': 100, 'coverage_angle': 11.2},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR active phased array (0.25m Staring Spotlight, 1m HS, 3m Strip, 18m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Germany/DLR',
+                'altitude_km': 514,
+                'launch_date': '2007-06-15',
+            },
+            36605: {
+                'name': 'TANDEM-X',
+                'fov_modes': {
+                    'Strip':   {'swath_width': 30,  'coverage_angle': 3.36},
+                    'StaSpot': {'swath_width': 10,  'coverage_angle': 1.12},
+                    'ScanSAR': {'swath_width': 100, 'coverage_angle': 11.2},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR InSAR formation (0.25m-18m; 350m-2km from TerraSAR-X for global DEM)'],
+                'sensor_type': 'SAR',
+                'country': 'Germany/DLR',
+                'altitude_km': 514,
+                'launch_date': '2010-06-21',
+            },
+
+            # ── PAZ (Spain X-band SAR, TSX-identical hardware) ───────────
+            43215: {
+                'name': 'PAZ',
+                'fov_modes': {
+                    'StaSpot': {'swath_width': 10,  'coverage_angle': 1.12},
+                    'Strip':   {'swath_width': 30,  'coverage_angle': 3.36},
+                    'ScanSAR': {'swath_width': 100, 'coverage_angle': 11.2},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (identical to TerraSAR-X: 0.25m-18m resolution)'],
+                'sensor_type': 'SAR',
+                'country': 'Spain/Hisdesat',
+                'altitude_km': 514,
+                'launch_date': '2018-02-22',
+            },
+
+            # ═══════════════ CANADA – RADARSAT ══════════════════════════
+
+            # ── RADARSAT-2 (MDA C-band SAR, fully polarimetric) ──────────
+            32382: {
+                'name': 'RADARSAT-2',
+                'fov_modes': {
+                    'Spotlight':  {'swath_width': 8,   'coverage_angle': 0.58},
+                    'Fine':       {'swath_width': 25,  'coverage_angle': 1.80},
+                    'Standard':   {'swath_width': 50,  'coverage_angle': 3.60},
+                    'ScanSAR_W':  {'swath_width': 500, 'coverage_angle': 36.0},
+                },
+                'default_swath': 50,
+                'sensors': ['C-band SAR (1m Spotlight, 3m Ultra-Fine, 8m Fine, 25m Std, 100m ScanSAR; fully polarimetric)'],
+                'sensor_type': 'SAR',
+                'country': 'Canada/MDA',
+                'altitude_km': 798,
+                'launch_date': '2007-12-14',
+            },
+
+            # ── RADARSAT Constellation Mission 2 & 3 ─────────────────────
+            44421: {
+                'name': 'RCM-2',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.48},
+                    'StripMap':  {'swath_width': 30,  'coverage_angle': 2.90},
+                    'MedRes':    {'swath_width': 125, 'coverage_angle': 12.1},
+                    'LowNoise':  {'swath_width': 350, 'coverage_angle': 34.0},
+                },
+                'default_swath': 30,
+                'sensors': ['C-band SAR compact polarimetry (1-100m, 5 imaging modes)'],
+                'sensor_type': 'SAR',
+                'country': 'Canada/MDA/CSA',
+                'altitude_km': 592,
+                'launch_date': '2019-06-12',
+            },
+            44422: {
+                'name': 'RCM-3',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.48},
+                    'StripMap':  {'swath_width': 30,  'coverage_angle': 2.90},
+                    'MedRes':    {'swath_width': 125, 'coverage_angle': 12.1},
+                    'LowNoise':  {'swath_width': 350, 'coverage_angle': 34.0},
+                },
+                'default_swath': 30,
+                'sensors': ['C-band SAR compact polarimetry (identical to RCM-2)'],
+                'sensor_type': 'SAR',
+                'country': 'Canada/MDA/CSA',
+                'altitude_km': 592,
+                'launch_date': '2019-06-12',
+            },
+
+            # ── NovaSAR-1 (SSTL S-band SAR + AIS) ───────────────────────
+            43916: {
+                'name': 'NOVASAR-1',
+                'fov_modes': {
+                    'StripMap':  {'swath_width': 20,  'coverage_angle': 1.98},
+                    'ScanSAR6':  {'swath_width': 50,  'coverage_angle': 4.94},
+                    'ScanSAR20': {'swath_width': 100, 'coverage_angle': 9.88},
+                    'Maritime':  {'swath_width': 400, 'coverage_angle': 39.5},
+                },
+                'default_swath': 20,
+                'sensors': ['S-band SAR 3.2GHz HH/HV (6m Strip, 20m ScanSAR, 30m Maritime + AIS)'],
+                'sensor_type': 'SAR',
+                'country': 'UK/SSTL',
+                'altitude_km': 580,
+                'launch_date': '2018-09-16',
+            },
+
+            # ═══════════════ COMMERCIAL SAR CONSTELLATIONS ══════════════
+
+            # ── ICEYE X-band SAR constellation (Finland) ──────────────────
+            44390: {
+                'name': 'ICEYE-X2',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.50},
+                    'Strip':     {'swath_width': 30,  'coverage_angle': 3.01},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 10.0},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Finland/ICEYE',
+                'altitude_km': 570,
+                'launch_date': '2019-04-03',
+            },
+            45429: {
+                'name': 'ICEYE-X4',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.50},
+                    'Strip':     {'swath_width': 30,  'coverage_angle': 3.01},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 10.0},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Finland/ICEYE',
+                'altitude_km': 570,
+                'launch_date': '2019-09-03',
+            },
+            46069: {
+                'name': 'ICEYE-X5',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.50},
+                    'Strip':     {'swath_width': 30,  'coverage_angle': 3.01},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 10.0},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Finland/ICEYE',
+                'altitude_km': 570,
+                'launch_date': '2021-01-24',
+            },
+            47467: {
+                'name': 'ICEYE-X6',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.50},
+                    'Strip':     {'swath_width': 30,  'coverage_angle': 3.01},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 10.0},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Finland/ICEYE',
+                'altitude_km': 570,
+                'launch_date': '2021-06-22',
+            },
+            49055: {
+                'name': 'ICEYE-X7',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,   'coverage_angle': 0.50},
+                    'Strip':     {'swath_width': 30,  'coverage_angle': 3.01},
+                    'ScanSAR':   {'swath_width': 100, 'coverage_angle': 10.0},
+                },
+                'default_swath': 30,
+                'sensors': ['X-band SAR (0.5m Spotlight, 3m Strip, 15m ScanSAR)'],
+                'sensor_type': 'SAR',
+                'country': 'Finland/ICEYE',
+                'altitude_km': 570,
+                'launch_date': '2022-01-13',
+            },
+
+            # ── Capella Space X-band SAR (USA) ────────────────────────────
+            46502: {
+                'name': 'CAPELLA-2',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.73},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (0.35-0.5m Sliding Spotlight, 1.5m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Capella Space',
+                'altitude_km': 525,
+                'launch_date': '2020-08-17',
+            },
+            48913: {
+                'name': 'CAPELLA-3',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.73},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (0.35-0.5m Spotlight, 1.5m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Capella Space',
+                'altitude_km': 525,
+                'launch_date': '2022-01-13',
+            },
+            51053: {
+                'name': 'CAPELLA-4',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 25, 'coverage_angle': 2.73},
+                },
+                'default_swath': 25,
+                'sensors': ['X-band SAR (0.35-0.5m Spotlight, 1.5m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Capella Space',
+                'altitude_km': 525,
+                'launch_date': '2022-05-25',
+            },
+
+            # ── Umbra X-band sub-meter SAR (USA) ─────────────────────────
+            55268: {
+                'name': 'UMBRA-04',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 20, 'coverage_angle': 2.19},
+                },
+                'default_swath': 20,
+                'sensors': ['X-band SAR (0.25m Spotlight, 1m Strip; 16cm achievable)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Umbra',
+                'altitude_km': 520,
+                'launch_date': '2023-01-15',
+            },
+            55847: {
+                'name': 'UMBRA-05',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 20, 'coverage_angle': 2.19},
+                },
+                'default_swath': 20,
+                'sensors': ['X-band SAR (0.25m Spotlight, 1m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Umbra',
+                'altitude_km': 520,
+                'launch_date': '2023-04-12',
+            },
+            57320: {
+                'name': 'UMBRA-06',
+                'fov_modes': {
+                    'Spotlight': {'swath_width': 5,  'coverage_angle': 0.55},
+                    'Strip':     {'swath_width': 20, 'coverage_angle': 2.19},
+                },
+                'default_swath': 20,
+                'sensors': ['X-band SAR (0.25m Spotlight, 1m Strip)'],
+                'sensor_type': 'SAR',
+                'country': 'USA/Umbra',
+                'altitude_km': 520,
+                'launch_date': '2023-06-12',
+            },
+
+            # ═══════════════ COMMERCIAL OPTICAL ═════════════════════════
+
+            # ── WorldView-4 (Maxar, decommissioned 2019) ──────────────────
+            41848: {
+                'name': 'WORLDVIEW-4',
+                'fov_modes': {
+                    'Pan': {'swath_width': 13.1, 'coverage_angle': 1.22},
+                },
+                'default_swath': 13.1,
+                'sensors': ['0.31m PAN, 1.24m MS 4-band (GeoEye-2 sensor; CMG failure Jan 2019)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Maxar',
+                'altitude_km': 617,
+                'launch_date': '2016-11-11',
+            },
+
+            # ── SkySat constellation Gen-1 & Gen-2 (Planet Labs) ─────────
+            40896: {
+                'name': 'SKYSAT-4',
+                'fov_modes': {
+                    'Strip': {'swath_width': 2, 'coverage_angle': 0.23},
+                },
+                'default_swath': 2,
+                'sensors': ['0.72m Pan, 1.0m MS 4-band + Video (Gen-1)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Planet Labs',
+                'altitude_km': 500,
+                'launch_date': '2016-07-08',
+            },
+            40898: {
+                'name': 'SKYSAT-5',
+                'fov_modes': {
+                    'Strip': {'swath_width': 2, 'coverage_angle': 0.23},
+                },
+                'default_swath': 2,
+                'sensors': ['0.72m Pan, 1.0m MS 4-band + Video (Gen-1)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Planet Labs',
+                'altitude_km': 500,
+                'launch_date': '2016-07-08',
+            },
+            45261: {
+                'name': 'SKYSAT-13',
+                'fov_modes': {
+                    'Strip': {'swath_width': 2, 'coverage_angle': 0.25},
+                },
+                'default_swath': 2,
+                'sensors': ['0.5m Pan, MS 4-band + Video (Gen-2 50cm)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Planet Labs',
+                'altitude_km': 450,
+                'launch_date': '2020-09-03',
+            },
+            45262: {
+                'name': 'SKYSAT-14',
+                'fov_modes': {
+                    'Strip': {'swath_width': 2, 'coverage_angle': 0.25},
+                },
+                'default_swath': 2,
+                'sensors': ['0.5m Pan, MS 4-band + Video (Gen-2 50cm)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Planet Labs',
+                'altitude_km': 450,
+                'launch_date': '2020-09-03',
+            },
+            47948: {
+                'name': 'SKYSAT-21',
+                'fov_modes': {
+                    'Strip': {'swath_width': 2, 'coverage_angle': 0.25},
+                },
+                'default_swath': 2,
+                'sensors': ['0.5m Pan, MS 4-band + Video (Gen-2 50cm)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Planet Labs',
+                'altitude_km': 450,
+                'launch_date': '2021-06-28',
+            },
+
+            # ── SuperView-1 01-04 (SpaceTy/SIWEI, China) ─────────────────
+            41725: {'name': 'SUPERVIEW-1-01', 'fov_modes': {'Pan': {'swath_width': 12, 'coverage_angle': 1.30}}, 'default_swath': 12, 'sensors': ['0.5m PAN, 2m MS 4-band'], 'sensor_type': 'optical', 'country': 'China/SpaceTy', 'altitude_km': 530, 'launch_date': '2016-12-28'},
+            41726: {'name': 'SUPERVIEW-1-02', 'fov_modes': {'Pan': {'swath_width': 12, 'coverage_angle': 1.30}}, 'default_swath': 12, 'sensors': ['0.5m PAN, 2m MS 4-band'], 'sensor_type': 'optical', 'country': 'China/SpaceTy', 'altitude_km': 530, 'launch_date': '2016-12-28'},
+            43041: {'name': 'SUPERVIEW-1-03', 'fov_modes': {'Pan': {'swath_width': 12, 'coverage_angle': 1.30}}, 'default_swath': 12, 'sensors': ['0.5m PAN, 2m MS 4-band'], 'sensor_type': 'optical', 'country': 'China/SpaceTy', 'altitude_km': 530, 'launch_date': '2018-01-09'},
+            43042: {'name': 'SUPERVIEW-1-04', 'fov_modes': {'Pan': {'swath_width': 12, 'coverage_angle': 1.30}}, 'default_swath': 12, 'sensors': ['0.5m PAN, 2m MS 4-band'], 'sensor_type': 'optical', 'country': 'China/SpaceTy', 'altitude_km': 530, 'launch_date': '2018-01-09'},
+
+            # ── Jilin-1 03 & 04 (Chang Guang Satellite Tech, China) ───────
+            41842: {
+                'name': 'JILIN-1-03',
+                'fov_modes': {
+                    'Pan': {'swath_width': 11.6, 'coverage_angle': 1.24},
+                },
+                'default_swath': 11.6,
+                'sensors': ['0.72m Pan, 2.9m MS 4-band + Video 30fps'],
+                'sensor_type': 'optical',
+                'country': 'China/CGST',
+                'altitude_km': 535,
+                'launch_date': '2016-11-10',
+            },
+            41843: {
+                'name': 'JILIN-1-04',
+                'fov_modes': {
+                    'Pan': {'swath_width': 11.6, 'coverage_angle': 1.24},
+                },
+                'default_swath': 11.6,
+                'sensors': ['0.72m Pan, 2.9m MS 4-band + Video 30fps'],
+                'sensor_type': 'optical',
+                'country': 'China/CGST',
+                'altitude_km': 535,
+                'launch_date': '2016-11-10',
+            },
+
+            # ── BlackSky Global constellation (USA) ───────────────────────
+            44499: {
+                'name': 'BLACKSKY-GLOBAL-1',
+                'fov_modes': {
+                    'Pan': {'swath_width': 2, 'coverage_angle': 0.25},
+                },
+                'default_swath': 2,
+                'sensors': ['1.0m Pan, 4m MS 4-band (B G R NIR)'],
+                'sensor_type': 'optical',
+                'country': 'USA/BlackSky',
+                'altitude_km': 450,
+                'launch_date': '2019-06-05',
+            },
+            47699: {
+                'name': 'BLACKSKY-GLOBAL-5',
+                'fov_modes': {
+                    'Pan': {'swath_width': 2, 'coverage_angle': 0.25},
+                },
+                'default_swath': 2,
+                'sensors': ['1.0m Pan, 4m MS 4-band (Gen-2)'],
+                'sensor_type': 'optical',
+                'country': 'USA/BlackSky',
+                'altitude_km': 450,
+                'launch_date': '2021-06-13',
+            },
+
+            # ── DMC3 / TripleSat 2 & 3 (21AT/SSTL) ──────────────────────
+            # Note: DMC3-1 NORAD 40892 conflicts with existing SKYSAT-C1
+            40893: {
+                'name': 'DMC3-2 (TRIPLESAT-2)',
+                'fov_modes': {
+                    'Pan': {'swath_width': 23, 'coverage_angle': 2.02},
+                },
+                'default_swath': 23,
+                'sensors': ['1.0m PAN, 4m MS 4-band (PSLV-C28, Jul 2015)'],
+                'sensor_type': 'optical',
+                'country': 'UK/China (21AT/SSTL)',
+                'altitude_km': 651,
+                'launch_date': '2015-07-10',
+            },
+            40894: {
+                'name': 'DMC3-3 (TRIPLESAT-3)',
+                'fov_modes': {
+                    'Pan': {'swath_width': 23, 'coverage_angle': 2.02},
+                },
+                'default_swath': 23,
+                'sensors': ['1.0m PAN, 4m MS 4-band'],
+                'sensor_type': 'optical',
+                'country': 'UK/China (21AT/SSTL)',
+                'altitude_km': 651,
+                'launch_date': '2015-07-10',
+            },
+
+            # ── NigeriaSat-2 (Nigeria/SSTL DMC) ──────────────────────────
+            37791: {
+                'name': 'NIGERIASAT-2',
+                'fov_modes': {
+                    'HR':   {'swath_width': 20,  'coverage_angle': 1.63},
+                    'Wide': {'swath_width': 300, 'coverage_angle': 24.5},
+                },
+                'default_swath': 20,
+                'sensors': ['2.5m PAN, 5m MS 4-band, 32m MS 22-band wide-field'],
+                'sensor_type': 'optical',
+                'country': 'Nigeria/SSTL',
+                'altitude_km': 703,
+                'launch_date': '2011-08-17',
+            },
+
+            # ── RapidEye-3/4/5 (Planet Labs/Germany, decommissioned 2020) ─
+            33516: {'name': 'RAPIDEYE-3', 'fov_modes': {'REIS': {'swath_width': 77, 'coverage_angle': 6.4}}, 'default_swath': 77, 'sensors': ['5m MS 5-band Red Edge (decommissioned 2020)'], 'sensor_type': 'multispectral', 'country': 'Germany/Canada', 'altitude_km': 630, 'launch_date': '2008-08-29'},
+            33517: {'name': 'RAPIDEYE-4', 'fov_modes': {'REIS': {'swath_width': 77, 'coverage_angle': 6.4}}, 'default_swath': 77, 'sensors': ['5m MS 5-band Red Edge (decommissioned 2020)'], 'sensor_type': 'multispectral', 'country': 'Germany/Canada', 'altitude_km': 630, 'launch_date': '2008-08-29'},
+            33518: {'name': 'RAPIDEYE-5', 'fov_modes': {'REIS': {'swath_width': 77, 'coverage_angle': 6.4}}, 'default_swath': 77, 'sensors': ['5m MS 5-band Red Edge (decommissioned 2020)'], 'sensor_type': 'multispectral', 'country': 'Germany/Canada', 'altitude_km': 630, 'launch_date': '2008-08-29'},
+
+            # ── Pleiades NEO-5 & 6 (Airbus, 0.3m, launched 2023-11-02) ───
+            54032: {  # NORAD approx; verify on space-track.org
+                'name': 'PLEIADES-NEO-5',
+                'fov_modes': {
+                    'Pan': {'swath_width': 14, 'coverage_angle': 1.30},
+                },
+                'default_swath': 14,
+                'sensors': ['0.3m Pan, 1.2m MS 5-band (B G R Red-Edge NIR)'],
+                'sensor_type': 'optical',
+                'country': 'France/Airbus',
+                'altitude_km': 620,
+                'launch_date': '2023-11-02',
+            },
+            54033: {  # NORAD approx; verify on space-track.org
+                'name': 'PLEIADES-NEO-6',
+                'fov_modes': {
+                    'Pan': {'swath_width': 14, 'coverage_angle': 1.30},
+                },
+                'default_swath': 14,
+                'sensors': ['0.3m Pan, 1.2m MS 5-band (B G R Red-Edge NIR)'],
+                'sensor_type': 'optical',
+                'country': 'France/Airbus',
+                'altitude_km': 620,
+                'launch_date': '2023-11-02',
+            },
+
+            # ── GOKTURK-1 (Turkey, 0.5m optical) ─────────────────────────
+            41788: {
+                'name': 'GOKTURK-1',
+                'fov_modes': {
+                    'Pan': {'swath_width': 20, 'coverage_angle': 1.66},
+                },
+                'default_swath': 20,
+                'sensors': ['0.5m PAN, 2m MS 4-band (Thales Alenia built)'],
+                'sensor_type': 'optical',
+                'country': 'Turkey',
+                'altitude_km': 689,
+                'launch_date': '2016-12-05',
+            },
+
+            # ── IKONOS (DigitalGlobe/Maxar, first sub-1m commercial, decom. 2015) ─
+            25919: {
+                'name': 'IKONOS',
+                'fov_modes': {
+                    'Pan': {'swath_width': 11.3, 'coverage_angle': 0.95},
+                },
+                'default_swath': 11.3,
+                'sensors': ['0.82m PAN, 3.2m MS 4-band (decommissioned 2015; historic first)'],
+                'sensor_type': 'optical',
+                'country': 'USA/Maxar',
+                'altitude_km': 681,
+                'launch_date': '1999-09-24',
+            },
+
+            # ── NOAA-20 (JPSS-1) – kept for reference ─────────────────────
+            # 43013 is correct NORAD for NOAA-20 (JPSS-1), launched 2017-11-18
         }
 
     # ── Swath Intersection Check ─────────────────────────────────────────────

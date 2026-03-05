@@ -1,6 +1,6 @@
 {
-  "name": "SkyScope - Satellite Tracker",
-  "short_name": "SkyScope",
+  "name": "AURA-AI - Satellite Tracker",
+  "short_name": "AURA-AI",
   "description": "Live 3D satellite tracking with 8,000+ satellites, pass predictions, and NASA data",
   "start_url": "/",
   "display": "standalone",

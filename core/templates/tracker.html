@@ -10,12 +10,12 @@
     <meta name="theme-color" content="#1a1a2e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="SkyScope">
+    <meta name="apple-mobile-web-app-title" content="AURA-AI">
     <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>SkyScope - Live Tracking</title>
+    <title>AURA-AI - Live Tracking</title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -826,7 +826,7 @@
         <div class="container-fluid">
             <a class="navbar-brand fw-bold" href="#">
                 <i class="fas fa-satellite-dish me-2"></i>
-                SkyScope
+                AURA-AI
                 <small class="text-muted ms-2">Live</small>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -1283,7 +1283,7 @@
         <meta name="theme-color" content="#1a1a2e">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="apple-mobile-web-app-title" content="SkyScope">
+        <meta name="apple-mobile-web-app-title" content="AURA-AI">
         <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
         <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
         <title>AI Agent Interface</title>
@@ -1932,7 +1932,7 @@
                         <span class="emoji">🤖</span>
                         <strong>AI Agent Ready</strong>
                         <p>
-                            I can control the SkyScope interface, search satellites, and navigate the app for you.
+                            I can control the AURA-AI interface, search satellites, and navigate the app for you.
                         </p>
                         <small>
                             Try: "Show me the ISS" or "Find Starlink satellites"
@@ -2801,17 +2801,23 @@
                         }
 
                         // Clear any active search filters first
-                        if (window.satelliteViewer.activeFilters.search) {
+                        if (window.satelliteViewer.activeFilters && window.satelliteViewer.activeFilters.search) {
                             window.satelliteViewer.activeFilters.search = null;
-                            window.satelliteViewer.applyCurrentFilters();
+                            if (typeof window.satelliteViewer.applyCurrentFilters === 'function') {
+                                window.satelliteViewer.applyCurrentFilters();
+                            }
                         }
 
                         // Select the satellite with focus
-                        await window.satelliteViewer.selectSatellite(target.noradId, true);
+                        if (typeof window.satelliteViewer.selectSatellite === 'function') {
+                            await window.satelliteViewer.selectSatellite(target.noradId, true);
+                        }
 
                         // Ensure the satellite is visible and focused
                         setTimeout(() => {
-                            window.satelliteViewer.focusOnSatellite(target.noradId);
+                            if (typeof window.satelliteViewer.focusOnSatellite === 'function') {
+                                window.satelliteViewer.focusOnSatellite(target.noradId);
+                            }
                         }, 500);
 
                         return true;

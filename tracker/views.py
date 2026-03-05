@@ -1018,9 +1018,11 @@ def eo_passes(request):
         if not svc.satellite_manager or len(svc.satellite_manager.satellites) == 0:
             svc.satellite_manager.load_tle_data()
 
-        # FOV database (EarthObservationSatellites)
-        from tracker.satellite_fov_data import EarthObservationSatellites
-        fov_db = EarthObservationSatellites()
+        # Use cached FOV database from services singleton
+        fov_db = svc.fov_db
+        if fov_db is None:
+            from tracker.satellite_fov_data import EarthObservationSatellites
+            fov_db = EarthObservationSatellites()
 
         from tracker.eo_satellite_resolver import resolve_satellites
         from tracker.eo_pass_predictor import predict_eo_passes

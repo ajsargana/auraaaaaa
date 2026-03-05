@@ -1,0 +1,140 @@
+{
+  "54603182": {
+    "success": true,
+    "id": "54603182",
+    "name": "(2026 DA1)",
+    "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=54603182",
+    "absolute_magnitude": 26.553,
+    "estimated_diameter": {
+      "kilometers": {
+        "estimated_diameter_min": 0.013000348,
+        "estimated_diameter_max": 0.0290696618
+      },
+      "meters": {
+        "estimated_diameter_min": 13.0003479619,
+        "estimated_diameter_max": 29.0696617739
+      },
+      "miles": {
+        "estimated_diameter_min": 0.0080780392,
+        "estimated_diameter_max": 0.0180630448
+      },
+      "feet": {
+        "estimated_diameter_min": 42.6520616072,
+        "estimated_diameter_max": 95.3729091343
+      }
+    },
+    "is_potentially_hazardous": false,
+    "orbital_data": {
+      "orbit_id": "3",
+      "orbit_determination_date": "2026-03-01 05:41:20",
+      "first_observation_date": "2026-01-14",
+      "last_observation_date": "2026-02-23",
+      "data_arc_in_days": 40.0,
+      "observations_used": 29.0,
+      "orbital_period": 477.5386529488766,
+      "minimum_orbit_intersection": 0.027269,
+      "jupiter_tisserand_invariant": 5.3,
+      "epoch_osculation": "2461000.5",
+      "eccentricity": 0.149188825949898,
+      "semi_major_axis": 1.195657343183298,
+      "inclination": 0.6879095454449227,
+      "ascending_node_longitude": 150.0045715326142,
+      "perihelion_distance": 1.017278627915408,
+      "aphelion_distance": 1.374036058451189
+    },
+    "close_approaches": [],
+    "cached_at": "2026-03-04T11:02:55.918544+00:00"
+  },
+  "54604378": {
+    "success": true,
+    "id": "54604378",
+    "name": "(2026 DE14)",
+    "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=54604378",
+    "absolute_magnitude": 25.989,
+    "estimated_diameter": {
+      "kilometers": {
+        "estimated_diameter_min": 0.0168560176,
+        "estimated_diameter_max": 0.0376912012
+      },
+      "meters": {
+        "estimated_diameter_min": 16.8560176211,
+        "estimated_diameter_max": 37.6912012307
+      },
+      "miles": {
+        "estimated_diameter_min": 0.0104738405,
+        "estimated_diameter_max": 0.0234202194
+      },
+      "feet": {
+        "estimated_diameter_min": 55.301896852,
+        "estimated_diameter_max": 123.6588006457
+      }
+    },
+    "is_potentially_hazardous": false,
+    "orbital_data": {
+      "orbit_id": "1",
+      "orbit_determination_date": "2026-02-28 03:12:05",
+      "first_observation_date": "2026-02-26",
+      "last_observation_date": "2026-02-28",
+      "data_arc_in_days": 2.0,
+      "observations_used": 23.0,
+      "orbital_period": 522.1591724558785,
+      "minimum_orbit_intersection": 0.0462281,
+      "jupiter_tisserand_invariant": 5.06,
+      "epoch_osculation": "2461099.5",
+      "eccentricity": 0.2211666383674384,
+      "semi_major_axis": 1.269023476155767,
+      "inclination": 4.669986791329841,
+      "ascending_node_longitude": 137.4789314057413,
+      "perihelion_distance": 0.9883578199250345,
+      "aphelion_distance": 1.549689132386499
+    },
+    "close_approaches": [],
+    "cached_at": "2026-03-04T11:03:03.632167+00:00"
+  },
+  "54604134": {
+    "success": true,
+    "id": "54604134",
+    "name": "(2026 DQ8)",
+    "nasa_jpl_url": "https://ssd.jpl.nasa.gov/tools/sbdb_lookup.html#/?sstr=54604134",
+    "absolute_magnitude": 26.791,
+    "estimated_diameter": {
+      "kilometers": {
+        "estimated_diameter_min": 0.0116507793,
+        "estimated_diameter_max": 0.0260519346
+      },
+      "meters": {
+        "estimated_diameter_min": 11.6507793291,
+        "estimated_diameter_max": 26.0519345707
+      },
+      "miles": {
+        "estimated_diameter_min": 0.0072394564,
+        "estimated_diameter_max": 0.0161879166
+      },
+      "feet": {
+        "estimated_diameter_min": 38.224342854,
+        "estimated_diameter_max": 85.4722290169
+      }
+    },
+    "is_potentially_hazardous": false,
+    "orbital_data": {
+      "orbit_id": "1",
+      "orbit_determination_date": "2026-02-26 01:12:02",
+      "first_observation_date": "2026-02-19",
+      "last_observation_date": "2026-02-26",
+      "data_arc_in_days": 7.0,
+      "observations_used": 47.0,
+      "orbital_period": 599.2014812229144,
+      "minimum_orbit_intersection": 0.00942282,
+      "jupiter_tisserand_invariant": 4.706,
+      "epoch_osculation": "2461000.5",
+      "eccentricity": 0.3448759102260916,
+      "semi_major_axis": 1.390965316075304,
+      "inclination": 5.82978866454115,
+      "ascending_node_longitude": 338.4025008509581,
+      "perihelion_distance": 0.9112548866009104,
+      "aphelion_distance": 1.870675745549698
+    },
+    "close_approaches": [],
+    "cached_at": "2026-03-04T11:03:20.894784+00:00"
+  }
+}

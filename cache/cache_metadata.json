@@ -1,5 +1,39 @@
 {
-  "last_update": "2025-08-04T09:04:29.523068+00:00",
-  "satellites_count": 403,
-  "sources_used": 9
+  "last_update": "2026-03-04T11:47:24.345515+00:00",
+  "satellites_count": 10434,
+  "sources_used": 26,
+  "priority_satellites": {
+    "expected": [
+      "LANDSAT 8",
+      "LANDSAT 9",
+      "SENTINEL-1A",
+      "SENTINEL-1B",
+      "SENTINEL-2A",
+      "SENTINEL-2B",
+      "SENTINEL-3A",
+      "SENTINEL-3B",
+      "SENTINEL-5P",
+      "SENTINEL-6MF",
+      "WORLDVIEW-1",
+      "WORLDVIEW-2",
+      "WORLDVIEW-3"
+    ],
+    "found": [
+      "LANDSAT 8",
+      "LANDSAT 9",
+      "SENTINEL-1A",
+      "SENTINEL-1B",
+      "SENTINEL-2A",
+      "SENTINEL-2B",
+      "SENTINEL-3A",
+      "SENTINEL-3B",
+      "SENTINEL-6MF",
+      "WORLDVIEW-1",
+      "WORLDVIEW-2",
+      "WORLDVIEW-3"
+    ],
+    "missing": [
+      "SENTINEL-5P"
+    ]
+  }
 }

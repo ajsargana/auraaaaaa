@@ -91,23 +91,26 @@ def chat(request):
             return JsonResponse({'error': 'No message provided'}, status=400)
 
         # ── Universal EO / SAR pipeline intercept ────────────────────
-        try:
-            from core.eo_pass_nlu import extract_eo_pass_intent, describe_eo_intent
-            from tracker.satellite_fov_data import EarthObservationSatellites
-            from tracker.eo_satellite_resolver import resolve_satellites
-            from tracker.eo_pass_predictor import predict_eo_passes
+        from core.eo_pass_nlu import extract_eo_pass_intent, describe_eo_intent
+        from tracker.eo_satellite_resolver import resolve_satellites
+        from tracker.eo_pass_predictor import predict_eo_passes
 
-            blat = float(browser_lat) if browser_lat is not None else None
-            blon = float(browser_lon) if browser_lon is not None else None
+        blat = float(browser_lat) if browser_lat is not None else None
+        blon = float(browser_lon) if browser_lon is not None else None
 
-            intent = extract_eo_pass_intent(user_message, browser_lat=blat, browser_lon=blon)
+        intent = extract_eo_pass_intent(user_message, browser_lat=blat, browser_lon=blon)
 
-            if intent["is_eo_pass_query"]:
+        if intent["is_eo_pass_query"]:
+            try:
                 svc = get_services()
                 if not svc.satellite_manager or len(svc.satellite_manager.satellites) == 0:
                     svc.satellite_manager.load_tle_data()
 
-                fov_db = EarthObservationSatellites()
+                # Use cached FOV database from services singleton
+                fov_db = svc.fov_db
+                if fov_db is None:
+                    from tracker.satellite_fov_data import EarthObservationSatellites
+                    fov_db = EarthObservationSatellites()
 
                 candidates = resolve_satellites(
                     intent,
@@ -151,8 +154,7 @@ def chat(request):
                     top_elev = top_pass.get("max_elevation", 0)
                     top_rise = top_pass.get("rise_time", "")
                     try:
-                        from datetime import datetime as _dt
-                        top_rise_fmt = _dt.fromisoformat(top_rise.replace("Z", "+00:00")).strftime("%H:%M UTC")
+                        top_rise_fmt = datetime.fromisoformat(top_rise.replace("Z", "+00:00")).strftime("%H:%M UTC")
                     except Exception:
                         top_rise_fmt = top_rise[:16] if top_rise else "—"
                     text_reply = (
@@ -189,11 +191,39 @@ def chat(request):
                     'isSARQuery':    intent.get("is_sar_query", False),
                     'timestamp':     datetime.now().isoformat(),
                 })
-        except Exception as eo_err:
-            logger.warning(f"EO pipeline skipped: {eo_err}")
+
+            except Exception as eo_err:
+                import traceback
+                logger.error(f"EO pass pipeline error: {eo_err}\n{traceback.format_exc()}")
+                # Return a structured error to the frontend so the user gets useful feedback
+                loc_name = (intent.get("location") or {}).get("name", "the specified location")
+                eo_error_response = {
+                    "type":           "eo_passes",
+                    "intent_summary": describe_eo_intent(intent),
+                    "passes":         [],
+                    "total_found":    0,
+                    "satellites_checked": 0,
+                    "location":       intent.get("location"),
+                    "time_hours":     intent.get("time_hours", 48),
+                    "filters":        {},
+                    "error":          "pipeline_error",
+                    "text_reply":     (
+                        f"I recognised your EO pass query for {loc_name}, but encountered an "
+                        f"internal error while running the prediction pipeline. "
+                        f"Please ensure the cache has finished building (check /api/spatial-index/status) "
+                        f"and try again."
+                    ),
+                }
+                return JsonResponse({
+                    'response':      json.dumps(eo_error_response),
+                    'chatType':      chat_type,
+                    'isEOPassQuery': True,
+                    'isSARQuery':    intent.get("is_sar_query", False),
+                    'timestamp':     datetime.now().isoformat(),
+                })
 
         # ── Default LLM path ──────────────────────────────────────────
-        from ai_chat_module import process_chat_message
+        from core.ai_chat_module import process_chat_message
         response = process_chat_message(user_message, chat_type)
 
         return JsonResponse({

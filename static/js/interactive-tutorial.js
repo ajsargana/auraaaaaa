@@ -4,7 +4,7 @@ class InteractiveTutorial {
         this.currentStep = 0;
         this.steps = [
             {
-                title: "Welcome to SkyScope! 🛰️",
+                title: "Welcome to AURA-AI! 🛰️",
                 message: "Let's take a quick tour of 4 key features. Click 'Next' to continue.",
                 target: null,
                 position: "center"

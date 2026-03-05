@@ -68,6 +68,7 @@ class AppServices:
             self.nasa_eonet_module = None
             self.launch_data_module = None
             self.eo_database = None
+            self.fov_db = None           # EarthObservationSatellites singleton
             self.coverage_calculator = None
 
             self._do_init()
@@ -135,9 +136,15 @@ class AppServices:
             print(f"[INFO] Total satellites: {len(satellites)}")
 
             # Initialize AI chat
-            from ai_chat_module import initialize_ai_system
+            from core.ai_chat_module import initialize_ai_system
             initialize_ai_system(self.satellite_manager)
             print(" AI chat system initialized with satellite database")
+
+            # FOV Database (EarthObservationSatellites) — cached singleton
+            print("[EO] Initializing Earth Observation FOV Database...")
+            from tracker.satellite_fov_data import EarthObservationSatellites
+            self.fov_db = EarthObservationSatellites()
+            print(f"[OK] FOV database loaded ({len(self.fov_db.satellites)} satellites)")
 
             # EO Database
             print("[EO] Initializing Earth Observation Satellite Database...")

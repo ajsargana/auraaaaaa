@@ -150,7 +150,7 @@ export default function App() {
             <Text style={styles.errorIcon}>📡</Text>
             <Text style={styles.errorTitle}>Connection Issue</Text>
             <Text style={styles.errorMessage}>
-              Unable to connect to SkyScope. Make sure the server is running and try again.
+              Unable to connect to AURA-AI. Make sure the server is running and try again.
             </Text>
             {!!errorMessage && (
               <Text style={styles.errorDetail}>{errorMessage}</Text>
@@ -216,7 +216,7 @@ export default function App() {
           <View style={styles.loadingOverlay}>
             <View style={styles.loadingContent}>
               <Text style={styles.loadingIcon}>🛰️</Text>
-              <Text style={styles.loadingTitle}>SkyScope</Text>
+              <Text style={styles.loadingTitle}>AURA-AI</Text>
               <Text style={styles.loadingSubtitle}>Connecting to satellites...</Text>
               <ActivityIndicator size="large" color="#64B5F6" style={styles.spinner} />
             </View>
