@@ -13,4 +13,7 @@ urlpatterns = [
     path('api/status', views.status, name='status'),
     path('api/weather-key', views.weather_key, name='weather_key'),
     path('api/user/preferences', views.user_preferences, name='user_preferences'),
+
+    # Tile cache proxy — serves cached tiles, fetches from upstream on miss
+    path('tiles/<str:provider>/<int:z>/<int:x>/<int:y>/', views.tile_proxy, name='tile_proxy'),
 ]

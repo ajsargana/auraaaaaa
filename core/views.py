@@ -300,3 +300,9 @@ def user_preferences(request):
 def test_view(request):
     """GET /test"""
     return HttpResponse("[OK] Test route works!")
+
+
+def tile_proxy(request, provider, z, x, y):
+    """GET /tiles/<provider>/<z>/<x>/<y>/ — cached map tile proxy"""
+    from core.tile_proxy import serve_tile
+    return serve_tile(request, provider, z, x, y)

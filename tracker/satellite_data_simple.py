@@ -60,13 +60,13 @@ class SatelliteDataManager:
                 return self._load_sample_data()
 
             satellites_loaded = 0
-            max_satellites = 1000  # Load up to 1000 satellites (increased for EO coverage)
+            seen_norad_ids = set()  # deduplicate
             i = 0
             start_time = time.time()
-            timeout_seconds = 30  # Increased timeout for more satellites
+            timeout_seconds = 300  # 5 minutes for full catalog
 
-            while i < len(lines) - 2 and satellites_loaded < max_satellites:
-                # Check for timeout to prevent worker timeout
+            while i < len(lines) - 2:
+                # Check for timeout
                 if time.time() - start_time > timeout_seconds:
                     logger.warning(f"TLE loading timeout after {timeout_seconds}s, loaded {satellites_loaded} satellites")
                     break
@@ -82,6 +82,12 @@ class SatelliteDataManager:
                         try:
                             # Extract NORAD ID
                             norad_id = int(line1[2:7])
+
+                            # Skip duplicates
+                            if norad_id in seen_norad_ids:
+                                i += 3
+                                continue
+                            seen_norad_ids.add(norad_id)
 
                             # Create satellite object
                             satellite = EarthSatellite(line1, line2, name, self.ts)

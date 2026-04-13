@@ -676,8 +676,9 @@
             // Initialize Leaflet map
             const map = L.map('eventMap').setView([0, 0], 2);
 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+            L.tileLayer('/tiles/esri-street/{z}/{x}/{y}/', {
+                attribution: 'Tiles &copy; ESRI',
+                maxZoom: 18,
             }).addTo(map);
 
             const markers = [];

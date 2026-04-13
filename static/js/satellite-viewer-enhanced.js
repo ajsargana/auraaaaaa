@@ -76,6 +76,7 @@ class SatelliteViewer {
         this.showCoverageSwath = false;
         this.showGroundSwath = false;
         this.showGroundTracks = false;
+        this.starlinkVisible = false; // hidden by default to reduce rendering load
         this.trackingMode = true;
         this.currentMode = 'satellites'; // 'satellites' or 'airplanes'
         this.updateInterval = null;
@@ -159,16 +160,124 @@ class SatelliteViewer {
 
         console.log('Initializing Cesium...');
 
-        // Use default Cesium Ion token
-        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlYWE1ZjJiOS1mOGYyLTQ1M2MtOGM2MS1kYzA2YjIxOGI4ZjciLCJpZCI6MjAzNzIsImlhdCI6MTY5NDU0Mzk5OX0.SW1LQITUzCb5gFmLNAa8aeJ7bXhDI1_3pj6_8yUAKPk';
+        // No Cesium Ion token needed — we use our own cached tile proxy
+        // (old Ion token was blocked with 403; Ion is not required for our tile sources)
+        Cesium.Ion.defaultAccessToken = '';
 
         try {
+            // Build layer picker using our local caching proxy only.
+            // Ion's default list is bypassed entirely to avoid 403 errors.
+            const _tileProvider = (providerKey, credit, maxLevel = 19) =>
+                new Cesium.UrlTemplateImageryProvider({
+                    url: `/tiles/${providerKey}/{z}/{x}/{y}/`,
+                    credit,
+                    maximumLevel: maxLevel,
+                    minimumLevel: 0,
+                });
+
+            const imageryViewModels = [
+                // ── Street / road maps ───────────────────────────────────
+                new Cesium.ProviderViewModel({
+                    name: 'Street Map',
+                    tooltip: 'ESRI World Street Map — roads, cities, labels',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('esri-street', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'OpenStreetMap',
+                    tooltip: 'OpenStreetMap — community-maintained world map',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('osm', '© OpenStreetMap contributors'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Topo Map',
+                    tooltip: 'ESRI World Topographic Map — elevation contours and terrain',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('esri-topo', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'OpenTopoMap',
+                    tooltip: 'OpenTopoMap — detailed hiking and relief map',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('opentopomap', '© OpenTopoMap contributors', 17),
+                }),
+                // ── Satellite / imagery ──────────────────────────────────
+                new Cesium.ProviderViewModel({
+                    name: 'Satellite Imagery',
+                    tooltip: 'ESRI World Imagery — high-resolution aerial photography',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/bingAerial.png'),
+                    creationFunction: () => _tileProvider('esri-imagery', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Earth from Space',
+                    tooltip: 'NASA MODIS Terra — true-colour daytime Earth composite from satellite',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/bingAerial.png'),
+                    creationFunction: () => _tileProvider('nasa-day', 'NASA GIBS / MODIS Terra', 9),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Ocean',
+                    tooltip: 'ESRI Ocean Base — ocean floor bathymetry depth shading',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/bingAerial.png'),
+                    creationFunction: () => _tileProvider('esri-ocean', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Physical Map',
+                    tooltip: 'ESRI World Physical — natural terrain colours, no borders or labels',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/bingAerial.png'),
+                    creationFunction: () => _tileProvider('esri-physical', 'Tiles © ESRI'),
+                }),
+                // ── Dark / minimal ───────────────────────────────────────
+                new Cesium.ProviderViewModel({
+                    name: 'Voyager',
+                    tooltip: 'CartoDB Voyager — polished mid-tone design, roads without the noise',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('carto-voyager', 'Tiles © CartoDB'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'OSM Humanitarian',
+                    tooltip: 'OpenStreetMap Humanitarian — warm palette used in disaster and aid mapping',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('osm-hot', '© OpenStreetMap / HOT'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Shaded Relief',
+                    tooltip: 'ESRI World Shaded Relief — pure terrain shading, no labels',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/bingAerial.png'),
+                    creationFunction: () => _tileProvider('esri-relief', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'National Geographic',
+                    tooltip: 'ESRI NatGeo World Map — cartographic style as seen in National Geographic',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('esri-natgeo', 'Tiles © ESRI / National Geographic'),
+                }),
+                // ── Dark / minimal ───────────────────────────────────────
+                new Cesium.ProviderViewModel({
+                    name: 'Dark Matter',
+                    tooltip: 'CartoDB Dark Matter — high-contrast dark theme',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('carto-dark', 'Tiles © CartoDB'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Dark Gray Canvas',
+                    tooltip: 'ESRI Dark Gray Canvas — minimal dark basemap for data overlays',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('esri-dark', 'Tiles © ESRI'),
+                }),
+                new Cesium.ProviderViewModel({
+                    name: 'Light (CartoDB)',
+                    tooltip: 'CartoDB Positron — clean minimal light theme',
+                    iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
+                    creationFunction: () => _tileProvider('carto-light', 'Tiles © CartoDB'),
+                }),
+            ];
+
             this.viewer = new Cesium.Viewer('cesiumContainer', {
                 // Performance optimizations
                 terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-                imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-                    url: 'https://a.tile.openstreetmap.org/'
-                }),
+                imageryProvider: false,          // let the picker control the base layer
+                imageryProviderViewModels: imageryViewModels,
+                selectedImageryProviderViewModel: imageryViewModels[0],
                 baseLayerPicker: true,
                 geocoder: false,
                 homeButton: true,
@@ -922,6 +1031,10 @@ class SatelliteViewer {
                 );
             }, false);
 
+            // Starlink hidden by default
+            const isStarlink = satellite.category === 'starlink' ||
+                satellite.name.toUpperCase().includes('STARLINK');
+
             const entity = this.viewer.entities.add({
                 id: `satellite_${noradId}`,
                 name: satellite.name,
@@ -932,7 +1045,7 @@ class SatelliteViewer {
                     outlineColor: Cesium.Color.WHITE,
                     outlineWidth: 0.1,
                     heightReference: Cesium.HeightReference.NONE,
-                    show: true, // Will be controlled by filtering
+                    show: !isStarlink,
                     disableDepthTestDistance: 0
                 },
                 label: {
@@ -2008,6 +2121,32 @@ class SatelliteViewer {
             this.viewer.entities.remove(entity);
         });
         this.orbitEntities.clear();
+    }
+
+    toggleStarlink() {
+        this.starlinkVisible = !this.starlinkVisible;
+
+        this.satelliteEntities.forEach((entity, noradId) => {
+            const satellite = this.satellites.get(noradId);
+            if (!satellite) return;
+            if (satellite.category === 'starlink' || satellite.name.toUpperCase().includes('STARLINK')) {
+                if (entity.point) entity.point.show = this.starlinkVisible;
+                if (entity.label) entity.label.show = false;
+            }
+        });
+
+        const btn = document.getElementById('starlinkToggleBtn');
+        if (btn) {
+            if (this.starlinkVisible) {
+                btn.classList.add('starlink-visible');
+                btn.innerHTML = '<i class="fas fa-eye-slash me-1"></i> Hide Starlink';
+            } else {
+                btn.classList.remove('starlink-visible');
+                btn.innerHTML = '<i class="fas fa-satellite me-1"></i> See Starlink';
+            }
+        }
+
+        this.viewer.scene.requestRender();
     }
 
     // =========================================================================

@@ -172,6 +172,10 @@ class SatelliteFilter {
     shouldShowSatellite(satellite) {
         if (!satellite) return false;
 
+        // Hide Starlink when toggle is off
+        const isStarlink = satellite.category === 'starlink' || satellite.name.toUpperCase().includes('STARLINK');
+        if (isStarlink && !this.satelliteViewer.starlinkVisible) return false;
+
         // Priority satellites (Sentinel, Landsat, WorldView) are ALWAYS visible
         const prioritySatellites = [
             'LANDSAT', 'SENTINEL', 'WORLDVIEW'

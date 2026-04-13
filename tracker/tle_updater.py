@@ -83,75 +83,87 @@ class TLEUpdater:
         try:
             logger.info("Updating TLE data from online sources...")
             
-            # List of working TLE data sources - PRIORITY missions first
+            # Full TLE source list — GEO, IGSO, LEO constellations, EO priority
             tle_sources = [
-                # PRIORITY: Earth Observation missions (Sentinel, Landsat, WorldView)
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle',     # Resource/EO satellites (includes Landsat, Sentinel, WorldView)
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=39084&FORMAT=tle',        # Landsat 8
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=49260&FORMAT=tle',        # Landsat 9
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=39634&FORMAT=tle',        # Sentinel-1A
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=41456&FORMAT=tle',        # Sentinel-1B
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=40697&FORMAT=tle',        # Sentinel-2A
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=42063&FORMAT=tle',        # Sentinel-2B
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43437&FORMAT=tle',        # Sentinel-3A
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43485&FORMAT=tle',        # Sentinel-3B
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=44427&FORMAT=tle',        # Sentinel-5P
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43013&FORMAT=tle',        # Sentinel-6MF
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=32060&FORMAT=tle',        # WorldView-1
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=35946&FORMAT=tle',        # WorldView-2
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=40115&FORMAT=tle',        # WorldView-3
-                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43013&FORMAT=tle',        # WorldView-4
-                
-                # Standard groups
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',      # ISS and space stations
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle',       # Bright satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle',      # Weather satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle',      # Science satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle',      # GPS satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle',      # Galileo satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle',       # BeiDou satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=glonass-ops&FORMAT=tle',  # GLONASS satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',     # Starlink satellites
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium-33&FORMAT=tle',   # Iridium constellation
-                'https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle',      # Amateur radio satellites
+                # Full active catalog (covers GEO + IGSO + all LEO)
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle',
+
+                # GEO communication satellites
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=intelsat&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=ses&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=telesat&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=iridium&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=oneweb&FORMAT=tle',
+
+                # Navigation constellations
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=galileo&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=beidou&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=glonass-ops&FORMAT=tle',
+
+                # LEO constellations
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=tle',
+
+                # Earth observation & science
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=resource&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=science&FORMAT=tle',
+                'https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle',
+
+                # Priority EO individual TLEs (guarantee they're present)
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=39084&FORMAT=tle',   # Landsat 8
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=49260&FORMAT=tle',   # Landsat 9
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=39634&FORMAT=tle',   # Sentinel-1A
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=40697&FORMAT=tle',   # Sentinel-2A
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=42063&FORMAT=tle',   # Sentinel-2B
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43437&FORMAT=tle',   # Sentinel-3A
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43485&FORMAT=tle',   # Sentinel-3B
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=44427&FORMAT=tle',   # Sentinel-5P
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=43013&FORMAT=tle',   # Sentinel-6MF
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=32060&FORMAT=tle',   # WorldView-1
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=35946&FORMAT=tle',   # WorldView-2
+                'https://celestrak.org/NORAD/elements/gp.php?CATNR=40115&FORMAT=tle',   # WorldView-3
             ]
-            
+
             all_tle_data = []
             satellites_loaded = 0
-            
+            seen_norad_ids = set()  # deduplicate across sources
+
             for source_url in tle_sources:
                 try:
                     logger.info(f"Fetching TLE data from: {source_url}")
                     response = requests.get(source_url, timeout=30)
                     response.raise_for_status()
-                    
+
                     tle_lines = response.text.strip().split('\n')
                     source_satellites = 0
-                    
-                    # Process TLE data in groups of 3 lines (name, line1, line2)
+
                     i = 0
                     while i < len(tle_lines) - 2:
                         try:
                             name_line = tle_lines[i].strip()
                             line1 = tle_lines[i + 1].strip()
                             line2 = tle_lines[i + 2].strip()
-                            
-                            # Validate TLE format
-                            if (len(line1) == 69 and len(line2) == 69 and 
-                                line1.startswith('1') and line2.startswith('2')):
-                                
-                                all_tle_data.extend([name_line, line1, line2])
-                                source_satellites += 1
-                                satellites_loaded += 1
-                            
+
+                            if (len(line1) == 69 and len(line2) == 69 and
+                                    line1.startswith('1') and line2.startswith('2')):
+
+                                norad_id = int(line1[2:7])
+                                if norad_id not in seen_norad_ids:
+                                    seen_norad_ids.add(norad_id)
+                                    all_tle_data.extend([name_line, line1, line2])
+                                    source_satellites += 1
+                                    satellites_loaded += 1
+
                             i += 3
-                            
+
                         except (IndexError, ValueError):
                             i += 1
                             continue
-                    
-                    logger.info(f"Loaded {source_satellites} satellites from {source_url}")
-                    
+
+                    logger.info(f"Loaded {source_satellites} new satellites from {source_url}")
+
                 except requests.RequestException as e:
                     logger.warning(f"Failed to fetch from {source_url}: {e}")
                     continue

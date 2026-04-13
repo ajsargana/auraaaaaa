@@ -3,6 +3,8 @@
 __pycache__/
 *.pyc
 *.pyo
+# Satellite position cache
+cache/
 
 # Django
 db.sqlite3
