@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(netstat:*)"
+      "Bash(netstat:*)",
+      "Bash(node --check d:/SattTrack_converted/static/js/satellite-viewer-enhanced.js)",
+      "Bash(node --check d:/SattTrack_converted/static/js/satellite-filter.js)",
+      "Bash(head -20 grep -rn \"eo_database\\\\|fov_db\\\\|EarthObservationSatellites\" d:/SattTrack_converted/tracker/satellite_fov_data.py)"
     ]
   }
 }
