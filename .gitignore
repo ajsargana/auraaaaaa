@@ -1,5 +1,6 @@
 # Cache directories
 cache/
+mobile-app/ 
 
 # Python cache
 __pycache__/
