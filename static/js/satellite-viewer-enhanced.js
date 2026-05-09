@@ -2200,122 +2200,136 @@ class SatelliteViewer {
     }
 
     renderCoverageSwath(noradId, coverageData) {
-        // Clear existing coverage
         this.clearCoverageSwath(noradId);
-
-        // Initialize entities array for this satellite
         this.coverageSwathEntities.set(noradId, []);
+
+        // --- coordinate helpers ---
+
+        const isValidCoord = (c) =>
+            c && c.length >= 2 && isFinite(c[0]) && isFinite(c[1]) &&
+            c[1] >= -90 && c[1] <= 90;
+
+        // Unwrap longitudes so no consecutive jump exceeds 180°
+        const normalizeLonContinuity = (coords) => {
+            if (!coords.length) return coords;
+            const out = [[coords[0][0], coords[0][1]]];
+            let prev = coords[0][0];
+            for (let i = 1; i < coords.length; i++) {
+                let lon = coords[i][0];
+                while (lon - prev > 180) lon -= 360;
+                while (lon - prev < -180) lon += 360;
+                out.push([lon, coords[i][1]]);
+                prev = lon;
+            }
+            return out;
+        };
+
+        const removeDuplicates = (coords) => {
+            if (!coords.length) return coords;
+            const out = [coords[0]];
+            for (let i = 1; i < coords.length; i++) {
+                const p = out[out.length - 1];
+                if (Math.abs(coords[i][0] - p[0]) > 1e-6 || Math.abs(coords[i][1] - p[1]) > 1e-6)
+                    out.push(coords[i]);
+            }
+            return out;
+        };
+
+        // --- swath polygon renderer ---
+
+        const renderSwathPolygons = (polygons, fillColor, fillAlpha) => {
+            polygons.forEach((polygon) => {
+                if (!polygon.coordinates || !polygon.coordinates.length) return;
+
+                // Validate, strip closing duplicate, deduplicate
+                let coords = polygon.coordinates[0].filter(isValidCoord);
+                if (coords.length > 1) {
+                    const f = coords[0], l = coords[coords.length - 1];
+                    if (Math.abs(f[0] - l[0]) < 1e-4 && Math.abs(f[1] - l[1]) < 1e-4)
+                        coords = coords.slice(0, -1);
+                }
+                coords = removeDuplicates(coords);
+                if (coords.length < 4) return;
+
+                // Unwrap longitude continuity across the full ring
+                coords = normalizeLonContinuity(coords);
+
+                // Ring layout from backend: left edge forward [0..N-1] + right edge backward [N..end]
+                // Split and un-reverse the right half so index i matches track step i
+                const N = Math.floor(coords.length / 2);
+                if (N < 2) return;
+                const leftEdge = coords.slice(0, N);
+                const rightEdge = coords.slice(N).reverse();
+
+                // Render as connected quad strips — one quad per track step
+                const segCount = Math.min(leftEdge.length, rightEdge.length) - 1;
+                for (let i = 0; i < segCount; i++) {
+                    const l0 = leftEdge[i], l1 = leftEdge[i + 1];
+                    const r0 = rightEdge[i], r1 = rightEdge[i + 1];
+                    if (!isValidCoord(l0) || !isValidCoord(l1) ||
+                        !isValidCoord(r0) || !isValidCoord(r1)) continue;
+
+                    // Re-normalize the four quad corners relative to l0
+                    const quad = normalizeLonContinuity([l0, l1, r1, r0]);
+                    const lons = quad.map(c => c[0]);
+                    // Skip degenerate quads that span more than a hemisphere
+                    if (Math.max(...lons) - Math.min(...lons) > 180) continue;
+
+                    const positions = quad.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+                    const entity = this.viewer.entities.add({
+                        polygon: {
+                            hierarchy: new Cesium.PolygonHierarchy(positions),
+                            material: fillColor.withAlpha(fillAlpha),
+                            outline: false,
+                            height: 0,
+                            classificationType: Cesium.ClassificationType.TERRAIN
+                        }
+                    });
+                    this.coverageSwathEntities.get(noradId).push(entity);
+                }
+            });
+        };
 
         const sensor_type = coverageData.sensor_type || 'optical';
         const is_sar = sensor_type === 'SAR';
 
-        // Render day coverage (cyan)
-        if (coverageData.day_polygons && coverageData.day_polygons.length > 0) {
-            coverageData.day_polygons.forEach((polygon, idx) => {
-                if (polygon.coordinates && polygon.coordinates.length > 0) {
-                    const coords = polygon.coordinates[0];
+        // Day coverage (cyan)
+        if (coverageData.day_polygons && coverageData.day_polygons.length > 0)
+            renderSwathPolygons(coverageData.day_polygons, Cesium.Color.CYAN, 0.25);
 
-                    // Check for antimeridian crossing
-                    let crossesAntimeridian = false;
-                    for (let i = 1; i < coords.length; i++) {
-                        if (Math.abs(coords[i][0] - coords[i - 1][0]) > 180) {
-                            crossesAntimeridian = true;
-                            break;
-                        }
-                    }
+        // Night coverage (dark blue) — optical sensors only
+        if (!is_sar && coverageData.night_polygons && coverageData.night_polygons.length > 0)
+            renderSwathPolygons(coverageData.night_polygons, Cesium.Color.DARKBLUE, 0.2);
 
-                    if (crossesAntimeridian) {
-                        console.log(`Skipping day polygon ${idx} - crosses antimeridian`);
-                        return;
-                    }
-
-                    const positions = [];
-                    coords.forEach(coord => {
-                        positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-                    });
-
-                    const entity = this.viewer.entities.add({
-                        name: `Day Coverage ${noradId}-${idx}`,
-                        polygon: {
-                            hierarchy: new Cesium.PolygonHierarchy(positions),
-                            material: Cesium.Color.CYAN.withAlpha(0.25),
-                            outline: true,
-                            outlineColor: Cesium.Color.CYAN.withAlpha(0.7),
-                            outlineWidth: 2,
-                            height: 0,
-                            zIndex: 100,
-                            classificationType: Cesium.ClassificationType.TERRAIN
-                        }
-                    });
-
-                    this.coverageSwathEntities.get(noradId).push(entity);
-                }
-            });
-        }
-
-        // Render night coverage (dark blue) - only for optical sensors
-        if (!is_sar && coverageData.night_polygons && coverageData.night_polygons.length > 0) {
-            coverageData.night_polygons.forEach((polygon, idx) => {
-                if (polygon.coordinates && polygon.coordinates.length > 0) {
-                    const coords = polygon.coordinates[0];
-
-                    // Check for antimeridian crossing
-                    let crossesAntimeridian = false;
-                    for (let i = 1; i < coords.length; i++) {
-                        if (Math.abs(coords[i][0] - coords[i - 1][0]) > 180) {
-                            crossesAntimeridian = true;
-                            break;
-                        }
-                    }
-
-                    if (crossesAntimeridian) {
-                        console.log(`Skipping night polygon ${idx} - crosses antimeridian`);
-                        return;
-                    }
-
-                    const positions = [];
-                    coords.forEach(coord => {
-                        positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-                    });
-
-                    const entity = this.viewer.entities.add({
-                        name: `Night Coverage ${noradId}-${idx}`,
-                        polygon: {
-                            hierarchy: new Cesium.PolygonHierarchy(positions),
-                            material: Cesium.Color.DARKBLUE.withAlpha(0.2),
-                            outline: true,
-                            outlineColor: Cesium.Color.DARKBLUE.withAlpha(0.6),
-                            outlineWidth: 2,
-                            height: 0,
-                            zIndex: 90,
-                            classificationType: Cesium.ClassificationType.TERRAIN
-                        }
-                    });
-
-                    this.coverageSwathEntities.get(noradId).push(entity);
-                }
-            });
-        }
-
-        // Render ground track (center line)
+        // Ground track — split into separate polylines at antimeridian crossings
         if (coverageData.ground_track && coverageData.ground_track.length > 1) {
-            const positions = [];
-            coverageData.ground_track.forEach(coord => {
-                positions.push(Cesium.Cartesian3.fromDegrees(coord[0], coord[1], 0));
-            });
-
-            const trackEntity = this.viewer.entities.add({
-                name: `Ground Track ${noradId}`,
-                polyline: {
-                    positions: positions,
-                    width: 2,
-                    material: Cesium.Color.YELLOW.withAlpha(0.7),
-                    zIndex: 110,
-                    clampToGround: true
+            const validTrack = coverageData.ground_track.filter(isValidCoord);
+            const segments = [];
+            let seg = [validTrack[0]];
+            for (let i = 1; i < validTrack.length; i++) {
+                const prevLon = seg[seg.length - 1][0];
+                const currLon = validTrack[i][0];
+                if (Math.abs(currLon - prevLon) > 180) {
+                    if (seg.length > 1) segments.push(seg);
+                    seg = [validTrack[i]];
+                } else {
+                    seg.push(validTrack[i]);
                 }
-            });
+            }
+            if (seg.length > 1) segments.push(seg);
 
-            this.coverageSwathEntities.get(noradId).push(trackEntity);
+            segments.forEach((segment) => {
+                const positions = segment.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+                const entity = this.viewer.entities.add({
+                    polyline: {
+                        positions,
+                        width: 2,
+                        material: Cesium.Color.YELLOW.withAlpha(0.7),
+                        clampToGround: true
+                    }
+                });
+                this.coverageSwathEntities.get(noradId).push(entity);
+            });
         }
 
         console.log(`✅ Rendered coverage swath: ${this.coverageSwathEntities.get(noradId)?.length || 0} entities`);

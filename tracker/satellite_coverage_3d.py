@@ -173,6 +173,11 @@ class GlobeAccurateCoverageCalculator:
             right_point = self.geod.Direct(lat, lon, azimuth + 90, half_swath_km)
             right_edge.append([right_point['lon2'], right_point['lat2']])
 
+        # Normalize longitude continuity so antimeridian crossings are handled
+        center_track = self._normalize_lon_array(center_track)
+        left_edge = self._normalize_lon_array(left_edge)
+        right_edge = self._normalize_lon_array(right_edge, ref_start=left_edge[0][0])
+
         # Create day/night segments
         day_polygons = self._create_illumination_segments(positions, left_edge, right_edge, True)
         night_polygons = self._create_illumination_segments(positions, left_edge, right_edge, False)
@@ -194,57 +199,70 @@ class GlobeAccurateCoverageCalculator:
             'night_polygons': night_polygons
         }
 
+    def _normalize_lon_array(self, coords: List, ref_start: float = None) -> List:
+        """Normalize longitude array for continuity — no >180° jumps between consecutive points."""
+        if not coords:
+            return coords
+        normalized = []
+        prev = ref_start if ref_start is not None else coords[0][0]
+        for lon, lat in coords:
+            while lon - prev > 180:
+                lon -= 360
+            while lon - prev < -180:
+                lon += 360
+            normalized.append([lon, lat])
+            prev = lon
+        return normalized
+
+    _SWATH_CHUNK_SIZE = 8  # max track-points per polygon segment (~14 min of orbit per chunk)
+
     def _create_illumination_segments(self, positions: List[Dict],
                                      left_edge: List, right_edge: List,
                                      is_day: bool) -> List[Dict]:
-        """Create polygons for continuous day or night segments"""
+        """Create small polygon quad-strips for continuous day or night periods."""
         polygons = []
         current_segment = []
+
+        def flush(seg):
+            if len(seg) < 2:
+                return
+            chunk_size = self._SWATH_CHUNK_SIZE
+            # Stride by chunk_size-1 so adjacent chunks share one point (visual continuity)
+            for chunk_start in range(0, len(seg) - 1, chunk_size - 1):
+                chunk = seg[chunk_start:chunk_start + chunk_size]
+                if len(chunk) < 2:
+                    continue
+                polygon = self._create_segment_polygon(chunk, left_edge, right_edge)
+                if polygon:
+                    polygons.append(polygon)
 
         for i, pos in enumerate(positions):
             if pos['daytime'] == is_day:
                 current_segment.append(i)
             else:
-                # Illumination changed
-                if len(current_segment) >= 2:
-                    polygon = self._create_segment_polygon(
-                        current_segment, left_edge, right_edge
-                    )
-                    if polygon:
-                        polygons.append(polygon)
+                flush(current_segment)
                 current_segment = []
 
-        # Handle last segment
-        if len(current_segment) >= 2:
-            polygon = self._create_segment_polygon(
-                current_segment, left_edge, right_edge
-            )
-            if polygon:
-                polygons.append(polygon)
-
+        flush(current_segment)
         return polygons
 
     def _create_segment_polygon(self, indices: List[int],
                                 left_edge: List, right_edge: List) -> Optional[Dict]:
-        """Create polygon for a segment"""
+        """Create closed polygon ring from a slice of the swath edges."""
         if len(indices) < 2:
             return None
 
         start_idx = indices[0]
         end_idx = indices[-1]
 
-        # Get segment edges
-        seg_left = left_edge[start_idx:end_idx+1]
-        seg_right = right_edge[start_idx:end_idx+1]
+        seg_left = left_edge[start_idx:end_idx + 1]
+        seg_right = right_edge[start_idx:end_idx + 1]
 
-        # Check for antimeridian crossing
-        all_coords = seg_left + seg_right
-        for i in range(1, len(all_coords)):
-            if abs(all_coords[i][0] - all_coords[i-1][0]) > 180:
-                # Skip segments crossing antimeridian
-                return None
+        if len(seg_left) < 2 or len(seg_right) < 2:
+            return None
 
-        # Create closed polygon
+        # Ring: left edge forward + right edge backward + close
+        # Longitudes are already normalized for continuity by _create_geodesic_swath
         coords = seg_left + list(reversed(seg_right)) + [seg_left[0]]
 
         return {
