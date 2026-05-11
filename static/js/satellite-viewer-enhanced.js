@@ -185,9 +185,14 @@ class SatelliteViewer {
                 }),
                 new Cesium.ProviderViewModel({
                     name: 'OpenStreetMap',
-                    tooltip: 'OpenStreetMap — community-maintained world map',
+                    tooltip: 'OpenStreetMap — community-maintained world map (direct tiles)',
                     iconUrl: Cesium.buildModuleUrl('Widgets/Images/ImageryProviders/openStreetMap.png'),
-                    creationFunction: () => _tileProvider('osm', '© OpenStreetMap contributors'),
+                    creationFunction: () => new Cesium.OpenStreetMapImageryProvider({
+                        url: 'https://tile.openstreetmap.org/',
+                        fileExtension: 'png',
+                        maximumLevel: 19,
+                        credit: new Cesium.Credit('© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors', true),
+                    }),
                 }),
                 new Cesium.ProviderViewModel({
                     name: 'Topo Map',
@@ -277,7 +282,7 @@ class SatelliteViewer {
                 terrainProvider: new Cesium.EllipsoidTerrainProvider(),
                 imageryProvider: false,          // let the picker control the base layer
                 imageryProviderViewModels: imageryViewModels,
-                selectedImageryProviderViewModel: imageryViewModels[0],
+                selectedImageryProviderViewModel: imageryViewModels[1],  // OSM as default
                 baseLayerPicker: true,
                 geocoder: false,
                 homeButton: true,
@@ -2203,13 +2208,12 @@ class SatelliteViewer {
         this.clearCoverageSwath(noradId);
         this.coverageSwathEntities.set(noradId, []);
 
-        // --- coordinate helpers ---
+        // --- coordinate helpers (unchanged) ---
 
         const isValidCoord = (c) =>
             c && c.length >= 2 && isFinite(c[0]) && isFinite(c[1]) &&
             c[1] >= -90 && c[1] <= 90;
 
-        // Unwrap longitudes so no consecutive jump exceeds 180°
         const normalizeLonContinuity = (coords) => {
             if (!coords.length) return coords;
             const out = [[coords[0][0], coords[0][1]]];
@@ -2235,13 +2239,15 @@ class SatelliteViewer {
             return out;
         };
 
-        // --- swath polygon renderer ---
+        // --- build GeometryInstances from quad strips ---
+        // Uses GroundPrimitive (stencil-based) instead of entity polygons so the
+        // swath renders correctly regardless of depth buffer precision — which is
+        // unusable at Earth-surface scales given the near=0.1 / far=5e10 frustum.
 
-        const renderSwathPolygons = (polygons, fillColor, fillAlpha) => {
+        const buildQuadInstances = (polygons, color, alpha) => {
+            const instances = [];
             polygons.forEach((polygon) => {
                 if (!polygon.coordinates || !polygon.coordinates.length) return;
-
-                // Validate, strip closing duplicate, deduplicate
                 let coords = polygon.coordinates[0].filter(isValidCoord);
                 if (coords.length > 1) {
                     const f = coords[0], l = coords[coords.length - 1];
@@ -2250,18 +2256,13 @@ class SatelliteViewer {
                 }
                 coords = removeDuplicates(coords);
                 if (coords.length < 4) return;
-
-                // Unwrap longitude continuity across the full ring
                 coords = normalizeLonContinuity(coords);
 
-                // Ring layout from backend: left edge forward [0..N-1] + right edge backward [N..end]
-                // Split and un-reverse the right half so index i matches track step i
                 const N = Math.floor(coords.length / 2);
                 if (N < 2) return;
                 const leftEdge = coords.slice(0, N);
                 const rightEdge = coords.slice(N).reverse();
 
-                // Render as connected quad strips — one quad per track step
                 const segCount = Math.min(leftEdge.length, rightEdge.length) - 1;
                 for (let i = 0; i < segCount; i++) {
                     const l0 = leftEdge[i], l1 = leftEdge[i + 1];
@@ -2269,39 +2270,61 @@ class SatelliteViewer {
                     if (!isValidCoord(l0) || !isValidCoord(l1) ||
                         !isValidCoord(r0) || !isValidCoord(r1)) continue;
 
-                    // Re-normalize the four quad corners relative to l0
                     const quad = normalizeLonContinuity([l0, l1, r1, r0]);
                     const lons = quad.map(c => c[0]);
-                    // Skip degenerate quads that span more than a hemisphere
                     if (Math.max(...lons) - Math.min(...lons) > 180) continue;
 
-                    const positions = quad.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
-                    const entity = this.viewer.entities.add({
-                        polygon: {
-                            hierarchy: new Cesium.PolygonHierarchy(positions),
-                            material: fillColor.withAlpha(fillAlpha),
-                            outline: false,
-                            height: 0,
-                            classificationType: Cesium.ClassificationType.TERRAIN
-                        }
-                    });
-                    this.coverageSwathEntities.get(noradId).push(entity);
+                    // No height — GroundPrimitive drapes directly onto the terrain surface
+                    const positions = quad.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
+                    try {
+                        instances.push(new Cesium.GeometryInstance({
+                            geometry: new Cesium.PolygonGeometry({
+                                polygonHierarchy: new Cesium.PolygonHierarchy(positions),
+                                vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT
+                            }),
+                            attributes: {
+                                color: Cesium.ColorGeometryInstanceAttribute.fromColor(
+                                    color.withAlpha(alpha)
+                                )
+                            }
+                        }));
+                    } catch (e) {
+                        // skip malformed quads silently
+                    }
                 }
             });
+            return instances;
         };
 
+        const items = this.coverageSwathEntities.get(noradId);
         const sensor_type = coverageData.sensor_type || 'optical';
         const is_sar = sensor_type === 'SAR';
 
+        const addGroundPrimitive = (instances) => {
+            if (!instances.length) return;
+            const prim = this.viewer.scene.groundPrimitives.add(
+                new Cesium.GroundPrimitive({
+                    geometryInstances: instances,
+                    appearance: new Cesium.PerInstanceColorAppearance({
+                        flat: true,
+                        translucent: true
+                    }),
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                    asynchronous: false
+                })
+            );
+            items.push({ isPrimitive: true, primitive: prim });
+        };
+
         // Day coverage (cyan)
         if (coverageData.day_polygons && coverageData.day_polygons.length > 0)
-            renderSwathPolygons(coverageData.day_polygons, Cesium.Color.CYAN, 0.25);
+            addGroundPrimitive(buildQuadInstances(coverageData.day_polygons, Cesium.Color.CYAN, 0.35));
 
         // Night coverage (dark blue) — optical sensors only
         if (!is_sar && coverageData.night_polygons && coverageData.night_polygons.length > 0)
-            renderSwathPolygons(coverageData.night_polygons, Cesium.Color.DARKBLUE, 0.2);
+            addGroundPrimitive(buildQuadInstances(coverageData.night_polygons, Cesium.Color.DARKBLUE, 0.3));
 
-        // Ground track — split into separate polylines at antimeridian crossings
+        // Ground track — entity polylines with clampToGround (separate rendering path, no depth issue)
         if (coverageData.ground_track && coverageData.ground_track.length > 1) {
             const validTrack = coverageData.ground_track.filter(isValidCoord);
             const segments = [];
@@ -2319,7 +2342,7 @@ class SatelliteViewer {
             if (seg.length > 1) segments.push(seg);
 
             segments.forEach((segment) => {
-                const positions = segment.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1], 0));
+                const positions = segment.map(c => Cesium.Cartesian3.fromDegrees(c[0], c[1]));
                 const entity = this.viewer.entities.add({
                     polyline: {
                         positions,
@@ -2328,29 +2351,30 @@ class SatelliteViewer {
                         clampToGround: true
                     }
                 });
-                this.coverageSwathEntities.get(noradId).push(entity);
+                items.push({ isPrimitive: false, entity });
             });
         }
 
-        console.log(`✅ Rendered coverage swath: ${this.coverageSwathEntities.get(noradId)?.length || 0} entities`);
+        console.log(`✅ Rendered coverage swath: ${items.length} scene items`);
     }
 
     clearCoverageSwath(noradId) {
-        if (noradId) {
-            const entities = this.coverageSwathEntities.get(noradId);
-            if (entities) {
-                entities.forEach(entity => {
-                    this.viewer.entities.remove(entity);
-                });
-                this.coverageSwathEntities.delete(noradId);
-            }
-        } else {
-            // Clear all
-            this.coverageSwathEntities.forEach(entities => {
-                entities.forEach(entity => {
-                    this.viewer.entities.remove(entity);
-                });
+        const clearItems = (items) => {
+            if (!items) return;
+            items.forEach(item => {
+                if (item.isPrimitive) {
+                    this.viewer.scene.groundPrimitives.remove(item.primitive);
+                } else {
+                    this.viewer.entities.remove(item.entity);
+                }
             });
+        };
+
+        if (noradId) {
+            clearItems(this.coverageSwathEntities.get(noradId));
+            this.coverageSwathEntities.delete(noradId);
+        } else {
+            this.coverageSwathEntities.forEach(items => clearItems(items));
             this.coverageSwathEntities.clear();
         }
     }
@@ -2431,7 +2455,8 @@ class SatelliteViewer {
                 outline: true,
                 outlineColor: color.withAlpha(0.8),
                 outlineWidth: 2,
-                height: 0
+                height: 0,
+                classificationType: Cesium.ClassificationType.TERRAIN
             }
         });
     }
